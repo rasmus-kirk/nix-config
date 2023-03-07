@@ -54,6 +54,27 @@ in {
 	# Allows installed fonts to be discoverable by OS
 	fonts.fontconfig.enable = true;
 
+	# Set fonts
+	xdg.configFile = {
+		"fontconfig/fonts.conf".text = ''
+			<alias>
+				<family>monospace</family>
+				<prefer>
+					<family>FiraCode Nerd Font</family>
+					<family>Inconsolata</family>
+					<family>DejaVu Sans Mono</family>
+				</prefer>
+			</alias>
+		'';
+	};
+
+	nix = {
+		package = pkgs.nix;
+		settings = {
+			experimental-features = [ "nix-command" "flakes" ];
+		};
+	};
+
 	programs.zsh = {
 		enable = true;
 		enableAutosuggestions = true;
@@ -71,38 +92,48 @@ in {
 		'';
 
 		initExtra = ''
-			lfcd () {
-				tmp="$(mktemp)"
-				# `command` is needed in case `lfcd` is aliased to `lf`
-				command lf -last-dir-path="$tmp" "$@"
-				if [ -f "$tmp" ]; then
-					dir="$(cat "$tmp")"
-					rm -f "$tmp"
-					if [ -d "$dir" ]; then
-						if [ "$dir" != "$(pwd)" ]; then
-							cd "$dir"
-						fi
-					fi
-				fi
+			function j() {
+				ID="$$"
+				mkdir -p /tmp/$USER
+				OUTPUT_FILE="/tmp/$USER/joshuto-cwd-$ID"
+				env joshuto --output-file "$OUTPUT_FILE" $@
+				exit_code=$?
+
+				case "$exit_code" in
+					# regular exit
+					0)
+						;;
+					# output contains current directory
+					101)
+						JOSHUTO_CWD=$(cat "$OUTPUT_FILE")
+						cd "$JOSHUTO_CWD"
+						;;
+					# output selected files
+					102)
+						;;
+					*)
+						echo "Exit code: $exit_code"
+						;;
+				esac
 			}
-			alias n="lfcd"
 
 			export EDITOR=kak
 			export NIX_PATH=''${NIX_PATH:+$NIX_PATH:}$HOME/.nix-defexpr/channels:/nix/var/nix/profiles/per-user/root/channels
+
+			# Use bat
+			export MANPAGER="sh -c 'col -bx | bat -l man -p'"
+			alias fzf="fzf --preview 'bat --color=always --style=numbers --line-range=:500 {}'"
+			alias bathelp='bat --plain --language=help'
+			help() {
+			    "$@" --help 2>&1 | bathelp
+			}
 
 			alias rustfmt="cargo +nightly fmt"
 		'';
 
 		plugins = [
+			# TODO: update this
 			{
-				name = "gitit";
-				src = pkgs.fetchFromGitHub {
-					owner = "peterhurford";
-					repo = "git-it-on.zsh";
-					rev = "4827030e1ead6124e3e7c575c0dd375a9c6081a2";
-					sha256 = "01xsqhygbxmv38vwfzvs7b16iq130d2r917a5dnx8l4aijx282j2";
-				};
-			} {
 				name = "powerlevel9k";
 				file = "powerlevel9k.zsh-theme";
 				src = pkgs.fetchFromGitHub {
@@ -116,7 +147,7 @@ in {
 				src = pkgs.fetchFromGitHub {
 					owner = "zsh-users";
 					repo = "zsh-completions";
-					rev = "0.27.0";
+					rev = "0.34.0";
 					sha256 = "1c2xx9bkkvyy0c6aq9vv3fjw7snlm0m5bjygfk5391qgjpvchd29";
 				};
 			} {
@@ -327,6 +358,13 @@ in {
 
 	programs.ssh.enable = true;
 
+	programs.bat = {
+		enable = true;
+		config = {
+			theme = "gruvbox-dark";
+		};
+	};
+
 	# TODO: Create lf module...
 	programs.lf = {
 		enable = true;
@@ -340,6 +378,7 @@ in {
 
 	home.packages = with pkgs; [
 		vscode
+		joshuto
 		keepassxc
 		slack
 		librewolf
@@ -350,9 +389,12 @@ in {
 		gnome.gnome-tweaks
 		nerdfonts
 		fira-code
+		silver-searcher
 		mpv
+		jq
 		htop
 		signal-desktop
 		tldr
+		bat
 	];
 }
