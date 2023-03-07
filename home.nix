@@ -125,7 +125,7 @@ in {
 			alias fzf="fzf --preview 'bat --color=always --style=numbers --line-range=:500 {}'"
 			alias bathelp='bat --plain --language=help'
 			help() {
-			    "$@" --help 2>&1 | bathelp
+				"$@" --help 2>&1 | bathelp
 			}
 
 			alias rustfmt="cargo +nightly fmt"
@@ -378,23 +378,28 @@ in {
 
 	home.packages = with pkgs; [
 		vscode
-		joshuto
 		keepassxc
 		slack
 		librewolf
 		thunderbird
-		wl-clipboard
 		chromium
-		trash-cli
 		gnome.gnome-tweaks
-		nerdfonts
-		fira-code
-		silver-searcher
 		mpv
-		jq
-		htop
 		signal-desktop
-		tldr
-		bat
+		# Fonts
+			nerdfonts
+			fira-code
+		# Misc Terminal Tools
+			joshuto
+			wl-clipboard
+			trash-cli
+			silver-searcher
+			jq
+			htop
+			tldr
+			bat
+		# Document handling
+			texlive.combined.scheme-full
+			pandoc
 	];
 }
