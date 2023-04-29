@@ -1,8 +1,10 @@
 # My home manager config
-
-{ config, pkgs, ... }:
+{ pkgs, config, ... }:
 let
 	mail = "mail@rasmuskirk.com";
+	secretDir = "${config.home.homeDirectory}/.secret";
+
+	# Gruvbox theme colors
 	colorscheme = {
 		bg = "282828";
 		fg = "ebdbb2";
@@ -29,6 +31,46 @@ let
 			teal   = "8ec07c";
 		};
 	};
+
+	word-of-the-day = pkgs.writeShellScript "word-of-the-day" ''
+		path=${config.xdg.stateHome}/word-of-the-day
+		mkdir -p $path
+		echo ${pkgs.jiten}/bin/jiten
+		if ! [ "$(cat $path/last-update.txt)" = "$(date +"%Y-%m-%d")" ]; then
+			${pkgs.jiten}/bin/jiten --colour -v jmdict --romaji -n 1 +random | tail -n +3 > $path/japanese.txt
+			echo "" >> $path/japanese.txt
+			date +"%Y-%m-%d" > $path/last-update.txt
+		fi
+	'';
+
+	hm-clean = pkgs.writeShellScriptBin "hm-clean" ''
+		# Old command: nix-env --delete-generations 30d
+
+		# Delete old home-manager profiles
+		home-manager expire-generations '-30 days'
+		# Delete old nix profiles
+		nix profile wipe-history --older-than 30d
+		# Optimize space
+		nix store gc
+		nix store optimise
+	'';
+
+	hm-update = pkgs.writeShellScriptBin "hm-update" ''
+		nix-channel --update
+	'';
+
+	hm-upgrade = pkgs.writeShellScriptBin "hm-upgrade" ''
+		# Update tldr DB
+		${pkgs.tealdeer}/bin/tldr --update
+		# Update, switch to new config, and cleanup
+		${hm-update}/bin/hm-update
+		${hm-rebuild}/bin/hm-rebuild
+		${hm-clean}/bin/hm-clean
+	'';
+
+	hm-rebuild = pkgs.writeShellScriptBin "hm-rebuild" ''
+		home-manager -I home-manager=$HOME/desktop/personal/home-manager switch
+	'';
 in {
 	home.username = "user";
 	home.homeDirectory = "/home/user";
@@ -68,10 +110,58 @@ in {
 		'';
 	};
 
+	xdg.userDirs = {
+		enable = true;
+		createDirectories = true;
+
+		desktop = "${config.home.homeDirectory}/desktop";
+		publicShare = "${config.home.homeDirectory}/public";
+		templates = "${config.home.homeDirectory}/templates";
+		documents = "${config.home.homeDirectory}/documents";
+		download = "${config.home.homeDirectory}/downloads/unsorted";
+		music = "${config.home.homeDirectory}/music";
+		pictures = "${config.home.homeDirectory}/pictures";
+		videos = "${config.home.homeDirectory}/videos";
+	};
+
+	programs.ssh = {
+		enable = true;
+		extraConfig = ''
+			IdentityFile ${secretDir}/ssh.key
+		'';
+	};
+
 	nix = {
 		package = pkgs.nix;
 		settings = {
 			experimental-features = [ "nix-command" "flakes" ];
+		};
+	};
+
+	systemd.user = {
+		timers = {
+			word-of-the-day = {
+				Unit.Description = "Gets a japanese word from the Jiten dictionary";
+
+				Timer = {
+					OnCalendar="daily";
+					Persistent="true";
+					RandomizedDelaySec="1h";
+				};
+
+				Install.WantedBy=["timers.target"];
+			};
+		};
+
+		services = {
+			word-of-the-day = {
+				Unit.Description = "Updates the daily japanese word";
+
+				Service = {
+					ExecStart = "${word-of-the-day}";
+					Type = "oneshot";
+				};
+			};
 		};
 	};
 
@@ -81,17 +171,18 @@ in {
 		enableSyntaxHighlighting = true;
 		oh-my-zsh = {
 			enable = true;
-			# custom = "${./zsh/custom}";
-			# theme = "gruvbox";
 		};
 
 		profileExtra = ''
 			export XDG_DATA_DIRS="$HOME/.nix-profile/share:$XDG_DATA_DIRS"
 			export NIX_PATH=''${NIX_PATH:+$NIX_PATH:}$HOME/.nix-defexpr/channels:/nix/var/nix/profiles/per-user/root/channels
-			export PATH=$PATH:~/.cargo/bin
+			export PATH=$PATH:~/.cargo/bin:~/.local/bin
+			export LD_LIBRARY_PATH="${pkgs.zlib}/lib:$LD_LIBRARY_PATH";
 		'';
 
 		initExtra = ''
+			cat ~/.local/state/word-of-the-day/japanese.txt
+		
 			function j() {
 				ID="$$"
 				mkdir -p /tmp/$USER
@@ -117,30 +208,47 @@ in {
 				esac
 			}
 
-			export EDITOR=kak
+			export EDITOR=hx
 			export NIX_PATH=''${NIX_PATH:+$NIX_PATH:}$HOME/.nix-defexpr/channels:/nix/var/nix/profiles/per-user/root/channels
 
 			# Use bat
 			export MANPAGER="sh -c 'col -bx | bat -l man -p'"
 			alias fzf="fzf --preview 'bat --color=always --style=numbers --line-range=:500 {}'"
+			alias cat="bat"
+			alias htop="btop"
 			alias bathelp='bat --plain --language=help'
 			help() {
 				"$@" --help 2>&1 | bathelp
 			}
 
+			alias nix-shell="nix-shell --run 'zsh'"
 			alias rustfmt="cargo +nightly fmt"
+			alias diff="git diff --no-index"
+			alias ls="exa --icons"
+			alias f="foot </dev/null &>/dev/null zsh &"
+			alias g="git"
+			alias todo="$EDITOR ~/.local/share/todo.md"
+			gc() {
+				git clone --recursive $(wl-paste)
+			}
+
+			# What is this?
+			if [[ $1 == eval ]]
+			then
+				"$@"
+			set --
+			fi
 		'';
 
 		plugins = [
-			# TODO: update this
 			{
-				name = "powerlevel9k";
-				file = "powerlevel9k.zsh-theme";
+				name = "gruvbox-powerline";
+				file = "gruvbox.zsh-theme";
 				src = pkgs.fetchFromGitHub {
-					owner = "bhilburn";
-					repo = "powerlevel9k";
-					rev = "571a859413866897cf962396f02f65a288f677ac";
-					sha256 = "0xwa1v3c4p3cbr9bm7cnsjqvddvmicy9p16jp0jnjdivr6y9s8ax";
+					owner = "rasmus-kirk";
+					repo = "gruvbox-powerline";
+					rev = "bf5d9422acadfa7b4e834e7117bc8dbc1947004e";
+					sha256 = "sha256-bEVR0bKcUBLM8QdyyIWnmnxNl9aCusS8BS6D/qbnIig=";
 				};
 			} {
 				name = "zsh-completions";
@@ -150,15 +258,7 @@ in {
 					rev = "0.34.0";
 					sha256 = "1c2xx9bkkvyy0c6aq9vv3fjw7snlm0m5bjygfk5391qgjpvchd29";
 				};
-			} {
-				name = "nix-shell";
-				src = pkgs.fetchFromGitHub {
-					owner = "chisui";
-					repo = "zsh-nix-shell";
-					rev = "03a1487655c96a17c00e8c81efdd8555829715f8";
-					sha256 = "1avnmkjh0zh6wmm87njprna1zy4fb7cpzcp8q7y03nw3aq22q4ms";
-				};
-			}
+			} 
 		];
 	};
 
@@ -167,7 +267,7 @@ in {
 		settings = {
 			main = {
 				term = "xterm-256color";
-				font = "monospace:pixelsize=16";
+				font = "monospace:pixelsize=15";
 			};
 			colors = {
 				alpha = 0.85;
@@ -314,8 +414,82 @@ in {
 
 	programs.helix = {
 		enable = true;
+
 		settings = {
 			theme = "gruvbox";
+
+			editor = {
+				mouse = true;
+				auto-format = false;
+				line-number = "relative";
+				shell = ["zsh" "-c"];
+				bufferline = "always";
+
+				lsp = {
+					display-messages = true;
+					display-inlay-hints = true;
+				};
+
+				cursor-shape = {
+					insert = "bar";
+					normal = "block";
+				};
+
+				file-picker = {
+					hidden = false;
+				};
+
+				whitespace = {
+					render = {
+						space = "none";
+						nbsp = "all";
+						tab = "all";
+						newline = "all";
+					};
+					characters = {
+						newline = "⌄";
+					};
+				};
+			};
+
+			# Make Helix more like kakoune
+			keys.normal = {
+				# TODO: make this depend on the helix max-width
+				#"," = "shell_pipe fmt -w 80";
+			
+				W = "extend_next_word_end";
+				B = "extend_prev_word_start";
+				L = "extend_char_right";
+				H = "extend_char_left";
+				J = "extend_line_down";
+				K = "extend_line_up";
+				N = "extend_search_next";
+				"A-n" = "search_prev";
+				"A-N" = "extend_search_prev";
+				X = "extend_line_above";
+
+				"A-o" = "add_newline_below";
+				"A-O" = "add_newline_above";
+
+				G = {
+					l = "extend_to_line_end";
+					h = "extend_to_line_start";
+				};
+
+				"A-l" = "goto_next_buffer";
+				"A-h" = "goto_previous_buffer";
+
+				"C-h" = "jump_backward";
+				"C-k" = "half_page_up";
+				"C-j" = "half_page_down";
+				"C-l" = "jump_forward";
+
+				g = {
+					k = "goto_file_start";
+					j = "goto_file_end";
+					i = "goto_first_nonwhitespace";
+				};
+			};
 		};
 	};
 
@@ -323,16 +497,42 @@ in {
 		enable = true;
 		userEmail = mail;
 		userName = "rasmus-kirk";
-		delta.enable = true;
+		delta = {
+			enable = true;
+			options = {
+				features = "gruvmax-fang"; 
+			};
+		};
+		includes = [
+			# Delta plugins
+			{
+				path = pkgs.fetchFromGitHub {
+				owner = "dandavison";
+					repo = "delta";
+					rev = "85e2f8e490498629a806af01b960e0510bff3973";
+					sha256 = "sha256-vEv3HdLeI3ZXBCSmvd0x7DgEu+DiQqEwFf+WLDdL+4U=";
+				} + "/themes.gitconfig";
+			}
+		];
 		aliases = {
 			update = "submodule update --init --recursive";
+			unstage = "restore --staged";
 			d = "diff";
 			dc = "diff --cached";
-			c = "clone --recursive $(wl-paste)";
+			c = "commit";
+			a = "add .";
+			ca = "commit -a";
+			s = "status";
+			su = "status -uno";
+			co = "checkout --recurse-submodules";
+			l = "log";
 		};
 		extraConfig = {
 			push = {
 				autoSetupRemote = true;
+			};
+			pull = {
+				rebase = true;
 			};
 		};
 	};
@@ -356,8 +556,6 @@ in {
 		};
 	};
 
-	programs.ssh.enable = true;
-
 	programs.bat = {
 		enable = true;
 		config = {
@@ -365,41 +563,357 @@ in {
 		};
 	};
 
-	# TODO: Create lf module...
-	programs.lf = {
+	programs.joshuto = {
 		enable = true;
-		keybindings = {
-			"." = "set hidden!";
-			D   = "trash";
-			x   = "trash";
-			bc  = "cd ~/Desktop/concordium";
+
+		settings = {
+			display = {
+				automatically_count_lines = true;
+				show_icons = true;
+			};
+		};
+
+		keymap = {
+			default_view.keymap = [
+				#{ keys = [ "escape" ]; command = "escape"; }
+				{ keys = [ "q" ]; command = "quit --output-current-directory"; }
+				{ keys = [ "Q" ]; command = "close_tab"; }
+
+				{ keys = [ "R" ]; command = "reload_dirlist"; }
+				{ keys = [ "." ]; command = "toggle_hidden"; }
+				{ keys = [ "e" ]; command = "shell hx %s"; }
+
+				{ keys = [ "1" ]; command = "tab_switch_index 1"; }
+				{ keys = [ "2" ]; command = "tab_switch_index 2"; }
+				{ keys = [ "3" ]; command = "tab_switch_index 3"; }
+				{ keys = [ "4" ]; command = "tab_switch_index 4"; }
+				{ keys = [ "5" ]; command = "tab_switch_index 5"; }
+
+				# arrow keys
+				{ keys = [ "arrow_up" ]; command = "cursor_move_up"; }
+				{ keys = [ "arrow_down" ]; command = "cursor_move_down"; }
+				{ keys = [ "arrow_left" ]; command = "cd .."; }
+				{ keys = [ "arrow_right" ]; command = "open"; }
+				{ keys = [ "\n" ]; command = "open"; }
+				{ keys = [ "home" ]; command = "cursor_move_home"; }
+				{ keys = [ "end" ]; command = "cursor_move_end"; }
+				{ keys = [ "page_up" ]; command = "cursor_move_page_up"; }
+				{ keys = [ "page_down" ]; command = "cursor_move_page_down"; }
+				{ keys = [ "ctrl+u" ];   command = "cursor_move_page_up 0.5"; }
+				{ keys = [ "ctrl+d" ]; command = "cursor_move_page_down 0.5"; }
+
+				# vim-like keybindings
+				{ keys = [ "j" ]; command = "cursor_move_down"; }
+				{ keys = [ "k" ]; command = "cursor_move_up"; }
+				{ keys = [ "h" ]; command = "cd .."; }
+				{ keys = [ "l" ]; command = "open"; }
+				{ keys = [ "g" "g" ]; command = "cursor_move_home"; }
+				{ keys = [ "g" "k" ]; command = "cursor_move_home"; }
+				{ keys = [ "g" "j" ]; command = "cursor_move_end"; }
+				{ keys = [ "g" "e" ]; command = "cursor_move_end"; }
+
+				{ keys = [ "K" ]; command = "parent_cursor_move_up"; }
+				{ keys = [ "J" ]; command = "parent_cursor_move_down"; }
+
+				{ keys = [ "c" "d" ]; command = ":cd "; }
+				{ keys = [ "d" "d" ]; command = "cut_files"; }
+				{ keys = [ "y" "y" ]; command = "copy_files"; }
+				{ keys = [ "y" "n" ]; command = "copy_filename"; }
+				{ keys = [ "y" "." ]; command = "copy_filename_without_extension"; }
+				{ keys = [ "y" "p" ]; command = "copy_filepath"; }
+				{ keys = [ "y" "d" ]; command = "copy_dirpath"; }
+
+				{ keys = [ "d" "D" ]; command = "delete_files --foreground=true"; }
+
+				{ keys = [ "p" "p" ]; command = "paste_files"; }
+				{ keys = [ "p" "o" ]; command = "paste_files --overwrite=true"; }
+
+				{ keys = [ "a" ]; command = "rename_append"; }
+				{ keys = [ "A" ]; command = "rename_prepend"; }
+
+				{ keys = [ " " ]; command = "select --toggle=true"; }
+				{ keys = [ "%" ]; command = "select --all=true --toggle=true"; }
+
+				{ keys = [ "t" ]; command = "show_tasks --exit-key=t"; }
+				{ keys = [ "b" "b" ]; command = "bulk_rename"; }
+				{ keys = [ "=" ]; command = "set_mode"; }
+
+				{ keys = [ ":" ]; command = ":"; }
+				{ keys = [ ";" ]; command = ":"; }
+
+				{ keys = [ "'" ]; command = ":shell "; }
+				{ keys = [ "m" "d" ]; command = ":mkdir "; }
+				{ keys = [ "m" "j" ]; command = "shell sh -c 'foot zsh -is eval j > /dev/null 2>&1 &'"; }
+				{ keys = [ "m" "t" ]; command = "shell sh -c 'foot zsh > /dev/null 2>&1 &'"; }
+
+				{ keys = [ "m" "f" ]; command = ":touch "; }
+
+				{ keys = [ "r" ]; command = "bulk_rename"; }
+				{ keys = [ "ctrl+r" ]; command = ":rename "; }
+
+				{ keys = [ "/" ]; command = ":search_inc "; }
+				{ keys = [ "|" ]; command = "search_fzf"; }
+				{ keys = [ "\\" ]; command = "subdir_fzf"; }
+
+				{ keys = [ "n" ]; command = "search_next"; }
+				{ keys = [ "alt+n" ]; command = "search_prev"; }
+
+				{ keys = [ "s" "r" ]; command = "sort reverse"; }
+				{ keys = [ "s" "l" ]; command = "sort lexical"; }
+				{ keys = [ "s" "m" ]; command = "sort mtime"; }
+				{ keys = [ "s" "n" ]; command = "sort natural"; }
+				{ keys = [ "s" "s" ]; command = "sort size"; }
+				{ keys = [ "s" "e" ]; command = "sort ext"; }
+
+				{ keys = [ "~" ]; command = "cd ~/"; }
+				{ keys = [ "`" ]; command = "cd /"; }
+				{ keys = [ "?" ]; command = "help"; }
+			];
+
+			task_view.keymap = [
+				# arrow keys
+				{ keys = [ "arrow_up" ]; command = "cursor_move_up"; }
+				{ keys = [ "arrow_down" ]; command = "cursor_move_down"; }
+				{ keys = [ "home" ]; command = "cursor_move_home"; }
+				{ keys = [ "end" ]; command = "cursor_move_end"; }
+
+				# vim-like keybindings
+				{ keys = [ "j" ]; command = "cursor_move_down"; }
+				{ keys = [ "k" ]; command = "cursor_move_up"; }
+				{ keys = [ "g" "g" ]; command = "cursor_move_home"; }
+				{ keys = [ "g" "k" ]; command = "cursor_move_home"; }
+				{ keys = [ "g" "j" ]; command = "cursor_move_end"; }
+				{ keys = [ "g" "e" ]; command = "cursor_move_end"; }
+
+				{ keys = [ "w" ]; command = "show_tasks"; }
+				{ keys = [ "escape" ]; command = "show_tasks"; }
+				{ keys = [ "q" ]; command = "show_tasks"; }
+			];
+
+			help_view.keymap = [
+				# arrow keys
+				{ keys = [ "arrow_up" ]; command = "cursor_move_up"; }
+				{ keys = [ "arrow_down" ]; command = "cursor_move_down"; }
+				{ keys = [ "home" ]; command = "cursor_move_home"; }
+				{ keys = [ "end" ]; command = "cursor_move_end"; }
+
+				# vim-like keybindings
+				{ keys = [ "j" ]; command = "cursor_move_down"; }
+				{ keys = [ "k" ]; command = "cursor_move_up"; }
+				{ keys = [ "g" "g" ]; command = "cursor_move_home"; }
+				{ keys = [ "g" "k" ]; command = "cursor_move_home"; }
+				{ keys = [ "g" "j" ]; command = "cursor_move_end"; }
+				{ keys = [ "g" "e" ]; command = "cursor_move_end"; }
+
+				{ keys = [ "w" ]; command = "show_tasks"; }
+				{ keys = [ "escape" ]; command = "show_tasks"; }
+				{ keys = [ "q" ]; command = "show_tasks"; }
+			];
+		};
+
+		mimetype = {
+			class = {
+				audio_default = [{
+					command = "mpv";
+					args = [ "--" ];
+				} {
+					command = "mediainfo";
+					confirm_exit = true;
+				}];
+				video_default = [{
+					command = "mpv";
+					args = [ "--" ];
+				} {
+					command = "mediainfo";
+					confirm_exit = true;
+				}];
+				text_default = [
+					{ command = "hx"; }
+					{ command = "nano"; }
+				];
+				reader_default = [
+					{
+						command = "zathura";
+						fork = true;
+						silent = true;
+					}
+				];
+				libreoffice_default = [
+					{
+						command = "libreoffice";
+						fork = true;
+						silent = true;
+					}
+				];
+			};
+
+			extension = {
+				# Document
+				pdf."inherit"    = "reader_default"; 
+
+				# Images
+				avif."inherit"   = "image_default";
+				bmp."inherit"    = "image_default";
+				gif."inherit"    = "image_default";
+				heic."inherit"   = "image_default";
+				jpeg."inherit"   = "image_default";
+				jpe."inherit"    = "image_default";
+				jpg."inherit"    = "image_default";
+				pgm."inherit"    = "image_default";
+				png."inherit"    = "image_default";
+				ppm."inherit"    = "image_default";
+				webp."inherit"   = "image_default";
+
+				# Audio
+				flac."inherit"   = "audio_default";
+				m4a."inherit"    = "audio_default";
+				mp3."inherit"    = "audio_default";
+				ogg."inherit"    = "audio_default";
+				wav."inherit"    = "audio_default";
+
+				# Video
+				avi."inherit"    = "video_default";
+				av1."inherit"    = "video_default";
+				flv."inherit"    = "video_default";
+				mkv."inherit"    = "video_default";
+				m4v."inherit"    = "video_default";
+				mov."inherit"    = "video_default";
+				mp4."inherit"    = "video_default";
+				ts."inherit"     = "video_default";
+				webm."inherit"   = "video_default";
+				wmv."inherit"    = "video_default";
+
+				# Text
+				build."inherit"  = "text_default";
+				c."inherit"      = "text_default";
+				cmake."inherit"  = "text_default";
+				conf."inherit"   = "text_default";
+				cpp."inherit"    = "text_default";
+				css."inherit"    = "text_default";
+				csv."inherit"    = "text_default";
+				cu."inherit"     = "text_default";
+				ebuild."inherit" = "text_default";
+				eex."inherit"    = "text_default";
+				env."inherit"    = "text_default";
+				ex."inherit"     = "text_default";
+				exs."inherit"    = "text_default";
+				go."inherit"     = "text_default";
+				h."inherit"      = "text_default";
+				hpp."inherit"    = "text_default";
+				hs."inherit"     = "text_default";
+				html."inherit"   = "text_default";
+				ini."inherit"    = "text_default";
+				java."inherit"   = "text_default";
+				js."inherit"     = "text_default";
+				json."inherit"   = "text_default";
+				kt."inherit"     = "text_default";
+				lua."inherit"    = "text_default";
+				log."inherit"    = "text_default";
+				md."inherit"     = "text_default";
+				micro."inherit"  = "text_default";
+				ninja."inherit"  = "text_default";
+				nix."inherit"    = "text_default";
+				py."inherit"     = "text_default";
+				rkt."inherit"    = "text_default";
+				rs."inherit"     = "text_default";
+				scss."inherit"   = "text_default";
+				sh."inherit"     = "text_default";
+				srt."inherit"    = "text_default";
+				svelte."inherit" = "text_default";
+				toml."inherit"   = "text_default";
+				tsx."inherit"    = "text_default";
+				txt."inherit"    = "text_default";
+				vim."inherit"    = "text_default";
+				xml."inherit"    = "text_default";
+				yaml."inherit"   = "text_default";
+				yml."inherit"    = "text_default";
+			};
+
+			mimetype = {
+				mimetype.text = {
+					"inherit" = "text_default";
+				};
+			};
 		};
 	};
 
 	home.packages = with pkgs; [
+		# Misc
 		vscode
-		keepassxc
-		slack
-		librewolf
-		thunderbird
-		chromium
 		gnome.gnome-tweaks
+		keepassxc
+		thunderbird
+
+		# LSP's/debuggers
+		# JSON, HTML, CSS, SCSS
+		nodePackages_latest.vscode-langservers-extracted
+		# Bash
+		nodePackages_latest.bash-language-server
+		# Docker files
+		nodePackages_latest.dockerfile-language-server-nodejs
+		# Typescript
+		nodePackages_latest.typescript-language-server
+		# Python
+		python311Packages.python-lsp-server
+		# Nix
+		nil
+		# Rust
+		rust-analyzer-unwrapped
+		# Makdown
+		marksman
+		# Latex
+		texlab
+		# Haskell
+		haskell-language-server
+		# Go
+		gopls
+		# Debugger: Rust/CPP/C/Zig
+		lldb
+
+		# PL's
+		yarn
+
+		# Browsers
+		librewolf
+		chromium
+
+		# Media
 		mpv
+
+		# Chat
+		slack
 		signal-desktop
+
 		# Fonts
-			nerdfonts
-			fira-code
-		# Misc Terminal Tools
-			joshuto
-			wl-clipboard
-			trash-cli
-			silver-searcher
-			jq
-			htop
-			tldr
-			bat
+		nerdfonts
+		fira-code
+
 		# Document handling
-			texlive.combined.scheme-full
-			pandoc
+		texlive.combined.scheme-full
+		pandoc
+
+		# Misc Terminal Tools
+		btop
+		wl-clipboard
+		trash-cli
+		silver-searcher
+		jq
+		htop
+		tealdeer
+		bat
+		exa
+		yt-dlp
+		fd
+		duf
+		du-dust
+
+		# Home Manager scripts
+		hm-update
+		hm-upgrade
+		hm-rebuild
+		hm-clean
+
+		# Procex
+		#(import ./procex/default.nix args) 
 	];
 }
