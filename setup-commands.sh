@@ -22,8 +22,7 @@ home-manager switch
 # Add zsh to shells
 # Set shell to zsh
 
-
-# Add home manager bins to root user (Doesn't work for sudo), needs fix
+# Add home manager bins to root user
 sudo sed '/Defaults.*secure_path/ s|"$|:/home/user/.nix-profile/bin"|' /etc/sudoers > /tmp/sudoers && sudo visudo -c -f /tmp/sudoers && cat /tmp/sudoers | sudo tee /etc/sudoers
 # This one below might not be necessary...
 echo 'export PATH=$PATH:/home/user/.nix-profile/bin:/nix/var/nix/profiles/default/bin' | sudo tee -a /root/.bashrc
