@@ -31,35 +31,6 @@ let
 			teal   = "8ec07c";
 		};
 	};
-
-	hm-clean = pkgs.writeShellScriptBin "hm-clean" ''
-		# Old command: nix-env --delete-generations 30d
-
-		# Delete old home-manager profiles
-		home-manager expire-generations '-30 days'
-		# Delete old nix profiles
-		nix profile wipe-history --older-than 30d
-		# Optimize space
-		nix store gc
-		nix store optimise
-	'';
-
-	hm-update = pkgs.writeShellScriptBin "hm-update" ''
-		nix-channel --update
-	'';
-
-	hm-upgrade = pkgs.writeShellScriptBin "hm-upgrade" ''
-		# Update tldr DB
-		${pkgs.tealdeer}/bin/tldr --update
-		# Update, switch to new config, and cleanup
-		${hm-update}/bin/hm-update
-		${hm-rebuild}/bin/hm-rebuild
-		${hm-clean}/bin/hm-clean
-	'';
-
-	hm-rebuild = pkgs.writeShellScriptBin "hm-rebuild" ''
-		home-manager -I home-manager=$HOME/desktop/personal/home-manager switch
-	'';
 in {
 	imports = [ ./modules ];
 
@@ -70,6 +41,15 @@ in {
 		jiten.enable = true;
 		joshuto.enable = true;
 		kakoune.enable = true;
+		userDirs = {
+			enable = true;
+			autoSortDownloads = true;
+		};
+		zathura = {
+			enable = true;
+			colorscheme = colorscheme;
+		};
+		homeManagerScripts.enable = true;
 	};
 
 	home.username = "user";
@@ -83,6 +63,7 @@ in {
 	nixpkgs.config.allowUnfree = true;
 	
 	targets.genericLinux.enable = true;
+
 	programs.bash = {
 		enable = true;
 		# Fix programs not showing up
@@ -108,20 +89,6 @@ in {
 				</prefer>
 			</alias>
 		'';
-	};
-
-	xdg.userDirs = {
-		enable = true;
-		createDirectories = true;
-
-		desktop = "${config.home.homeDirectory}/desktop";
-		publicShare = "${config.home.homeDirectory}/public";
-		templates = "${config.home.homeDirectory}/templates";
-		documents = "${config.home.homeDirectory}/documents";
-		download = "${config.home.homeDirectory}/downloads/unsorted";
-		music = "${config.home.homeDirectory}/music";
-		pictures = "${config.home.homeDirectory}/pictures";
-		videos = "${config.home.homeDirectory}/videos";
 	};
 
 	programs.ssh = {
@@ -154,8 +121,7 @@ in {
 		'';
 
 		initExtra = ''
-			export NIX_PATH=''${NIX_PATH:+$NIX_PATH:}$HOME/.nix-defexpr/channels:/nix/var/nix/profiles/per-user/root/channels
-
+			#export NIX_PATH=''${NIX_PATH:+$NIX_PATH:}$HOME/.nix-defexpr/channels:/nix/var/nix/profiles/per-user/root/channels
 			# Use bat
 			export MANPAGER="sh -c 'col -bx | bat -l man -p'"
 			alias fzf="fzf --preview 'bat --color=always --style=numbers --line-range=:500 {}'"
@@ -166,7 +132,6 @@ in {
 
 			alias nix-shell="nix-shell --run 'zsh'"
 			alias rustfmt="cargo +nightly fmt"
-			alias diff="git diff --no-index"
 			alias ls="exa --icons"
 			alias f="foot </dev/null &>/dev/null zsh &"
 			alias g="git"
@@ -203,53 +168,6 @@ in {
 				};
 			} 
 		];
-	};
-
-	programs.zathura = {
-		enable = true;
-		options = {
-			selection-clipboard = "clipboard";
-			default-bg = "#${colorscheme.bg} #00";
-			default-fg = "#${colorscheme.fg} #01";
-			statusbar-fg = "#${colorscheme.fg} #04";
-			statusbar-bg = "#${colorscheme.black} #01";
-			inputbar-bg = "#${colorscheme.bg} #00";
-			inputbar-fg = "#${colorscheme.white} #02";
-			notification-bg = "#${colorscheme.fg} #08";
-			notification-fg = "#${colorscheme.bg} #00";
-			notification-error-bg = "#${colorscheme.red} #08";
-			notification-error-fg = "#${colorscheme.fg} #00";
-			notification-warning-bg = "#${colorscheme.yellow} #08";
-			notification-warning-fg = "#${colorscheme.fg} #00";
-			highlight-color = "#${colorscheme.bright.yellow} #0A";
-			highlight-active-color = "#${colorscheme.bright.green} #0D";
-			recolor-lightcolor = "#${colorscheme.bg}";
-			recolor-darkcolor = "#${colorscheme.fg}";
-			recolor-reverse-video = "true";
-			recolor-keephue = "true";
-		};
-		mappings = {
-			f = "toggle_fullscreen";
-			r = "reload";
-			R = "rotate";
-			H = "navigate previous";
-			K = "zoom out";
-			J = "zoom in";
-			L = "navigate next";
-			i = "recolor";
-			"<Right>" = "navigate next";
-			"<Left>" = "navigate previous";
-			"[fullscreen] f" = "toggle_fullscreen";
-			"[fullscreen] r" = "reload";
-			"[fullscreen] R" = "rotate";
-			"[fullscreen] H" = "navigate -1";
-			"[fullscreen] K" = "zoom out";
-			"[fullscreen] J" = "zoom in";
-			"[fullscreen] L" = "navigate 1";
-			"[fullscreen] i" = "recolor";
-			"[fullscreen] <Right>" = "navigate next";
-			"[fullscreen] <Left>" = "navigate previous";
-		};
 	};
 
 	programs.fzf = {
@@ -299,6 +217,7 @@ in {
 
 		# Fonts
 		nerdfonts
+		(nerdfonts.override { fonts = [ "FiraCode" ]; })
 		fira-code
 
 		# Document handling
@@ -319,11 +238,5 @@ in {
 		fd
 		duf
 		du-dust
-
-		# Home Manager scripts
-		hm-update
-		hm-upgrade
-		hm-rebuild
-		hm-clean
 	];
 }

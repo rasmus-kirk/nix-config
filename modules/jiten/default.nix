@@ -13,11 +13,10 @@ let
 		text = ''
 			path=${config.xdg.stateHome}/word-of-the-day
 			mkdir -p $path
-			if ! [ "$(cat $path/last-update.txt)" = "$(date +"%Y-%m-%d")" ]; then
-				jiten --colour -v jmdict --romaji -n 1 +random | tail -n +3 > $path/japanese.txt
-				echo "" >> $path/japanese.txt
-				date +"%Y-%m-%d" > $path/last-update.txt
-			fi
+
+			jiten --colour -v jmdict --romaji -n 1 +random | tail -n +3 > $path/japanese.txt
+			echo "" >> $path/japanese.txt
+			date +"%Y-%m-%d" > $path/last-update.txt
 		'';
 		}; 
 in {
@@ -46,8 +45,8 @@ in {
 
 					Timer = {
 						OnCalendar="daily";
-						Persistent="true";
-						RandomizedDelaySec="1h";
+						Persistent="true"; # Run service immediately if last window was missed
+						RandomizedDelaySec="1h"; # Run service OnCalendar +- 1h
 					};
 
 					Install.WantedBy=["timers.target"];
@@ -59,7 +58,7 @@ in {
 					Unit.Description = "Updates the daily japanese word";
 
 					Service = {
-						ExecStart = "${word-of-the-day}";
+						ExecStart = "${word-of-the-day}/bin/word-of-the-day";
 						Type = "oneshot";
 					};
 				};
