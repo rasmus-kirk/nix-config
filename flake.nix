@@ -24,12 +24,13 @@
 					./system/pi/configuration.nix
 					agenix.nixosModules.default
 					nixos-hardware.nixosModules.raspberry-pi-4
-					home-manager.nixosModules.home-manager
-					{
-						home-manager.useGlobalPkgs = true;
-						home-manager.useUserPackages = true;
-						home-manager.users.user = import ./home-manager/pi/home.nix;
-					}
+					#home-manager.nixosModules.home-manager
+					#{
+					#	home-manager.useGlobalPkgs = true;
+					#	home-manager.useUserPackages = true;
+					#	home-manager.users.user = import ./home-manager/pi/home.nix;
+					#}
+					#./modules/home-manager
 				];
 			};
 		};
@@ -48,7 +49,7 @@
 
 		homeConfigurations."pi" = home-manager.lib.homeManagerConfiguration {
 			pkgs = import nixpkgs {
-				system = "x86_64-linux";
+				system = "aarch64-linux";
 				config.allowUnfree = true;
 			};        
 
