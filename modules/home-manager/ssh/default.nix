@@ -6,7 +6,7 @@ let
 	cfg = config.kirk.ssh;
 in {
 	options.kirk.ssh = {
-		enable = mkEnableOption "foot terminal emulator";
+		enable = mkEnableOption "ssh with extra config";
 
 		identityPath = mkOption {
 			type = types.nullOr types.path;

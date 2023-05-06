@@ -1,6 +1,6 @@
 {
 	imports = [
-		#./joshuto
+		./joshuto
 		./kakoune
 		./helix
 		./git

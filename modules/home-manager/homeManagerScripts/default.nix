@@ -8,8 +8,6 @@ let
 	hm-clean = pkgs.writeShellApplication {
 		name = "hm-clean"; 
 		text = ''
-			# Old command: nix-env --delete-generations 30d
-
 			# Delete old home-manager profiles
 			home-manager expire-generations '-30 days' &&
 			# Delete old nix profiles
@@ -23,7 +21,7 @@ let
 	hm-update = pkgs.writeShellApplication {
 		name = "hm-update"; 
 		text = ''
-			nix-channel --update
+			nix flake update ${cfg.configDir}#${config.home.username}
 		'';
 	};
 
@@ -34,7 +32,7 @@ let
 			${hm-update}/bin/hm-update &&
 			${hm-rebuild}/bin/hm-rebuild &&
 			${hm-clean}/bin/hm-clean
-			echo "Updating TLDR database"
+			echo "Updating TLDR database" # TODO: Add config option for this instead...
 			${pkgs.tealdeer}/bin/tldr --update
 		'';
 	};
@@ -42,12 +40,18 @@ let
 	hm-rebuild = pkgs.writeShellApplication {
 		name = "hm-rebuild"; 
 		text = ''
-			home-manager -I home-manager="$HOME/desktop/personal/home-manager" switch
+			home-manager switch --flake ${cfg.configDir}#${config.home.username}
 		'';
 	};
 in {
 	options.kirk.homeManagerScripts= {
 		enable = mkEnableOption "home manager scripts";
+
+		configDir = mkOption {
+			type = types.path;
+			default = "${config.xdg.configHome}/home-manager";
+			description = "Path to the home-manager configuration.";
+		};
 	};
 
 	config = mkIf cfg.enable {

@@ -2,6 +2,8 @@
 { pkgs, config, ... }:
 let
 	secretDir = "${config.home.homeDirectory}/.secret";
+	configDir = "${config.home.homeDirectory}/.system-configuration";
+	username = "user";
 
 	# Gruvbox theme colors
 	# Type: attrs
@@ -32,26 +34,24 @@ let
 		};
 	};
 in {
-	imports = [ ./modules ];
-
 	kirk = {
 		bat.enable = true;
 		foot = { enable = true; colorscheme = colorscheme; };
 		fzf = { enable = true; colorscheme = colorscheme; };
 		git.enable = true;
 		helix.enable = true;
-		homeManagerScripts.enable = true;
+		homeManagerScripts = { enable = true; configDir = configDir; };
 		jiten.enable = true;
-		#joshuto.enable = true;
+		joshuto.enable = true;
 		kakoune.enable = true;
-		ssh.enable = true;
+		ssh = { enable = true; identityPath = "${secretDir}/key.ssh"; };
 		userDirs = { enable = true; autoSortDownloads = true; };
 		zathura = { enable = true; colorscheme = colorscheme; };
 		zsh.enable = true;
 	};
 
-	home.username = "user";
-	home.homeDirectory = "/home/user";
+	home.username = username;
+	home.homeDirectory = "/home/${username}";
 
 	home.stateVersion = "22.11";
 
