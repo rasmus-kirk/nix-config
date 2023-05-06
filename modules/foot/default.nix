@@ -11,37 +11,25 @@ in {
 		colorscheme = mkOption {
 			type = types.attrs;
 			default = { };
-
-			description = ''
-				A colorscheme attribute set.
-			'';
+			description = "A colorscheme attribute set.";
 		};
 
 		alpha = mkOption {
 			type = types.float;
 			default = 0.85;
-
-			description = ''
-				Alpha value of the foot terminal.
-			'';
+			description = "Alpha value of the foot terminal.";
 		};
 
 		fontSize = mkOption {
 			type = types.int;
 			default = 15;
-
-			description = ''
-				Font size of the terminal.
-			'';
+			description = "Font size of the terminal.";
 		};
 
 		enableKeyBindings = mkOption {
 			type = types.bool;
 			default = true;
-
-			description = ''
-				Whether or not to enable my keybindings.
-			'';
+			description = "Whether or not to enable my keybindings.";
 		};
 	};
 

@@ -26,9 +26,7 @@ in {
 		dailyWord = mkOption {
 			type = types.bool;
 			default = true;
-			description = ''
-				Enable daily japanese word prompt.
-			'';
+			description = "Enable daily japanese word prompt.";
 		};
 	};
 

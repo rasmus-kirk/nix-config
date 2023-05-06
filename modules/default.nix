@@ -1,6 +1,6 @@
 {
 	imports = [
-		./joshuto
+		#./joshuto
 		./kakoune
 		./helix
 		./git
@@ -9,5 +9,9 @@
 		./userDirs
 		./zathura
 		./homeManagerScripts
+		./bat
+		./fzf
+		./zsh
+		./ssh
 	]; 
 }

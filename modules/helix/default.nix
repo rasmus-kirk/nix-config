@@ -38,18 +38,14 @@ in {
 			type = types.listOf types.package;
 			default = [];
 
-			description = ''
-				Extra packages to install, for example LSP's.
-			'';
+			description = "Extra packages to install, for example LSP's.";
 		};
 
 		installMostLsps = mkOption {
 			type = types.bool;
 			default = true;
 
-			description = ''
-				Whether or not to install most of the LSP's that helix supports.
-			'';
+			description = "Whether or not to install most of the LSP's that helix supports.";
 		};
 	};
 
