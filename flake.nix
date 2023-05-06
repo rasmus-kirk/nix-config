@@ -47,16 +47,16 @@
 			];
 		};
 
-		homeConfigurations."pi" = home-manager.lib.homeManagerConfiguration {
-			pkgs = import nixpkgs {
-				system = "aarch64-linux";
-				config.allowUnfree = true;
-			};        
+		#homeConfigurations."pi" = home-manager.lib.homeManagerConfiguration {
+		#	pkgs = import nixpkgs {
+		#		system = "aarch64-linux";
+		#		config.allowUnfree = true;
+		#	};        
 
-			modules = [ 
-				./home-manager/pi/home.nix
-				./modules/home-manager
-			];
-		};
+		#	modules = [ 
+		#		./home-manager/pi/home.nix
+		#		./modules/home-manager
+		#	];
+		#};
 	};
 }
