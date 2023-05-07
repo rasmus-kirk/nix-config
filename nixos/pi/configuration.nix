@@ -9,7 +9,7 @@ in {
 
 		#(import ../../scripts username args)
 
-		#(import ../../modules/server/openssh username args)
+		(import ../../modules/nixos/openssh username args)
 
 		#(import ../../modules/misc/kakoune   username args)
 		#(import ../../modules/server/nnn     username args)

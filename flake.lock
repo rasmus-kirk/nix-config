@@ -43,26 +43,6 @@
         "type": "github"
       }
     },
-    "home-manager": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1683358589,
-        "narHash": "sha256-dg4+LIGqL5y8isgCo8+k9l6Gd5yBwPzf63YE41kVXHg=",
-        "owner": "rasmus-kirk",
-        "repo": "home-manager",
-        "rev": "ae3f2db76149d0fc00081cf0013197f3a321e9bb",
-        "type": "github"
-      },
-      "original": {
-        "owner": "rasmus-kirk",
-        "repo": "home-manager",
-        "type": "github"
-      }
-    },
     "nixos-hardware": {
       "locked": {
         "lastModified": 1683269598,
@@ -98,7 +78,6 @@
     "root": {
       "inputs": {
         "agenix": "agenix",
-        "home-manager": "home-manager",
         "nixos-hardware": "nixos-hardware",
         "nixpkgs": "nixpkgs"
       }
