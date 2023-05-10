@@ -44,7 +44,7 @@ in {
 		jiten.enable = true;
 		joshuto.enable = true;
 		kakoune.enable = true;
-		ssh = { enable = true; identityPath = "${secretDir}/key.ssh"; };
+		ssh = { enable = true; identityPath = "${secretDir}/ssh.key"; };
 		userDirs = { enable = true; autoSortDownloads = true; };
 		zathura = { enable = true; colorscheme = colorscheme; };
 		zsh.enable = true;

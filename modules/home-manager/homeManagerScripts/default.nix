@@ -21,7 +21,7 @@ let
 	hm-update = pkgs.writeShellApplication {
 		name = "hm-update"; 
 		text = ''
-			nix flake update ${cfg.configDir}#${config.home.username}
+			nix flake update ${cfg.configDir}#${cfg.flakeUri}
 		'';
 	};
 
@@ -40,7 +40,7 @@ let
 	hm-rebuild = pkgs.writeShellApplication {
 		name = "hm-rebuild"; 
 		text = ''
-			home-manager switch --flake ${cfg.configDir}#${config.home.username}
+			home-manager switch --flake ${cfg.configDir}#${cfg.flakeUri}
 		'';
 	};
 in {
@@ -51,6 +51,12 @@ in {
 			type = types.path;
 			default = "${config.xdg.configHome}/home-manager";
 			description = "Path to the home-manager configuration.";
+		};
+
+		flakeUri = mkOption {
+			type = types.str;
+			default = config.home.username;
+			description = "The flake URI.";
 		};
 	};
 

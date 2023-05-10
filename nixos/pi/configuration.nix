@@ -1,30 +1,21 @@
-{ config, pkgs, ... }:
+args@{ config, pkgs, ... }:
 let
 	username = "user";
+	secretDir = "/config/.secret";
 in {
 	imports = [
-		./age.nix
-		#(import ./mullvad.nix args)
-		#(import ./wireguard.nix args)
-
-		#(import ../../scripts username args)
-
 		(import ../../modules/nixos/openssh username args)
-
-		#(import ../../modules/misc/kakoune   username args)
-		#(import ../../modules/server/nnn     username args)
-		#(import ../../modules/misc/zsh       username args)
-
-		#(import ../../modules/server/flood     mediaUser stateDir args)
-		#(import ../../modules/server/rtorrent  mediaUser stateDir downloadDir args)
-		#(import ../../modules/server/jackett   mediaUser stateDir args)
-		#(import ../../modules/server/nzbhydra2           stateDir args)
-		#(import ../../modules/server/ombi      mediaUser stateDir args)
-		#(import ../../modules/server/radarr    mediaUser stateDir downloadDir args)
-		#(import ../../modules/server/sabnzbd   mediaUser stateDir downloadDir args)
-		#(import ../../modules/server/sonarr    mediaUser stateDir downloadDir args)
-		#(import ../../modules/jellyfin  mediaUser stateDir args)
 	];
+
+	age = {
+		identityPaths = [ "${secretDir}/ssh/id_rsa" ];
+		secrets = {
+			wifi.file = "${secretDir}/wifi.age";
+			user.file = "${secretDir}/user.age";
+			wg-mullvad.file = "${secretDir}/wg-mullvad.age";
+			wg-mediaserver.file = "${secretDir}/wg-mediaserver.age";
+		};
+	};
 
 	# Required for the Wireless firmware
 	#hardware.enableRedistributableFirmware = true;
@@ -50,6 +41,8 @@ in {
 	};
 
 	services.getty.autologinUser = username;
+
+	programs.zsh.enable = true;
 
 	nix = {
 		settings = {

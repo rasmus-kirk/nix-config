@@ -3,6 +3,7 @@
 let
 	secretDir = "/config/.secret";
 	configDir = "/config/.system-configuration";
+	flakeUri = "pi";
 	username = "user";
 
 	# Gruvbox theme colors
@@ -40,11 +41,11 @@ in {
 		fzf = { enable = true; colorscheme = colorscheme; };
 		git.enable = true;
 		helix.enable = true;
-		homeManagerScripts = { enable = true; configDir = configDir; };
+		homeManagerScripts = { enable = true; configDir = configDir; flakeUri = flakeUri; };
 		jiten.enable = true;
 		joshuto.enable = true;
 		kakoune.enable = true;
-		ssh = { enable = true; identityPath = "${secretDir}/key.ssh"; };
+		ssh = { enable = true; identityPath = "${secretDir}/ssh/id_rsa"; };
 		userDirs = { enable = true; autoSortDownloads = true; };
 		zathura = { enable = true; colorscheme = colorscheme; };
 		zsh.enable = true;
