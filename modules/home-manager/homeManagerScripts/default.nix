@@ -21,7 +21,7 @@ let
 	hm-update = pkgs.writeShellApplication {
 		name = "hm-update"; 
 		text = ''
-			nix flake update ${cfg.configDir}#${cfg.flakeUri}
+			nix flake update ${cfg.configDir}#${cfg.machine}
 		'';
 	};
 
@@ -40,7 +40,7 @@ let
 	hm-rebuild = pkgs.writeShellApplication {
 		name = "hm-rebuild"; 
 		text = ''
-			home-manager switch --flake ${cfg.configDir}#${cfg.flakeUri}
+			home-manager switch --flake ${cfg.configDir}#${cfg.machine}
 		'';
 	};
 in {
@@ -53,14 +53,18 @@ in {
 			description = "Path to the home-manager configuration.";
 		};
 
-		flakeUri = mkOption {
-			type = types.str;
-			default = config.home.username;
-			description = "The flake URI.";
+		machine = mkOption {
+			type = types.nullOr types.str;
+			description = "Path to the home-manager configuration.";
 		};
 	};
 
 	config = mkIf cfg.enable {
+		assertions = [{
+			assertion = cfg.machine != null;
+			message = "Machine value must be set!";
+		}];
+
 		home.packages = [
 			hm-update
 			hm-upgrade

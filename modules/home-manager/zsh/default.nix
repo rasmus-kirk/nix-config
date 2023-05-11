@@ -29,9 +29,10 @@ in {
 
 				alias nix-shell="nix-shell --run 'zsh'"
 				alias rustfmt="cargo +nightly fmt"
-				alias t="$TERM </dev/null &>/dev/null zsh &"
 				alias todo="$EDITOR ~/.local/share/todo.md"
 				alias g="git"
+				# TODO: this is bad, generalize...
+				alias t="foot </dev/null &>/dev/null zsh &"
 
 				gc() {
 					git clone --recursive $(wl-paste)

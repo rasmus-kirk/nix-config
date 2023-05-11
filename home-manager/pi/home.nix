@@ -3,7 +3,7 @@
 let
 	secretDir = "/config/.secret";
 	configDir = "/config/.system-configuration";
-	flakeUri = "pi";
+	machine = "pi";
 	username = "user";
 
 	# Gruvbox theme colors
@@ -41,7 +41,7 @@ in {
 		fzf = { enable = true; colorscheme = colorscheme; };
 		git.enable = true;
 		helix.enable = true;
-		homeManagerScripts = { enable = true; configDir = configDir; flakeUri = flakeUri; };
+		homeManagerScripts = { enable = true; configDir = configDir; machine = machine; };
 		jiten.enable = true;
 		joshuto.enable = true;
 		kakoune.enable = true;

@@ -4,6 +4,7 @@ let
 	secretDir = "${config.home.homeDirectory}/.secret";
 	configDir = "${config.home.homeDirectory}/.system-configuration";
 	username = "user";
+	machine = "work";
 
 	# Gruvbox theme colors
 	# Type: attrs
@@ -40,7 +41,7 @@ in {
 		fzf = { enable = true; colorscheme = colorscheme; };
 		git.enable = true;
 		helix.enable = true;
-		homeManagerScripts = { enable = true; configDir = configDir; };
+		homeManagerScripts = { enable = true; configDir = configDir; machine = machine; };
 		jiten.enable = true;
 		joshuto.enable = true;
 		kakoune.enable = true;
