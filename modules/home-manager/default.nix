@@ -9,7 +9,7 @@
 		./userDirs
 		./zathura
 		./homeManagerScripts
-		./bat
+		./terminalTools
 		./fzf
 		./zsh
 		./ssh
