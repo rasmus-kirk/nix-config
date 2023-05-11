@@ -32,15 +32,13 @@ let
 			${hm-update}/bin/hm-update &&
 			${hm-rebuild}/bin/hm-rebuild &&
 			${hm-clean}/bin/hm-clean
-			echo "Updating TLDR database" # TODO: Add config option for this instead...
-			${pkgs.tealdeer}/bin/tldr --update
 		'';
 	};
 
 	hm-rebuild = pkgs.writeShellApplication {
 		name = "hm-rebuild"; 
 		text = ''
-			home-manager switch -b --flake ${cfg.configDir}#${cfg.machine}
+			home-manager switch -b backup --flake ${cfg.configDir}#${cfg.machine}
 		'';
 	};
 in {
