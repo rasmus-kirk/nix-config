@@ -37,17 +37,17 @@ let
 in {
 	kirk = {
 		bat.enable = true;
-		foot = { enable = true; colorscheme = colorscheme; };
 		fzf = { enable = true; colorscheme = colorscheme; };
 		git.enable = true;
-		helix.enable = true;
+		helix = { 
+			enable = true;
+			installMostLsps = false;
+			extraPackages = with pkgs; [ nil marksman nodePackages_latest.bash-language-server ];
+		};
 		homeManagerScripts = { enable = true; configDir = configDir; machine = machine; };
-		jiten.enable = true;
 		joshuto.enable = true;
 		kakoune.enable = true;
 		ssh = { enable = true; identityPath = "${secretDir}/ssh/id_rsa"; };
-		userDirs = { enable = true; autoSortDownloads = true; };
-		zathura = { enable = true; colorscheme = colorscheme; };
 		zsh.enable = true;
 	};
 

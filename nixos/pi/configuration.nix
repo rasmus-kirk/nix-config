@@ -34,6 +34,7 @@ in {
 	users = {
 		mutableUsers = false;
 		users."${username}" = {
+			shell = pkgs.zsh;
 			isNormalUser = true;
 			passwordFile = config.age.secrets.user.path;
 			extraGroups = [ "wheel" ];
