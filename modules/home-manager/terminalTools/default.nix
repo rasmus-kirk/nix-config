@@ -1,9 +1,10 @@
-{ config, lib, ... }:
+{ pkgs, config, lib, ... }:
 
 with lib;
 
 let
 	cfg = config.kirk.terminalTools;
+	tomlFormat = pkgs.formats.toml { };
 
 	tealdeer-config = {
 		updates = {

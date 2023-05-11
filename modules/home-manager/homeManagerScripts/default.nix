@@ -40,7 +40,7 @@ let
 	hm-rebuild = pkgs.writeShellApplication {
 		name = "hm-rebuild"; 
 		text = ''
-			home-manager switch --flake ${cfg.configDir}#${cfg.machine}
+			home-manager switch -b --flake ${cfg.configDir}#${cfg.machine}
 		'';
 	};
 in {
