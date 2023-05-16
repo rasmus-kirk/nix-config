@@ -21,7 +21,7 @@ let
 	hm-update = pkgs.writeShellApplication {
 		name = "hm-update"; 
 		text = ''
-			nix flake update ${cfg.configDir}#${cfg.machine}
+			nix flake update ${cfg.configDir}
 		'';
 	};
 

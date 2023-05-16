@@ -94,7 +94,18 @@ in {
 					};
 				};
 
+
 				# Make Helix more like kakoune
+				keys.insert = {
+					"A-l" = "goto_next_buffer";
+					"A-h" = "goto_previous_buffer";
+
+					"C-h" = "jump_backward";
+					"C-k" = "half_page_up";
+					"C-j" = "half_page_down";
+					"C-l" = "jump_forward";
+				};
+
 				keys.normal = {
 					# TODO: make this depend on the helix max-width
 					#"," = "shell_pipe fmt -w 80";
