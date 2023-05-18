@@ -14,5 +14,6 @@
 		./zsh
 		./gruvboxTheme
 		./ssh
+		./fonts
 	]; 
 }

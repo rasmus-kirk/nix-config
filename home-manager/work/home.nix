@@ -20,6 +20,7 @@ in {
 		userDirs = { enable = true; autoSortDownloads = true; };
 		zathura.enable = true;
 		zsh.enable = true;
+		fonts.enable = true;
 	};
 
 	home.username = username;
@@ -29,8 +30,6 @@ in {
 
 	# Let Home Manager install and manage itself.
 	programs.home-manager.enable = true;
-	
-	nixpkgs.config.allowUnfree = true;
 	
 	targets.genericLinux.enable = true;
 
@@ -48,23 +47,6 @@ in {
 			#export XDG_DATA_DIRS="$HOME/.nix-profile/share:$XDG_DATA_DIRS"
 
 			export NIX_PATH=''${NIX_PATH:+$NIX_PATH:}$HOME/.nix-defexpr/channels:/nix/var/nix/profiles/per-user/root/channels
-		'';
-	};
-
-	# Allows installed fonts to be discoverable by OS
-	fonts.fontconfig.enable = true;
-
-	# Set fonts
-	xdg.configFile = {
-		"fontconfig/fonts.conf".text = ''
-			<alias>
-				<family>monospace</family>
-				<prefer>
-					<family>FiraCode Nerd Font</family>
-					<family>Inconsolata</family>
-					<family>DejaVu Sans Mono</family>
-				</prefer>
-			</alias>
 		'';
 	};
 

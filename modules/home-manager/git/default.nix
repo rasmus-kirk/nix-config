@@ -5,8 +5,6 @@ with lib;
 let
 	cfg = config.kirk.git;
 in {
-	meta.maintainers = [ ];
-
 	options.kirk.git = {
 		enable = mkEnableOption "git";
 	};

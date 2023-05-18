@@ -20,6 +20,7 @@ in {
 		kakoune.enable = true;
 		ssh = { enable = true; identityPath = "${secretDir}/ssh/id_rsa"; };
 		zsh.enable = true;
+		fonts.enable = true;
 	};
 
 	home.username = username;
@@ -30,9 +31,7 @@ in {
 	# Let Home Manager install and manage itself.
 	programs.home-manager.enable = true;
 	
-	nixpkgs.config.allowUnfree = true;
-	
-	targets.genericLinux.enable = true;
+	#targets.genericLinux.enable = true;
 
 	services.syncthing.enable = true;
 
@@ -40,31 +39,4 @@ in {
 		package = pkgs.nix;
 		settings.experimental-features = [ "nix-command" "flakes" ];
 	};
-
-	# Allows installed fonts to be discoverable by OS
-	fonts.fontconfig.enable = true;
-
-	# Set fonts
-	xdg.configFile = {
-		"fontconfig/fonts.conf".text = ''
-			<alias>
-				<family>monospace</family>
-				<prefer>
-					<family>FiraCode Nerd Font</family>
-					<family>Inconsolata</family>
-					<family>DejaVu Sans Mono</family>
-				</prefer>
-			</alias>
-		'';
-	};
-
-	home.packages = with pkgs; [
-		# Fonts
-		(nerdfonts.override { fonts = [ "FiraCode" ]; })
-		fira-code
-
-		# Misc Terminal Tools
-		trash-cli
-		yt-dlp
-	];
 }
