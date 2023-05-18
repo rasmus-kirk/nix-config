@@ -12,6 +12,7 @@
 		./terminalTools
 		./fzf
 		./zsh
+		./gruvboxTheme
 		./ssh
 	]; 
 }
