@@ -33,6 +33,19 @@ in {
 			default = true;
 			description = "Whether to auto-update tealdeer.";
 		};
+
+		trashCleaner = {
+			enable = mkOption {
+				type = types.bool;
+				default = true;
+				description = "Enable the trash-cli cleanup script";
+			};
+			persistance = mkOption {
+				type = types.number;
+				default = 30;
+				description = "How many days a file stays in trash before getting cleaned up.";
+			};
+		};
 	};
 
 	config = mkIf cfg.enable {
@@ -49,6 +62,33 @@ in {
 			alias ll="exa --icons --long"
 			alias lh="exa --icons --long --all"
 		'';
+
+		systemd.user = mkIf cfg.trashCleaner.enable {
+			timers = {
+				trashCleaner = {
+					Unit.Description = "Gets a japanese word from the Jiten dictionary";
+
+					Timer = {
+						OnCalendar="daily";
+						Persistent="true"; # Run service immediately if last window was missed
+						RandomizedDelaySec="1h"; # Run service OnCalendar +- 1h
+					};
+
+					Install.WantedBy=["timers.target"];
+				};
+			};
+
+			services = {
+				trashCleaner = {
+					Unit.Description = "Updates the daily japanese word";
+
+					Service = {
+						ExecStart = "${pkgs.trash-cli}/bin/trash-empty -fv ${toString cfg.trashCleaner.persistance}";
+						Type = "oneshot";
+					};
+				};
+			};
+		};
 
 		# Generate tealdeer config
 		xdg.configFile."tealdeer/config.toml" = mkIf cfg.autoUpdateTealdeer {
@@ -71,6 +111,7 @@ in {
 			fd
 			duf
 			du-dust
+			trash-cli
 		];
 	};
 }

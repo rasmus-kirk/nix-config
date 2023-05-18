@@ -10,7 +10,7 @@ in {
 
 		colorscheme = mkOption {
 			type = types.attrs;
-			default = { };
+			default = config.kirk.gruvbox.colorscheme;
 			description = "A colorscheme attribute set.";
 		};
 
