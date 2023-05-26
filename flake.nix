@@ -5,7 +5,7 @@
 		# Specify the source of Home Manager and Nixpkgs.
 		nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 		home-manager = {
-			url = "github:rasmus-kirk/home-manager";
+			url = "github:nix-community/home-manager";
 			inputs.nixpkgs.follows = "nixpkgs";
 		};
 		agenix = {
@@ -13,9 +13,10 @@
 			inputs.nixpkgs.follows = "nixpkgs";
 		};
 		nixos-hardware.url = "github:NixOS/nixos-hardware/master";
+		kirk-modules.url = "github:rasmus-kirk/nix-modules";
 	};
 
-	outputs = { nixpkgs, agenix, home-manager, nixos-hardware, ... }@inputs: {
+	outputs = { nixpkgs, agenix, home-manager, nixos-hardware, kirk-modules, ... }@inputs: {
 		nixosConfigurations = {
 			pi = nixpkgs.lib.nixosSystem {
 				system = "aarch64-linux";
@@ -38,7 +39,7 @@
 
 			modules = [ 
 				./home-manager/work/home.nix
-				./modules/home-manager
+				kirk-modules.homeManagerModules.default
 			];
 		};
 
@@ -50,7 +51,8 @@
 
 			modules = [ 
 				./home-manager/pi/home.nix
-				./modules/home-manager
+				kirk-modules
+				kirk-modules.homeManagerModules.default
 			];
 		};
 	};
