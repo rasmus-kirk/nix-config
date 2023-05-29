@@ -47,6 +47,7 @@ in {
 		# Misc
 		# NOTE: Doesn't work for current nix version, don't know why
 		# stremio
+		mullvad-vpn
 	
 		# Browsers
 		chromium
