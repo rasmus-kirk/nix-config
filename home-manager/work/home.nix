@@ -10,7 +10,11 @@ in {
 		terminalTools.enable = true;
 		foot.enable = true;
 		fzf.enable = true;
-		git.enable = true;
+		git = {
+			enable = true;
+			userEmail = "mail@rasmuskirk.com";
+			userName = "rasmus-kirk";
+		};
 		helix.enable = true;
 		homeManagerScripts = { enable = true; configDir = configDir; machine = machine; };
 		jiten.enable = true;
