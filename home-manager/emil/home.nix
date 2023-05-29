@@ -50,9 +50,6 @@ in {
 		# Browsers
 		chrome
 
-		# Media
-		mpv
-
 		# Chat
 		signal-desktop
 
@@ -62,5 +59,6 @@ in {
 
 		# Misc Terminal Tools
 		wl-clipboard
+		git
 	];
 }
