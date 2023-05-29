@@ -2,7 +2,7 @@
 { pkgs, config, ... }:
 let
 	configDir = "${config.home.homeDirectory}/.system-configuration";
-	username = "user";
+	username = "emil";
 	machine = "emil";
 in {
 	kirk = {
@@ -45,10 +45,11 @@ in {
 
 	home.packages = with pkgs; [
 		# Misc
-		stremio
+		# NOTE: Doesn't work for current nix version, don't know why
+		# stremio
 	
 		# Browsers
-		chrome
+		chromium
 
 		# Chat
 		signal-desktop

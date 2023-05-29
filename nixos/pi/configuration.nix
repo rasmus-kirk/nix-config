@@ -41,6 +41,17 @@ in {
 		};
 	};
 
+	services.openssh = {
+		enable = true;
+		openFirewall = true;
+		passwordAuthentication = false;
+		ports = [6000];
+	};
+	users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
+		"${./ssh-pub-keys/laptop.pub}"
+		"${./ssh-pub-keys/steam-deck.pub}"
+	];
+
 	services.getty.autologinUser = username;
 
 	programs.zsh.enable = true;
