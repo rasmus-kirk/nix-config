@@ -64,6 +64,9 @@ in {
 
 		# Fix nix programs not showing up in gnome menus:
 		#export XDG_DATA_DIRS="$HOME/.nix-profile/share:$XDG_DATA_DIRS"
+
+		export XCURSOR_THEME="Capitaine Cursors (Gruvbox)"
+		export XCURSOR_PATH="$XCURSOR_PATH":/usr/share/icons:~/.local/share/icons
 	'';
 
 	home.packages = with pkgs; [
@@ -91,6 +94,7 @@ in {
 		# Document handling
 		texlive.combined.scheme-full
 		pandoc
+		inotify-tools
 
 		# Misc Terminal Tools
 		wl-clipboard
