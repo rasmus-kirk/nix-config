@@ -20,7 +20,7 @@ in {
 		jiten.enable = false;
 		joshuto.enable = true;
 		kakoune.enable = true;
-		ssh = { enable = true; identityPath = "${secretDir}/ssh.key"; };
+		ssh = { enable = true; identityPath = "${secretDir}/id_ed25519"; };
 		userDirs = { enable = true; autoSortDownloads = true; };
 		zathura.enable = true;
 		zsh.enable = true;
