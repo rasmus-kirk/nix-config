@@ -9,16 +9,28 @@ in {
 	kirk = {
 		terminalTools.enable = true;
 		fzf.enable = true;
-		git.enable = true;
+		git = {
+			enable = true;
+			userEmail = "mail@rasmuskirk.com";
+			userName = "rasmus-kirk";
+		};
 		helix = {
 			enable = true;
 			installMostLsps = false;
 			extraPackages = with pkgs; [ nil marksman nodePackages_latest.bash-language-server ];
 		};
-		homeManagerScripts = { enable = true; configDir = configDir; machine = machine; };
+		homeManagerScripts = { 
+			enable = true; 
+			configDir = configDir; 
+			machine = machine;
+		};
+		userDirs = { enable = true; autoSortDownloads = true; };
 		joshuto.enable = true;
 		kakoune.enable = true;
-		ssh = { enable = true; identityPath = "${secretDir}/ssh/id_rsa"; };
+		ssh = { 
+			enable = true; 
+			identityPath = "${secretDir}/ssh/id_rsa";
+		};
 		zsh.enable = true;
 		fonts.enable = true;
 	};
