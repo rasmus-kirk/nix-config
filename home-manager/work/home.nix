@@ -17,7 +17,7 @@ in {
 		};
 		helix.enable = true;
 		homeManagerScripts = { enable = true; configDir = configDir; machine = machine; };
-		jiten.enable = true;
+		jiten.enable = false;
 		joshuto.enable = true;
 		kakoune.enable = true;
 		ssh = { enable = true; identityPath = "${secretDir}/ssh.key"; };
@@ -82,6 +82,9 @@ in {
 
 		# Media
 		mpv
+
+		# Crytpo
+		monero-gui
 
 		# Chat
 		slack
