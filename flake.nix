@@ -63,7 +63,6 @@
 
 			modules = [ 
 				./home-manager/pi/home.nix
-				kirk-modules
 				kirk-modules.homeManagerModules.default
 			];
 		};

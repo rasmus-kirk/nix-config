@@ -3,10 +3,6 @@ let
 	username = "user";
 	secretDir = "/config/.secret";
 in {
-	imports = [
-		(import ../../modules/nixos/openssh username args)
-	];
-
 	age = {
 		identityPaths = [ "${secretDir}/ssh/id_rsa" ];
 		secrets = {
@@ -48,8 +44,8 @@ in {
 		ports = [6000];
 	};
 	users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
-		"${./ssh-pub-keys/laptop.pub}"
-		"${./ssh-pub-keys/steam-deck.pub}"
+		"${./pubkeys/laptop.pub}"
+		"${./pubkeys/steam-deck.pub}"
 	];
 
 	services.getty.autologinUser = username;
@@ -80,11 +76,11 @@ in {
 			fsType = "ext4";
 			options = [ "noatime" ];
 		};
-		"/data" = {
-			device = "/dev/disk/by-label/storage-ssd";
-			fsType = "btrfs";
-			options = [ "noatime" ];
-		};
+		#"/data" = {
+		#	device = "/dev/disk/by-label/storage-ssd";
+		#	fsType = "btrfs";
+		#	options = [ "noatime" ];
+		#};
 	};
 
 	environment.systemPackages = with pkgs; [
