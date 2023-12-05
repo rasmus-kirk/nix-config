@@ -1,8 +1,8 @@
 # My home manager config
 { pkgs, ... }:
 let
-	secretDir = "/config/.secret";
-	configDir = "/config/.system-configuration";
+	secretDir = "/data/.secret";
+	configDir = "/data/.system-configuration";
 	machine = "pi";
 	username = "user";
 in {

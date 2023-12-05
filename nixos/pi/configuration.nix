@@ -1,19 +1,28 @@
-args@{ config, pkgs, ... }:
+{ config, pkgs, ... }:
 let
+	force-rebuild = 1;
 	username = "user";
-	secretDir = "/config/.secret";
+	secretDir = "/data/.secret";
 in {
+	imports = [
+		./mullvad.nix
+		./servarr.nix
+	];
+
+	hardware.raspberry-pi."4".fkms-3d.enable = true;
+
 	age = {
-		identityPaths = [ "${secretDir}/ssh/id_rsa" ];
+		identityPaths = [ 
+		"${secretDir}/age/keys/id_ed25519" 
+	];
 		secrets = {
-			wifi.file = "${secretDir}/wifi.age";
-			user.file = "${secretDir}/user.age";
-			wg-mullvad.file = "${secretDir}/wg-mullvad.age";
-			wg-mediaserver.file = "${secretDir}/wg-mediaserver.age";
+			wifi.file = "${secretDir}/age/wifi.age";
+			user.file = "${secretDir}/age/user.age";
+			mullvad.file = "${secretDir}/age/mullvad.age";
 		};
 	};
 
-	# Required for the Wireless firmware
+	# Required for the Wireless firmware, or not idk
 	#hardware.enableRedistributableFirmware = true;
 
 	networking = {
@@ -22,7 +31,7 @@ in {
 			enable = true;
 			environmentFile = config.age.secrets.wifi.path;
 			networks = {
-				"PET-vogn" = { psk = "@ROOM@"; };
+				"dd-wrt" = { psk = "@HOME@"; };
 			};
 		};
 	};
@@ -32,18 +41,19 @@ in {
 		users."${username}" = {
 			shell = pkgs.zsh;
 			isNormalUser = true;
-			passwordFile = config.age.secrets.user.path;
-			extraGroups = [ "wheel" ];
+			hashedPasswordFile = config.age.secrets.user.path;
+			extraGroups = [ "wheel" "docker" ];
 		};
 	};
 
 	services.openssh = {
 		enable = true;
 		openFirewall = true;
-		passwordAuthentication = false;
-		ports = [6000];
+		settings.PasswordAuthentication = false;
+		ports = [ 6000 ];
 	};
 	users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
+		"${./pubkeys/work.pub}"
 		"${./pubkeys/laptop.pub}"
 		"${./pubkeys/steam-deck.pub}"
 	];
@@ -53,9 +63,7 @@ in {
 	programs.zsh.enable = true;
 
 	nix = {
-		settings = {
-			auto-optimise-store = true;
-		};
+		settings.auto-optimise-store = true;
 		gc = {
 			automatic = true;
 			dates = "weekly";
@@ -76,11 +84,6 @@ in {
 			fsType = "ext4";
 			options = [ "noatime" ];
 		};
-		#"/data" = {
-		#	device = "/dev/disk/by-label/storage-ssd";
-		#	fsType = "btrfs";
-		#	options = [ "noatime" ];
-		#};
 	};
 
 	environment.systemPackages = with pkgs; [
