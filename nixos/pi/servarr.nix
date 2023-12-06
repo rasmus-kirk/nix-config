@@ -119,40 +119,41 @@
   };
 };
 in {
-	virtualisation.docker = {
-		enable = true;
-		autoPrune.enable = true;
-		extraPackages = [ pkgs.docker-compose ];
-	};
+  virtualisation.docker = {
+    enable = true;
+    autoPrune.enable = true;
+    extraPackages = [ pkgs.docker-compose ];
+  };
 
-	systemd.services.servarr-docker-compose = {
-		script = ''
-			${pkgs.docker-compose}/bin/docker-compose -f ${servarr-config} up --force-recreate --remove-orphans
-		'';
-		wantedBy = ["multi-user.target"];
-		after = ["docker.service" "docker.socket"];
-	};
+  systemd.services.servarr-docker-compose = {
+    script = ''
+      ${pkgs.docker}/bin/docker container prune -f
+      ${pkgs.docker-compose}/bin/docker-compose -f ${servarr-config} up --force-recreate --remove-orphans
+    '';
+    wantedBy = ["multi-user.target"];
+    after = ["docker.service" "docker.socket"];
+  };
 
-	networking.firewall.allowedTCPPorts = [ 80 443 ];
-	services.nginx = {
-		enable = true;
+  networking.firewall.allowedTCPPorts = [ 80 443 ];
+  services.nginx = {
+    enable = true;
 
-		recommendedTlsSettings = true;
-		recommendedOptimisation = true;
-		recommendedGzipSettings = true;
+    recommendedTlsSettings = true;
+    recommendedOptimisation = true;
+    recommendedGzipSettings = true;
 
-		virtualHosts."glowiefin.com" = {
-			enableACME = true;
+    virtualHosts."glowiefin.com" = {
+      enableACME = true;
       forceSSL = true;
-			locations."/" = {
-				recommendedProxySettings = true;
-				proxyWebsockets = true;
-				proxyPass = "http://127.0.0.1:8096";
-			};
-		};
-	};
-	security.acme = {
-		acceptTerms = true;
-		defaults.email = "slimness_bullish683@simplelogin.com";
-	};
+      locations."/" = {
+        recommendedProxySettings = true;
+        proxyWebsockets = true;
+        proxyPass = "http://127.0.0.1:8096";
+      };
+    };
+  };
+  security.acme = {
+    acceptTerms = true;
+    defaults.email = "slimness_bullish683@simplelogin.com";
+  };
 }
