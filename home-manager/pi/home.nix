@@ -42,13 +42,4 @@ in {
 
 	# Let Home Manager install and manage itself.
 	programs.home-manager.enable = true;
-	
-	#targets.genericLinux.enable = true;
-
-	services.syncthing.enable = true;
-
-	nix = {
-		package = pkgs.nix;
-		settings.experimental-features = [ "nix-command" "flakes" ];
-	};
 }

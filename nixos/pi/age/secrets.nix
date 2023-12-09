@@ -4,4 +4,5 @@ in {
 	"user.age".publicKeys = [ key ];
 	"mullvad.age".publicKeys = [ key ];
 	"wifi.age".publicKeys = [ key ];
+	"domain.age".publicKeys = [ key ];
 }

@@ -1,12 +1,48 @@
-{ config, pkgs, ... }:
+{ inputs, config, pkgs, ... }:
 let
+  # This is dumb, but it works. Nix caches failures so changing this unbound
+  # variable to anything else forces a rebuild
   force-rebuild = 0;
+  machine = "pi";
   username = "user";
-  secretDir = "/data/.secret";
+  dataDir = "/data";
+  configDir = "${dataDir}/.system-configuration";
+  secretDir = "${dataDir}/.secret";
+  stateDir = "${dataDir}/.state";
 in {
-  imports = [
-    ./servarr.nix
-  ];
+  # Load secrets
+  age = {
+    identityPaths = [ "${secretDir}/pi/ssh/id_ed25519" ];
+    secrets = {
+      wifi.file = ./age/wifi.age;
+      user.file = ./age/user.age;
+      mullvad.file = ./age/mullvad.age;
+      domain.file = ./age/domain.age;
+    };
+  };
+
+  # Load kirk modules
+  kirk = {
+    nixosScripts = {
+      enable = true;
+      configDir = configDir;
+      machine = "pi";
+    };
+    servarr = {
+      enable = true;
+      domainName = builtins.readFile config.age.secrets.mullvad.path;
+      acmeMail = "slimness_bullish683@simplelogin.com";
+      mullvadAcc = config.age.secrets.mullvad.path;
+      mediaDir = "${dataDir}/media";
+      stateDir = stateDir;
+
+      rflood.ulimits = {
+        enable = true;
+        hard = 1024;
+        soft = 1024;
+      };
+    };
+  };
 
   # Forces full colors in terminal over SSH
   environment.variables = {
@@ -14,18 +50,18 @@ in {
     TERM = "xterm-256color";
   };
 
+  # Enable some HW-acceleration, idk
   hardware.raspberry-pi."4".fkms-3d.enable = true;
-  age = {
-    identityPaths = [ "${secretDir}/pi/ssh/id_ed25519" ];
-    secrets = {
-      wifi.file = ./age/wifi.age;
-      user.file = ./age/user.age;
-      mullvad.file = ./age/mullvad.age;
-    };
+
+  services.syncthing = {
+    enable = true;
+    configDir = "${stateDir}/syncthing";
+    dataDir = "${dataDir}/sync";
+    guiAddress = "127.0.0.1:7000";
   };
 
   networking = {
-    hostName = "pi";
+    hostName = machine;
     wireless = {
       enable = true;
       environmentFile = config.age.secrets.wifi.path;
@@ -57,8 +93,10 @@ in {
     "${./pubkeys/steam-deck.pub}"
   ];
 
+  # Autologin
   services.getty.autologinUser = username;
 
+  # Set zsh as default shell
   programs.zsh.enable = true;
 
   nix = {
@@ -99,12 +137,13 @@ in {
     nmap
     trash-cli
     wget
+    inputs.agenix.packages."${system}".default
   ];
 
-	nixpkgs.config.allowUnfree = true;
+  nixpkgs.config.allowUnfree = true;
 
-	powerManagement.cpuFreqGovernor = "ondemand";
+  powerManagement.cpuFreqGovernor = "ondemand";
 
-	system.stateVersion = "20.09";
+  system.stateVersion = "20.09";
 }
 

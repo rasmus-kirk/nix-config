@@ -25,6 +25,7 @@
 					./nixos/pi/configuration.nix
 					agenix.nixosModules.default
 					nixos-hardware.nixosModules.raspberry-pi-4
+					kirk-modules.nixosModules.default
 				];
 
 				specialArgs = { inherit inputs; };
