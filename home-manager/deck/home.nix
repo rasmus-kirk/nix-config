@@ -1,17 +1,38 @@
 # My home manager config
 { pkgs, config, ... }:
 let
+	username = "user";
+	machine = "deck";
 	configDir = "${config.home.homeDirectory}/.system-configuration";
-	username = "emil";
-	machine = "emil";
+	secretDir = "${config.home.homeDirectory}/.secret";
 in {
 	kirk = {
 		terminalTools.enable = true;
 		foot.enable = true;
 		fzf.enable = true;
-		homeManagerScripts = { enable = true; configDir = configDir; machine = machine; };
+		git = {
+			enable = true;
+			userEmail = "mail@rasmuskirk.com";
+			userName = "rasmus-kirk";
+		};
+		helix.enable = true;
+		homeManagerScripts = { 
+			enable = true; 
+			configDir = configDir; 
+			machine = machine; 
+		};
+		jiten.enable = false;
 		joshuto.enable = true;
 		kakoune.enable = true;
+		ssh = { 
+			enable = true; 
+			identityPath = "${secretDir}/id_ed25519";
+		};
+		userDirs = { 
+			enable = true; 
+			autoSortDownloads = true; 
+		};
+		zathura.enable = true;
 		zsh.enable = true;
 		fonts.enable = true;
 	};
@@ -45,12 +66,12 @@ in {
 
 	home.packages = with pkgs; [
 		# Misc
-		# NOTE: Doesn't work for current nix version, don't know why
-		# stremio
-		mullvad-vpn
+		freetube
+		jellyfin
+		mpv
 	
 		# Browsers
-		chromium
+		librewolf
 
 		# Chat
 		signal-desktop
@@ -61,6 +82,5 @@ in {
 
 		# Misc Terminal Tools
 		wl-clipboard
-		git
 	];
 }

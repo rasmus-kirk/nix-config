@@ -44,7 +44,7 @@
 			];
 		};
 
-		homeConfigurations."emil" = home-manager.lib.homeManagerConfiguration {
+		homeConfigurations."deck" = home-manager.lib.homeManagerConfiguration {
 			pkgs = import nixpkgs {
 				system = "x86_64-linux";
 				config.allowUnfree = true;
