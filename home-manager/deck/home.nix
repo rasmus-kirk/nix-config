@@ -1,7 +1,7 @@
 # My home manager config
 { pkgs, config, ... }:
 let
-	username = "user";
+	username = "deck";
 	machine = "deck";
 	configDir = "${config.home.homeDirectory}/.system-configuration";
 	secretDir = "${config.home.homeDirectory}/.secret";

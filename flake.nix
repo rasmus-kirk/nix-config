@@ -51,7 +51,7 @@
 			};        
 
 			modules = [ 
-				./home-manager/emil/home.nix
+				./home-manager/deck/home.nix
 				kirk-modules.homeManagerModules.default
 			];
 		};
