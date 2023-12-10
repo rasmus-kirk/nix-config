@@ -13,11 +13,37 @@
 			inputs.nixpkgs.follows = "nixpkgs";
 		};
 		nixos-hardware.url = "github:NixOS/nixos-hardware/master";
+		jovian-nixos = {
+			url = "github:Jovian-Experiments/Jovian-NixOS/development";
+			inputs.nixpkgs.follows = "nixpkgs";
+		};
 		kirk-modules.url = "github:rasmus-kirk/nix-modules";
 	};
 
-	outputs = { nixpkgs, agenix, home-manager, nixos-hardware, kirk-modules, ... }@inputs: {
+	outputs = { 
+		nixpkgs,
+		agenix,
+		home-manager,
+		nixos-hardware,
+		kirk-modules,
+		jovian-nixos,
+		...
+		}@inputs: 
+	{
 		nixosConfigurations = {
+			deck = nixpkgs.lib.nixosSystem {
+				system = "x86_64-linux";
+
+				modules = [
+					./nixos/deck/configuration.nix
+					agenix.nixosModules.default
+					jovian-nixos.nixosModules.jovian
+					kirk-modules.nixosModules.default
+				];
+
+				specialArgs = { inherit inputs; };
+			};
+
 			pi = nixpkgs.lib.nixosSystem {
 				system = "aarch64-linux";
 
@@ -32,40 +58,42 @@
 			};
 		};
 
-		homeConfigurations."work" = home-manager.lib.homeManagerConfiguration {
-			pkgs = import nixpkgs {
-				system = "x86_64-linux";
-				config.allowUnfree = true;
-			};        
+		homeConfigurations = {
+			work = home-manager.lib.homeManagerConfiguration {
+				pkgs = import nixpkgs {
+					system = "x86_64-linux";
+					config.allowUnfree = true;
+				};        
 
-			modules = [ 
-				./home-manager/work/home.nix
-				kirk-modules.homeManagerModules.default
-			];
-		};
-
-		homeConfigurations."deck" = home-manager.lib.homeManagerConfiguration {
-			pkgs = import nixpkgs {
-				system = "x86_64-linux";
-				config.allowUnfree = true;
-			};        
-
-			modules = [ 
-				./home-manager/deck/home.nix
-				kirk-modules.homeManagerModules.default
-			];
-		};
-
-		homeConfigurations."pi" = home-manager.lib.homeManagerConfiguration {
-			pkgs = import nixpkgs {
-				system = "aarch64-linux";
-				config.allowUnfree = true;
+				modules = [ 
+					./home-manager/work/home.nix
+					kirk-modules.homeManagerModules.default
+				];
 			};
 
-			modules = [ 
-				./home-manager/pi/home.nix
-				kirk-modules.homeManagerModules.default
-			];
+			deck = home-manager.lib.homeManagerConfiguration {
+				pkgs = import nixpkgs {
+					system = "x86_64-linux";
+					config.allowUnfree = true;
+				};        
+
+				modules = [ 
+					./home-manager/deck/home.nix
+					kirk-modules.homeManagerModules.default
+				];
+			};
+
+			pi = home-manager.lib.homeManagerConfiguration {
+				pkgs = import nixpkgs {
+					system = "aarch64-linux";
+					config.allowUnfree = true;
+				};
+
+				modules = [ 
+					./home-manager/pi/home.nix
+					kirk-modules.homeManagerModules.default
+				];
+			};
 		};
 	};
 }
