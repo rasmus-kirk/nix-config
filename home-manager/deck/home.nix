@@ -1,10 +1,11 @@
 # My home manager config
 { pkgs, config, ... }:
 let
-	username = "deck";
+	username = "user";
 	machine = "deck";
-	configDir = "${config.home.homeDirectory}/.system-configuration";
-	secretDir = "${config.home.homeDirectory}/.secret";
+	dataDir = "/data";
+	configDir = "${dataDir}/.system-configuration";
+	secretDir = "${dataDir}/.secret";
 in {
 	kirk = {
 		terminalTools.enable = true;
@@ -26,7 +27,7 @@ in {
 		kakoune.enable = true;
 		ssh = { 
 			enable = true; 
-			identityPath = "${secretDir}/id_ed25519";
+			identityPath = "${secretDir}/deck/ssh/id_ed25519";
 		};
 		userDirs = { 
 			enable = true; 
@@ -46,8 +47,6 @@ in {
 	programs.home-manager.enable = true;
 	
 	targets.genericLinux.enable = true;
-
-	services.syncthing.enable = true;
 
 	nix = {
 		package = pkgs.nix;
