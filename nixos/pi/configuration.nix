@@ -30,7 +30,7 @@ in {
     };
     servarr = {
       enable = true;
-      domainName = builtins.readFile config.age.secrets.mullvad.path;
+      domainName = builtins.readFile config.age.secrets.domain.path;
       acmeMail = "slimness_bullish683@simplelogin.com";
       mullvadAcc = config.age.secrets.mullvad.path;
       mediaDir = "${dataDir}/media";
