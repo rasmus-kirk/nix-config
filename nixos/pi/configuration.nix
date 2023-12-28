@@ -35,6 +35,7 @@ in {
       mullvadAcc = config.age.secrets.mullvad.path;
       mediaDir = "${dataDir}/media";
       stateDir = stateDir;
+      upnp.enable = true;
 
       rflood.ulimits = {
         enable = true;
