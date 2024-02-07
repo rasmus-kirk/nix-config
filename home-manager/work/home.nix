@@ -17,7 +17,7 @@ in {
 		};
 		helix.enable = true;
 		homeManagerScripts = { enable = true; configDir = configDir; machine = machine; };
-		jiten.enable = false;
+		jiten.enable = true;
 		joshuto.enable = true;
 		kakoune.enable = true;
 		ssh = { enable = true; identityPath = "${secretDir}/id_ed25519"; };
@@ -56,6 +56,65 @@ in {
 		initExtra = "exec zsh";
 	};
 
+	# TODO: Add to kirk-module
+	programs.mpv = {
+		enable = true;
+		bindings = {
+			UP = "add chapter 1";
+			DOWN = "add chapter -1";
+			ESC = "quit";
+			ENTER = "cycle pause";
+			f = "cycle fullscreen";
+			h = "seek -5";
+			j = "add chapter -1";
+			k = "add chapter 1";
+			l = "seek 5";
+
+			"Shift+LEFT" = "cycle sub down";
+			"Shift+RIGHT" = "cycle sub";
+			"Shift+UP" = "cycle audio";
+			"Shift+DOWN" = "cycle audio down";
+
+			y = "add audio-delay 0.010";
+			o = "add audio-delay -0.010";
+
+			i = ''cycle-values vf "sub,lavfi=negate" ""'';
+			S = "playlist-shuffle";
+
+			a = "ab-loop";
+
+			"Alt+r" = "playlist-shuffle";
+		};
+		scripts = with pkgs.mpvScripts; [ 
+			# Load all files in directory to playlist, playing next alphabetically ordered file on playback end.
+			autoload
+			# Better UI
+			uosc
+			# Allows media playback buttons to work in mpv
+			mpris
+			# Thumbnail support, needs uosc to work
+			thumbfast
+			# Prevents screen sleep on gnome
+			inhibit-gnome
+		];
+		config = {
+			# TODO: wtf is the reason for this? It should not be necessary. WHY DOES IT WORK!?
+			vo = "x11";
+
+			alang = [ "jpn" "eng" ];
+			slang = [ "eng" ];
+			#extension.gif = {
+			#	cache = "no";
+			#	no-pause = "";
+			#	loop-file = "yes";
+			#};
+			#extension.webm = {
+			#	no-pause = "";
+			#	loop-file = "yes";
+			#};
+		};
+	};
+
 	programs.zsh.profileExtra = ''
 		export PATH=$PATH:~/.cargo/bin:~/.local/bin
 
@@ -81,7 +140,8 @@ in {
 		chromium
 
 		# Media
-		mpv
+		qbittorrent
+		#mpv
 
 		# Crytpo
 		monero-gui
