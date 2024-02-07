@@ -14,6 +14,8 @@ in {
   age = {
     identityPaths = [ "${secretDir}/pi/ssh/id_ed25519" ];
     secrets = {
+      airvpn-wg.file = ./age/airvpn-wg.age;
+      airvpn-wg-address.file = ./age/airvpn-wg-address.age;
       wifi.file = ./age/wifi.age;
       user.file = ./age/user.age;
       mullvad.file = ./age/mullvad.age;
@@ -28,22 +30,59 @@ in {
       configDir = configDir;
       machine = "pi";
     };
+
     servarr = {
       enable = true;
-      domainName = builtins.readFile config.age.secrets.domain.path;
-      acmeMail = "slimness_bullish683@simplelogin.com";
-      mullvadAcc = config.age.secrets.mullvad.path;
       mediaDir = "${dataDir}/media";
       stateDir = stateDir;
-      upnp.enable = true;
 
-      rflood.ulimits = {
+      upnp.enable = false;
+
+      vpn = {
         enable = true;
-        hard = 1024;
-        soft = 1024;
+        dnsServer = "91.239.100.100"; # Get this from VPN...
+        vpnTestService = {
+          enable = false;
+          port = 33915;
+        };
+        wgConf = config.age.secrets.airvpn-wg.path;
+        wgAddress = config.age.secrets.airvpn-wg-address.path;
+      };
+
+      jellyfin = {
+        enable = true;
+        nginx = {
+          enable = true;
+          domainName = builtins.readFile config.age.secrets.domain.path;
+          acmeMail = "slimness_bullish683@simplelogin.com";
+        };
+      };
+
+      transmission = {
+        enable = true;
+        useVpn = true;
+        useFlood = true;
+        peerPort = 33915;
+      };
+
+      sonarr = {
+        enable = true;
+        useVpn = false;
+      };
+      
+      radarr = {
+        enable = true;
+        useVpn = false;
+      };
+
+      prowlarr = {
+        enable = true;
+        useVpn = false;
       };
     };
   };
+
+  networking.firewall.enable = true;
 
   # Forces full colors in terminal over SSH
   environment.variables = {
@@ -59,9 +98,12 @@ in {
     configDir = "${stateDir}/syncthing";
     dataDir = "${dataDir}/sync";
     guiAddress = "127.0.0.1:7000";
+    overrideDevices = false;
+    overrideFolders = false;
   };
 
   networking = {
+    nameservers = [ "91.239.100.100" ];
     hostName = machine;
     wireless = {
       enable = true;
@@ -112,6 +154,13 @@ in {
       experimental-features = nix-command flakes
       min-free = ${toString (100 * 1024 * 1024)}
       max-free = ${toString (1024 * 1024 * 1024)}
+    '';
+  };
+
+  security.sudo = {
+    execWheelOnly = true;
+    configFile = ''
+      Defaults insults
     '';
   };
 
