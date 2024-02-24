@@ -22,7 +22,10 @@ in {
 		kakoune.enable = true;
 		ssh = { enable = true; identityPath = "${secretDir}/id_ed25519"; };
 		userDirs = { enable = true; autoSortDownloads = true; };
-		zathura.enable = true;
+		zathura = {
+			enable = true;
+			darkmode = false;
+		};
 		zsh.enable = true;
 		fonts.enable = true;
 	};
