@@ -18,6 +18,7 @@ in {
 		helix.enable = true;
 		homeManagerScripts = { enable = true; configDir = configDir; machine = machine; };
 		jiten.enable = true;
+		scripts.enable = true;
 		joshuto.enable = true;
 		kakoune.enable = true;
 		ssh = { enable = true; identityPath = "${secretDir}/id_ed25519"; };
