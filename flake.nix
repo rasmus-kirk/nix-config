@@ -17,7 +17,7 @@
 			url = "github:Jovian-Experiments/Jovian-NixOS/development";
 			inputs.nixpkgs.follows = "nixpkgs";
 		};
-		kirk-modules.url = "path:./nix-modules";
+		kirk-modules.url = "git+file://./nix-modules";
 	};
 
 	outputs = { 
