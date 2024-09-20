@@ -6,19 +6,6 @@
 }:
 with lib; let
   cfg = config.kirk.yazi;
-  gruvbox-dark = pkgs.stdenv.mkDerivation {
-    name = "gruvbox-dark";
-    phases = ["unpackPhase" "buildPhase"];
-    buildPhase = ''
-      mkdir -p "$out"
-      cp -r . "$out"
-    '';
-    src = pkgs.fetchgit {
-      url = "https://github.com/bennyyip/gruvbox-dark.yazi.git";
-      rev = "c204853de7a78bc99ea628e51857ce65506468db";
-      hash = "sha256-NBco10MINyAJk1YWHwYUzvI9mnTJl9aYyDtQSTUP3Hs=";
-    };
-  };
   mkYaziPlugin = name:
     pkgs.stdenv.mkDerivation {
       name = name;
@@ -33,6 +20,40 @@ with lib; let
         hash = "sha256-XHaQjudV9YSMm4vF7PQrKGJ078oVF1U1Du10zXEJ9I0=";
       };
     };
+  mkYaziPluginGithub = x:
+    pkgs.stdenv.mkDerivation {
+      name = x.name;
+      phases = ["unpackPhase" "buildPhase"];
+      buildPhase = ''
+        mkdir -p "$out"
+        cp -r . "$out"
+      '';
+      src = pkgs.fetchgit {
+        rev = x.rev;
+        url = x.url;
+        hash = x.hash;
+      };
+    };
+  plugins = {
+    gruvbox-dark = mkYaziPluginGithub {
+      name = "gruvbox-dark";
+      url = "https://github.com/bennyyip/gruvbox-dark.yazi.git";
+      rev = "c204853de7a78bc99ea628e51857ce65506468db";
+      hash = "sha256-NBco10MINyAJk1YWHwYUzvI9mnTJl9aYyDtQSTUP3Hs=";
+    };
+    mkdir = mkYaziPluginGithub {
+      name = "mkdir";
+      url = "https://github.com/Sonico98/mkdir.yazi";
+      rev = "0c0b87a576d49001603f63d447aab166ec35363f";
+      hash = "sha256-rx3B3MyljqabEjJDtCx807JhIemafduQ0i5fJvJXAzs=";
+    };
+    exifaudio = mkYaziPluginGithub {
+      name = "exifaudio";
+      url = "https://github.com/Sonico98/exifaudio.yazi";
+      rev = "6205460405fa39c017d0eef12997c1180658e695";
+      hash = "sha256-mYvq7xnd4gI0KoG5G+ygDxqCWdpZbMn3Im1EiW3eSyI=";
+    };
+  };
 in {
   options.kirk.yazi = {
     enable = mkEnableOption "yazi file manager";
@@ -49,6 +70,8 @@ in {
 
   config = mkIf cfg.enable {
     home.packages = with pkgs; [
+      exiftool
+      mediainfo
       ffmpegthumbnailer
       jq
       poppler
@@ -82,8 +105,18 @@ in {
             }
             {
               on = "e";
-              run = ''shell --block --confirm \"$EDITOR $0\"'';
+              run = ''shell --block --confirm "$EDITOR $0"'';
               desc = "Open the selected files in editor";
+            }
+            {
+              on = [ "m" "d" ];
+              run = "plugin mkdir";
+              desc = "Create a directory";
+            }
+            {
+              on = [ "m" "f" ];
+              run = "create";
+              desc = "Create a file";
             }
             # Selection
             {
@@ -197,21 +230,28 @@ in {
           });
       };
       settings = {
-        plugin.prepend_fetchers = [
-          {
-            id = "git";
-            name = "*/";
-            run = "git";
-          }
-          {
-            id = "git";
-            name = "*";
-            run = "git";
-          }
-        ];
+        plugin = {
+          prepend_previewers = [
+              { mime = "audio/*"; run = "exifaudio"; }
+          ];
+          prepend_fetchers = [
+            {
+              id = "git";
+              name = "*/";
+              run = "git";
+            }
+            {
+              id = "git";
+              name = "*";
+              run = "git";
+            }
+          ];
+        };
       };
-      flavors.gruvbox-dark = gruvbox-dark;
+      flavors.gruvbox-dark = plugins.gruvbox-dark;
       plugins = {
+        mkdir = plugins.mkdir;
+        exifaudio = plugins.exifaudio;
         full-border = mkYaziPlugin "full-border";
         git = mkYaziPlugin "git";
         smart-filter = mkYaziPlugin "smart-filter";
