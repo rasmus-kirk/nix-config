@@ -36,10 +36,6 @@
         treefmt-nix.flakeModule
         devshell.flakeModule
       ];
-      systems = [
-        "x86_64-linux"
-      ];
-
       flake = {
         nixosModules = rec {
           kirk = import ./modules/nixos;
@@ -101,6 +97,11 @@
           };
         };
       };
+
+      systems = [
+        "x86_64-linux"
+        "aarch64-linux"
+      ];
 
       perSystem = {
         config,

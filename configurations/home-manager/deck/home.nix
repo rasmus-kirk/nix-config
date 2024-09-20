@@ -1,8 +1,5 @@
 # My home manager config
-{
-  pkgs,
-  ...
-}: let
+{pkgs, ...}: let
   username = "user";
   machine = "deck";
   dataDir = "/data";

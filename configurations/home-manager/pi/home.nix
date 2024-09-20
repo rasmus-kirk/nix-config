@@ -1,4 +1,3 @@
-# My home manager config
 {pkgs, ...}: let
   secretDir = "/data/.secret";
   configDir = "/data/.system-configuration";
@@ -31,7 +30,7 @@ in {
     kakoune.enable = true;
     ssh = {
       enable = true;
-      identityPath = "${secretDir}/ssh/id_rsa";
+      identityPath = "${secretDir}/${machine}/ssh/id_ed25519";
     };
     zsh.enable = true;
     fonts.enable = true;
