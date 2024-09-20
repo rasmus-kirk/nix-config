@@ -9,7 +9,6 @@
   # instantiating derivations.
   # evaluate our options
   evalHome = lib.evalModules {
-    # TODO: understand why pkgs needs to be passed here
     specialArgs = {inherit pkgs;};
     modules = [
       {
@@ -17,7 +16,7 @@
         config._module.check = false;
       }
       inputs.home-manager.nixosModules.default
-      ./home-manager
+      ../modules/home-manager
     ];
   };
   # generate our docs
@@ -33,9 +32,7 @@
         config._module.check = false;
       }
       inputs.home-manager.nixosModules.default
-      ./nixos
-      #./nixos/servarr
-      #./nixos/nixosScripts
+      ../modules/nixos
     ];
   };
   optionsDocNixos = nixosOptionsDoc {
@@ -48,8 +45,12 @@ in
     buildInputs = with pkgs; [pandoc];
     phases = ["unpackPhase" "buildPhase"];
     buildPhase = ''
+      # Go to root dir
+      cd ..
+
       tmpdir=$(mktemp -d)
       #tmpdir=$out/debug
+
       mkdir -p $out
       mkdir -p $tmpdir
       cp -r docs $out

@@ -117,9 +117,9 @@
           };
         };
 
-        packages = {
-          docs = pkgs.callPackage ./mkDocs.nix {inherit inputs;};
-          hugo = pkgs.callPackage ./mkHugo.nix {inherit inputs;};
+        packages = rec {
+          docs = pkgs.callPackage ./docs/mkDocs.nix {inherit inputs;};
+          default = docs;
         };
 
         devshells.default = {
