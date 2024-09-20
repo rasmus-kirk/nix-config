@@ -68,131 +68,133 @@ in {
         require("git"):setup()
       '';
       keymap = {
-        manager.prepend_keymap = [
-          {
-            on = "!";
-            run = "tab_create --current";
-            desc = "Open new tab";
-          }
-          {
-            on = "@";
-            run = "close";
-            desc = "Close tab";
-          }
-          { 
-            on = "e";
-            run = ''shell --block --confirm \"$EDITOR $0\"'';
-            desc = "Open the selected files in editor";
-          }
-          # Selection
-          {
-            on = ";";
-            run = "escape --select";
-            desc = "Deselect all files";
-          }
-          {
-            on = "?";
-            run = "help";
-            desc = "View help";
-          }
-          {
-            on = "%";
-            run = "select_all --state=true";
-            desc = "Select all files";
-          }
-          {
-            on = "J";
-            run = ["select --state=none" "arrow 1"];
-            desc = "Select down";
-          }
-          {
-            on = "K";
-            run = ["select --state=none" "arrow -1"];
-            desc = "Select up";
-          }
-          # Plugins
-          {
-            on = "'";
-            run = "plugin smart-filter";
-            desc = "Smart filter";
-          }
-          {
-            on = ["c" "m"];
-            run = "plugin chmod";
-            desc = "Chmod on selected files";
-          }
-          {
-            on = "t";
-            run = "plugin --sync hide-preview";
-            desc = "Hide or show preview";
-          }
-          {
-            on = "T";
-            run = "plugin --sync max-preview";
-            desc = "Maximize or restore preview";
-          }
-          # Goto
-          {
-            on = ["g" "~"];
-            run = "cd ~";
-            desc = "Goto home dir";
-          }
-          {
-            on = ["g" "`"];
-            run = "cd /";
-            desc = "Goto root directory";
-          }
-          {
-            on = ["g" "e"];
-            run = "arrow 99999999999";
-            desc = "Move cursor to bottom";
-          }
-          # Bookmarks
-          {
-            on = ["b" "u"];
-            run = "cd $XDG_DOWNLOAD_DIR";
-            desc = "Goto download dir";
-          }
-          {
-            on = ["b" "b"];
-            run = "cd ~/media/books";
-            desc = "Goto books dir";
-          }
-          {
-            on = ["b" "p"];
-            run = "cd ~/media/documents/programming";
-            desc = "Goto programming dir";
-          }
-          {
-            on = ["b" "a"];
-            run = "cd ~/media/audio";
-            desc = "Goto audio dir";
-          }
-          {
-            on = ["b" "a"];
-            run = "cd $XDG_VIDEOS_DIR";
-            desc = "Goto videos dir";
-          }
-          {
-            on = ["b" "d"];
-            run = "cd $XDG_DOCUMENTS_DIR";
-            desc = "Goto download dir";
-          }
-          {
-            on = ["b" "s"];
-            run = "cd ~/media/documents/study";
-            desc = "Goto study dir";
-          }
-          {
-            on = ["b" "i"];
-            run = "cd $XDG_PICTURES_DIR";
-            desc = "Goto images dir";
-          }
-        ] ++ (lib.optional (cfg.configDir != null) {
-          on = ["b" "n"];
-          run = "cd ${cfg.configDir}";
-          desc = "Goto nix config dir";
-        });
+        manager.prepend_keymap =
+          [
+            {
+              on = "!";
+              run = "tab_create --current";
+              desc = "Open new tab";
+            }
+            {
+              on = "@";
+              run = "close";
+              desc = "Close tab";
+            }
+            {
+              on = "e";
+              run = ''shell --block --confirm \"$EDITOR $0\"'';
+              desc = "Open the selected files in editor";
+            }
+            # Selection
+            {
+              on = ";";
+              run = "escape --select";
+              desc = "Deselect all files";
+            }
+            {
+              on = "?";
+              run = "help";
+              desc = "View help";
+            }
+            {
+              on = "%";
+              run = "select_all --state=true";
+              desc = "Select all files";
+            }
+            {
+              on = "J";
+              run = ["select --state=none" "arrow 1"];
+              desc = "Select down";
+            }
+            {
+              on = "K";
+              run = ["select --state=none" "arrow -1"];
+              desc = "Select up";
+            }
+            # Plugins
+            {
+              on = "'";
+              run = "plugin smart-filter";
+              desc = "Smart filter";
+            }
+            {
+              on = ["c" "m"];
+              run = "plugin chmod";
+              desc = "Chmod on selected files";
+            }
+            {
+              on = "t";
+              run = "plugin --sync hide-preview";
+              desc = "Hide or show preview";
+            }
+            {
+              on = "T";
+              run = "plugin --sync max-preview";
+              desc = "Maximize or restore preview";
+            }
+            # Goto
+            {
+              on = ["g" "~"];
+              run = "cd ~";
+              desc = "Goto home dir";
+            }
+            {
+              on = ["g" "`"];
+              run = "cd /";
+              desc = "Goto root directory";
+            }
+            {
+              on = ["g" "e"];
+              run = "arrow 99999999999";
+              desc = "Move cursor to bottom";
+            }
+            # Bookmarks
+            {
+              on = ["b" "u"];
+              run = "cd $XDG_DOWNLOAD_DIR";
+              desc = "Goto download dir";
+            }
+            {
+              on = ["b" "b"];
+              run = "cd ~/media/books";
+              desc = "Goto books dir";
+            }
+            {
+              on = ["b" "p"];
+              run = "cd ~/media/documents/programming";
+              desc = "Goto programming dir";
+            }
+            {
+              on = ["b" "a"];
+              run = "cd ~/media/audio";
+              desc = "Goto audio dir";
+            }
+            {
+              on = ["b" "a"];
+              run = "cd $XDG_VIDEOS_DIR";
+              desc = "Goto videos dir";
+            }
+            {
+              on = ["b" "d"];
+              run = "cd $XDG_DOCUMENTS_DIR";
+              desc = "Goto download dir";
+            }
+            {
+              on = ["b" "s"];
+              run = "cd ~/media/documents/study";
+              desc = "Goto study dir";
+            }
+            {
+              on = ["b" "i"];
+              run = "cd $XDG_PICTURES_DIR";
+              desc = "Goto images dir";
+            }
+          ]
+          ++ (lib.optional (cfg.configDir != null) {
+            on = ["b" "n"];
+            run = "cd ${cfg.configDir}";
+            desc = "Goto nix config dir";
+          });
       };
       settings = {
         plugin.prepend_fetchers = [

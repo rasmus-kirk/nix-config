@@ -1,5 +1,9 @@
-{ inputs, config, pkgs, ... }:
-let
+{
+  inputs,
+  config,
+  pkgs,
+  ...
+}: let
   machine = "pi";
   username = "user";
   dataDir = "/data";
@@ -11,7 +15,7 @@ let
 in {
   # Load secrets
   age = {
-    identityPaths = [ "${secretDir}/pi/ssh/id_ed25519" ];
+    identityPaths = ["${secretDir}/pi/ssh/id_ed25519"];
     secrets = {
       "airvpn-wg.conf".file = ./age/airvpn-wg.conf.age;
       wifi.file = ./age/wifi.age;
@@ -31,7 +35,7 @@ in {
 
   nixarr = {
     enable = true;
-    mediaUsers = [ username ];
+    mediaUsers = [username];
 
     vpn = {
       enable = true;
@@ -91,10 +95,12 @@ in {
   systemd.services.systemd-journald.unitConfig.StartLimitIntervalSec = 0;
 
   # Setup swap ram for stability
-  swapDevices = [ {
-     device = "/var/lib/swapfile";
-     size = 6*1024;
-  } ];
+  swapDevices = [
+    {
+      device = "/var/lib/swapfile";
+      size = 6 * 1024;
+    }
+  ];
 
   services = {
     syncthing = {
@@ -112,7 +118,7 @@ in {
     wireless = {
       enable = true;
       environmentFile = config.age.secrets.wifi.path;
-      networks."dd-wrt" = { psk = "@HOME@"; };
+      networks."dd-wrt" = {psk = "@HOME@";};
     };
   };
 
@@ -122,7 +128,7 @@ in {
       shell = pkgs.zsh;
       isNormalUser = true;
       hashedPasswordFile = config.age.secrets.user.path;
-      extraGroups = [ "wheel" ];
+      extraGroups = ["wheel"];
     };
   };
 
@@ -130,7 +136,7 @@ in {
     enable = true;
     openFirewall = true;
     settings.PasswordAuthentication = false;
-    ports = [ 6000 ];
+    ports = [6000];
   };
   users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
     ../../../pubkeys/work.pub
@@ -157,7 +163,7 @@ in {
     # For security
     execWheelOnly = true;
     # For insults lol
-    package = pkgs.sudo.override { withInsults = true; };
+    package = pkgs.sudo.override {withInsults = true;};
     extraConfig = ''
       Defaults insults
     '';
@@ -168,19 +174,19 @@ in {
     "/" = {
       device = "/dev/disk/by-label/NIXOS_SD";
       fsType = "ext4";
-      options = [ "noatime" ];
+      options = ["noatime"];
     };
     "/data/media" = {
       device = "/dev/disk/by-label/media";
       fsType = "ext4";
-      options = [ "noatime" ];
+      options = ["noatime"];
     };
   };
 
   # Force reboot on kernel panics
   boot.kernelParams = [
-    "panic=10"             # Reboot after 10 seconds of kernel panic
-    "panic_on_oops=1"      # Reboot on any kernel oops (optional)
+    "panic=10" # Reboot after 10 seconds of kernel panic
+    "panic_on_oops=1" # Reboot on any kernel oops (optional)
   ];
 
   environment.systemPackages = with pkgs; [
@@ -208,4 +214,3 @@ in {
 
   system.stateVersion = "20.09";
 }
-

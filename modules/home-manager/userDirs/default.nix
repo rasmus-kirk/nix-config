@@ -10,7 +10,7 @@ with lib; let
   sort-downloads = pkgs.writeShellApplication {
     name = "sort-downloads";
 
-    runtimeInputs = with pkgs; [ toybox ];
+    runtimeInputs = with pkgs; [toybox];
 
     text = ''
       downRoot="${config.xdg.userDirs.extraConfig.XDG_DOWNLOADS_ROOT}"

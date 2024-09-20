@@ -74,7 +74,7 @@
                     ./configurations/home-manager/pi/home.nix
                     self.homeManagerModules.default
                   ];
-                  config.home.packages = [ home-manager.packages."${system}".default ];
+                  config.home.packages = [home-manager.packages."${system}".default];
                 };
                 home-manager.useGlobalPkgs = true;
                 home-manager.useUserPackages = true;
