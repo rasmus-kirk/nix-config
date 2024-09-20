@@ -51,12 +51,7 @@ in {
         {
           name = "gruvbox-powerline";
           file = "gruvbox.zsh-theme";
-          src = pkgs.fetchFromGitHub {
-            owner = "rasmus-kirk";
-            repo = "gruvbox-powerline";
-            rev = "bf5d9422acadfa7b4e834e7117bc8dbc1947004e";
-            sha256 = "sha256-bEVR0bKcUBLM8QdyyIWnmnxNl9aCusS8BS6D/qbnIig=";
-          };
+          src = ./gruvbox-powerline;
         }
         {
           name = "zsh-completions";
