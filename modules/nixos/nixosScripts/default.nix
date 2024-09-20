@@ -17,6 +17,11 @@ with lib; let
   nos-upgrade = pkgs.writeShellApplication {
     name = "nos-upgrade";
     text = ''
+      if [ "$EUID" -ne 0 ]; then
+        echo "Please run as root"
+        exit
+      fi
+
       # Update, switch to new config, and cleanup
       ${nos-update}/bin/nos-update &&
       ${nos-rebuild}/bin/nos-rebuild &&
@@ -41,9 +46,12 @@ with lib; let
   nos-rebuild = pkgs.writeShellApplication {
     name = "nos-rebuild";
     text = ''
+      if [ "$EUID" -ne 0 ]; then
+        echo "Please run as root"
+        exit
+      fi
+
       nix flake update nixarr --flake ${cfg.configDir}
-      # Update the inputs of this repo on every rebuild
-      nix flake update kirk-modules --flake ${cfg.configDir} &&
       # Switch configuration, backing up files
       # impure is a little disgusting, but will cause issues otherwise
       nixos-rebuild switch --flake ${cfg.configDir}#${cfg.machine} --show-trace --impure

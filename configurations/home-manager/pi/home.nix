@@ -26,7 +26,7 @@ in {
       enable = true;
       autoSortDownloads = true;
     };
-    joshuto.enable = true;
+    yazi.enable = true;
     kakoune.enable = true;
     ssh = {
       enable = true;

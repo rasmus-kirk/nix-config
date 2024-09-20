@@ -12,6 +12,7 @@
     ./joshuto
     ./kakoune
     ./ssh
+    ./yazi
     ./terminalTools
     ./userDirs
     ./zathura
