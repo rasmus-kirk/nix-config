@@ -1,8 +1,5 @@
 { inputs, config, pkgs, ... }:
 let
-  # This is dumb, but it works. Nix caches failures so changing this unbound
-  # variable to anything else forces a rebuild
-  force-rebuild = 0;
   machine = "pi";
   username = "user";
   dataDir = "/data";
@@ -10,9 +7,6 @@ let
   secretDir = "${dataDir}/.secret";
   stateDir = "${dataDir}/.state";
 
-  vpntestPort = 24745;
-  xmrP2PPort = 8001; # 24746;
-  xmrRpcPort = 8000; # 24747;
   transmissionPort = 33915;
 in {
   # Load secrets
@@ -41,10 +35,7 @@ in {
 
     vpn = {
       enable = true;
-      vpnTestService = {
-        enable = true;
-        #port = vpntestPort;
-      };
+      vpnTestService.enable = true;
       wgConf = config.age.secrets."airvpn-wg.conf".path;
     };
 
@@ -76,15 +67,6 @@ in {
         download-queue-enabled = true;
         download-queue-size = 3;
       };
-      privateTrackers = {
-        cross-seed = {
-          enable = false;
-          indexIds = [
-            3  # DB
-            10 # AB
-          ];
-        };
-      };
     };
 
     sonarr.enable = true;
@@ -100,12 +82,6 @@ in {
   };
 
   hardware.raspberry-pi."4" = {
-    # disable LEDS
-    leds = {
-      #eth.disable = true;
-      #act.disable = true;
-      #pwr.disable = true;
-    };
     # Enable some HW-acceleration, idk
     fkms-3d.enable = true;
   };
@@ -129,72 +105,26 @@ in {
       overrideDevices = false;
       overrideFolders = false;
     };
-
-    monero = {
-      enable = false;
-      dataDir = "${stateDir}/monero";
-      extraConfig = ''
-        p2p-bind-ip=0.0.0.0
-        p2p-bind-port=${builtins.toString xmrP2PPort}
-
-        rpc-restricted-bind-ip=0.0.0.0
-        rpc-restricted-bind-port=${builtins.toString xmrRpcPort}
-
-        # Disable UPnP port mapping
-        no-igd=1
-
-        # Public-node
-        public-node=1
-
-        # ZMQ configuration
-        no-zmq=1
-
-        # Block known-malicious nodes from a DNSBL
-        enable-dns-blocklist=1
-      '';
-    };
   };
 
   networking = {
-    nameservers = [ 
-      # "91.239.100.100" # Uncensored DNS
-      # "1.1.1.2" # Cloudflare
-    ];
     hostName = machine;
-    firewall.allowedTCPPorts = [
-      xmrP2PPort
-      xmrRpcPort
-    ];
     wireless = {
       enable = true;
       environmentFile = config.age.secrets.wifi.path;
-      networks = {
-        "dd-wrt" = { psk = "@HOME@"; };
-      };
+      networks."dd-wrt" = { psk = "@HOME@"; };
     };
   };
 
   users = {
     mutableUsers = false;
-    users.git = {
-      isNormalUser = true;
-      hashedPasswordFile = config.age.secrets.user.path;
-      group = "git";
-      home = "${stateDir}/git";
-    };
     users."${username}" = {
       shell = pkgs.zsh;
       isNormalUser = true;
       hashedPasswordFile = config.age.secrets.user.path;
       extraGroups = [ "wheel" ];
     };
-    groups.git = {};
   };
-
-  systemd.tmpfiles.rules = [
-    # Media dirs
-    "d /data/git 0700 git git - -"
-  ];
 
   services.openssh = {
     enable = true;
@@ -203,11 +133,7 @@ in {
     ports = [ 6000 ];
   };
   users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
-    ./pubkeys/work.pub
-  ];
-  users.extraUsers.git.openssh.authorizedKeys.keyFiles = [
-    ./pubkeys/work.pub
-    ./pubkeys/pi.pub
+    ../../../pubkeys/work.pub
   ];
 
   # Autologin
