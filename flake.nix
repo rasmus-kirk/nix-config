@@ -3,17 +3,28 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs-2405.url = "github:nixos/nixpkgs/nixos-24.05";
+
+    nixarr.url = "github:rasmus-kirk/nixarr/dev";
+    nixarr.inputs.nixpkgs.follows = "nixpkgs";
+
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
+
     agenix.url = "github:ryantm/agenix";
     agenix.inputs.nixpkgs.follows = "nixpkgs";
+
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
 
+    # Flake stuff
     flake-root.url = "github:srid/flake-root";
+
     flake-parts.url = "github:hercules-ci/flake-parts";
     flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
+
     devshell.url = "github:numtide/devshell";
     devshell.inputs.nixpkgs.follows = "nixpkgs";
+
     treefmt-nix.url = "github:numtide/treefmt-nix";
     treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
   };
@@ -22,6 +33,7 @@
     self,
     nixpkgs,
     agenix,
+    nixarr,
     home-manager,
     nixos-hardware,
     flake-parts,
@@ -54,6 +66,7 @@
               agenix.nixosModules.default
               nixos-hardware.nixosModules.raspberry-pi-4
               self.nixosModules.default
+              nixarr.nixosModules.default
             ];
 
             specialArgs = {inherit inputs;};

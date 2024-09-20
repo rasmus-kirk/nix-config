@@ -132,7 +132,7 @@ in {
 
     monero = {
       enable = false;
-      dataDir = "${dataDir}/monero";
+      dataDir = "${stateDir}/monero";
       extraConfig = ''
         p2p-bind-ip=0.0.0.0
         p2p-bind-port=${builtins.toString xmrP2PPort}
