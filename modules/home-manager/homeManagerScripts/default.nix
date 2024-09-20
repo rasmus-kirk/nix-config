@@ -51,8 +51,6 @@ with lib; let
   hm-rebuild = pkgs.writeShellApplication {
     name = "hm-rebuild";
     text = ''
-      # Update the inputs of this repo on every rebuild
-      nix flake update kirk-modules --flake ${cfg.configDir} &&
       # Switch configuration, backing up files
       home-manager switch -b backup --flake ${configDir}#${cfg.machine}
     '';

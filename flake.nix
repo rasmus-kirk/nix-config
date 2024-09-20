@@ -67,6 +67,15 @@
               nixos-hardware.nixosModules.raspberry-pi-4
               self.nixosModules.default
               nixarr.nixosModules.default
+              home-manager.nixosModules.home-manager
+              {
+                home-manager.users.user.imports = [
+                  ./configurations/home-manager/pi/home.nix
+                  self.homeManagerModules.default
+                ];
+                home-manager.useGlobalPkgs = true;
+                home-manager.useUserPackages = true;
+              }
             ];
 
             specialArgs = {inherit inputs;};
