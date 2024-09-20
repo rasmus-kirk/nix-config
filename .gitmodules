@@ -1,3 +1,0 @@
-[submodule "nix-modules"]
-	path = nix-modules
-	url = git@github.com:rasmus-kirk/nix-modules.git

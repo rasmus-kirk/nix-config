@@ -1,99 +1,139 @@
 {
-	description = "Home Manager configuration of rasmus-kirk";
+  description = "My Nixos configuration";
 
-	inputs = {
-		# Specify the source of Home Manager and Nixpkgs.
-		nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-		home-manager = {
-			url = "github:nix-community/home-manager";
-			inputs.nixpkgs.follows = "nixpkgs";
-		};
-		agenix = {
-			url = "github:ryantm/agenix";
-			inputs.nixpkgs.follows = "nixpkgs";
-		};
-		nixos-hardware.url = "github:NixOS/nixos-hardware/master";
-		jovian-nixos = {
-			url = "github:Jovian-Experiments/Jovian-NixOS/development";
-			inputs.nixpkgs.follows = "nixpkgs";
-		};
-		kirk-modules.url = "git+file://./nix-modules";
-	};
+  inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    home-manager.url = "github:nix-community/home-manager";
+    home-manager.inputs.nixpkgs.follows = "nixpkgs";
+    agenix.url = "github:ryantm/agenix";
+    agenix.inputs.nixpkgs.follows = "nixpkgs";
+    nixos-hardware.url = "github:NixOS/nixos-hardware/master";
 
-	outputs = { 
-		nixpkgs,
-		agenix,
-		home-manager,
-		nixos-hardware,
-		kirk-modules,
-		jovian-nixos,
-		...
-		}@inputs: 
-	{
-		nixosConfigurations = {
-			deck = nixpkgs.lib.nixosSystem {
-				system = "x86_64-linux";
+    flake-root.url = "github:srid/flake-root";
+    flake-parts.url = "github:hercules-ci/flake-parts";
+    flake-parts.inputs.nixpkgs-lib.follows = "nixpkgs";
+    devshell.url = "github:numtide/devshell";
+    devshell.inputs.nixpkgs.follows = "nixpkgs";
+    treefmt-nix.url = "github:numtide/treefmt-nix";
+    treefmt-nix.inputs.nixpkgs.follows = "nixpkgs";
+  };
 
-				modules = [
-					./nixos/deck/configuration.nix
-					agenix.nixosModules.default
-					jovian-nixos.nixosModules.jovian
-					kirk-modules.nixosModules.default
-				];
+  outputs = inputs @ {
+    self,
+    nixpkgs,
+    agenix,
+    home-manager,
+    nixos-hardware,
+    flake-parts, 
+    flake-root,
+    ...
+    }:
+    flake-parts.lib.mkFlake {
+      inherit inputs;
+    } {
+      imports = with inputs; [
+        flake-root.flakeModule
+        treefmt-nix.flakeModule
+        devshell.flakeModule
+      ];
+      systems = [
+        "x86_64-linux"
+      ];
 
-				specialArgs = { inherit inputs; };
-			};
+      flake = {
+        nixosModules = rec {
+          kirk = import ./modules/nixos;
+          default = kirk;
+        };
+        homeManagerModules = rec {
+          kirk = import ./modules/home-manager;
+          default = kirk;
+        };
+        nixosConfigurations = {
+          pi = nixpkgs.lib.nixosSystem {
+            system = "aarch64-linux";
 
-			pi = nixpkgs.lib.nixosSystem {
-				system = "aarch64-linux";
+            modules = [
+              ./configurations/nixos/pi/configuration.nix
+              agenix.nixosModules.default
+              nixos-hardware.nixosModules.raspberry-pi-4
+              self.nixosModules.default
+            ];
 
-				modules = [
-					./nixos/pi/configuration.nix
-					agenix.nixosModules.default
-					nixos-hardware.nixosModules.raspberry-pi-4
-					kirk-modules.nixosModules.default
-				];
+            specialArgs = { inherit inputs; };
+          };
+        };
+        homeConfigurations = {
+          work = home-manager.lib.homeManagerConfiguration {
+            pkgs = import nixpkgs {
+              system = "x86_64-linux";
+              config.allowUnfree = true;
+            };        
 
-				specialArgs = { inherit inputs; };
-			};
-		};
+            modules = [ 
+              ./configurations/home-manager/work/home.nix
+              self.homeManagerModules.default
+            ];
+          };
 
-		homeConfigurations = {
-			work = home-manager.lib.homeManagerConfiguration {
-				pkgs = import nixpkgs {
-					system = "x86_64-linux";
-					config.allowUnfree = true;
-				};        
+          deck = home-manager.lib.homeManagerConfiguration {
+            pkgs = import nixpkgs {
+              system = "x86_64-linux";
+              config.allowUnfree = true;
+            };        
 
-				modules = [ 
-					./home-manager/work/home.nix
-					kirk-modules.homeManagerModules.default
-				];
-			};
+            modules = [ 
+              ./configurations/home-manager/deck/home.nix
+              self.homeManagerModules.default
+            ];
+          };
 
-			deck = home-manager.lib.homeManagerConfiguration {
-				pkgs = import nixpkgs {
-					system = "x86_64-linux";
-					config.allowUnfree = true;
-				};        
+          pi = home-manager.lib.homeManagerConfiguration {
+            pkgs = import nixpkgs {
+              system = "aarch64-linux";
+              config.allowUnfree = true;
+            };
 
-				modules = [ 
-					./home-manager/deck/home.nix
-					kirk-modules.homeManagerModules.default
-				];
-			};
+            modules = [ 
+              ./configurations/home-manager/pi/home.nix
+              self.homeManagerModules.default
+            ];
+          };
+        };
+      };
 
-			pi = home-manager.lib.homeManagerConfiguration {
-				pkgs = import nixpkgs {
-					system = "aarch64-linux";
-					config.allowUnfree = true;
-				};
+      perSystem = {
+        config,
+        pkgs,
+        ...
+      }: {
+        treefmt.config = {
+          inherit (config.flake-root) projectRootFile;
+          package = pkgs.treefmt;
 
-				modules = [ 
-					./home-manager/pi/home.nix
-					kirk-modules.homeManagerModules.default
-				];
-			};
-		};
-	};
+          programs = {
+            alejandra.enable = true;
+            deadnix.enable = true;
+          };
+        };
+
+        packages = {
+          docs = pkgs.callPackage ./mkDocs.nix { inherit inputs; };
+          hugo = pkgs.callPackage ./mkHugo.nix { inherit inputs; };
+        };
+
+        devshells.default = {
+          name = "Default";
+
+          commands = [
+            {
+              category = "Tools";
+              name = "fmt";
+              help = "Format the source tree";
+              command = "nix fmt";
+            }
+          ];
+        };
+      };
+    };
 }
