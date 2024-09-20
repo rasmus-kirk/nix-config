@@ -58,7 +58,7 @@
           default = kirk;
         };
         nixosConfigurations = {
-          pi = nixpkgs.lib.nixosSystem {
+          pi = nixpkgs.lib.nixosSystem rec {
             system = "aarch64-linux";
 
             modules = [
@@ -69,10 +69,13 @@
               nixarr.nixosModules.default
               home-manager.nixosModules.home-manager
               {
-                home-manager.users.user.imports = [
-                  ./configurations/home-manager/pi/home.nix
-                  self.homeManagerModules.default
-                ];
+                home-manager.users.user = {
+                  imports = [
+                    ./configurations/home-manager/pi/home.nix
+                    self.homeManagerModules.default
+                  ];
+                  config.home.packages = [ home-manager.packages."${system}".default ];
+                };
                 home-manager.useGlobalPkgs = true;
                 home-manager.useUserPackages = true;
               }

@@ -34,13 +34,6 @@ with lib; let
   hm-upgrade = pkgs.writeShellApplication {
     name = "hm-upgrade";
     text = ''
-      # TODO: test this.
-      #sudo su
-      #nix-env --install --file '<nixpkgs>' --attr nixVersions.unstable cacert -I nixpkgs=channel:nixpkgs-unstable
-      #systemctl daemon-reload
-      #systemctl restart nix-daemon
-      #exit
-
       # Update, switch to new config, and cleanup
       ${hm-update}/bin/hm-update &&
       ${hm-rebuild}/bin/hm-rebuild &&
