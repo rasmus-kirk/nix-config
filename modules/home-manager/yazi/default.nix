@@ -36,6 +36,15 @@ with lib; let
 in {
   options.kirk.yazi = {
     enable = mkEnableOption "yazi file manager";
+
+    configDir = mkOption {
+      type = with types; nullOr path;
+      default = null;
+
+      description = ''
+        The path to the nix configuration directory.
+      '';
+    };
   };
 
   config = mkIf cfg.enable {
@@ -61,9 +70,19 @@ in {
       keymap = {
         manager.prepend_keymap = [
           {
+            on = "!";
+            run = "tab_create --current";
+            desc = "Open new tab";
+          }
+          {
+            on = "@";
+            run = "close";
+            desc = "Close tab";
+          }
+          { 
             on = "e";
-            run = "shell --interactive --block $EDITOR $0";
-            desc = "Edit file";
+            run = ''shell --block --confirm \"$EDITOR $0\"'';
+            desc = "Open the selected files in editor";
           }
           # Selection
           {
@@ -132,44 +151,48 @@ in {
           {
             on = ["b" "u"];
             run = "cd $XDG_DOWNLOAD_DIR";
-            desc = "Goto bookmarked download directory";
+            desc = "Goto download dir";
           }
           {
             on = ["b" "b"];
             run = "cd ~/media/books";
-            desc = "Goto bookmarked books directory";
+            desc = "Goto books dir";
           }
           {
             on = ["b" "p"];
             run = "cd ~/media/documents/programming";
-            desc = "Goto bookmarked programming directory";
+            desc = "Goto programming dir";
           }
           {
             on = ["b" "a"];
             run = "cd ~/media/audio";
-            desc = "Goto bookmarked audio directory";
+            desc = "Goto audio dir";
           }
           {
             on = ["b" "a"];
             run = "cd $XDG_VIDEOS_DIR";
-            desc = "Goto bookmarked videos directory";
+            desc = "Goto videos dir";
           }
           {
             on = ["b" "d"];
             run = "cd $XDG_DOCUMENTS_DIR";
-            desc = "Goto bookmarked download directory";
+            desc = "Goto download dir";
           }
           {
             on = ["b" "s"];
             run = "cd ~/media/documents/study";
-            desc = "Goto bookmarked study directory";
+            desc = "Goto study dir";
           }
           {
             on = ["b" "i"];
             run = "cd $XDG_PICTURES_DIR";
-            desc = "Goto bookmarked images directory";
+            desc = "Goto images dir";
           }
-        ];
+        ] ++ (lib.optional (cfg.configDir != null) {
+          on = ["b" "n"];
+          run = "cd ${cfg.configDir}";
+          desc = "Goto nix config dir";
+        });
       };
       settings = {
         plugin.prepend_fetchers = [

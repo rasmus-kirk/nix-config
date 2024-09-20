@@ -26,7 +26,10 @@ in {
     };
     jiten.enable = true;
     scripts.enable = true;
-    yazi.enable = true;
+    yazi = {
+      enable = true;
+      configDir = configDir;
+    };
     joshuto.enableZshIntegration = false;
     kakoune.enable = true;
     ssh = {

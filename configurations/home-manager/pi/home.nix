@@ -26,7 +26,10 @@ in {
       enable = true;
       autoSortDownloads = true;
     };
-    yazi.enable = true;
+    yazi = {
+      enable = true;
+      configDir = configDir;
+    };
     kakoune.enable = true;
     ssh = {
       enable = true;
