@@ -1,6 +1,9 @@
 # My home manager config
-{ pkgs, config, ... }:
-let
+{
+  pkgs,
+  config,
+  ...
+}: let
   secretDir = "${config.home.homeDirectory}/.secret";
   configDir = "${config.home.homeDirectory}/.system-configuration";
   username = "user";
@@ -16,14 +19,24 @@ in {
       userName = "rasmus-kirk";
     };
     helix.enable = true;
-    homeManagerScripts = { enable = true; configDir = configDir; machine = machine; };
+    homeManagerScripts = {
+      enable = true;
+      configDir = configDir;
+      machine = machine;
+    };
     jiten.enable = true;
     scripts.enable = true;
     joshuto.enable = true;
     joshuto.enableZshIntegration = false;
     kakoune.enable = true;
-    ssh = { enable = true; identityPath = "${secretDir}/id_ed25519"; };
-    userDirs = { enable = true; autoSortDownloads = true; };
+    ssh = {
+      enable = true;
+      identityPath = "${secretDir}/id_ed25519";
+    };
+    userDirs = {
+      enable = true;
+      autoSortDownloads = true;
+    };
     zathura = {
       enable = true;
       darkmode = false;
@@ -39,15 +52,15 @@ in {
 
   # Let Home Manager install and manage itself.
   programs.home-manager.enable = true;
-  
+
   targets.genericLinux.enable = true;
 
   services.syncthing.enable = true;
 
   nix = {
-    package = pkgs.nix;
-    settings.experimental-features = [ "nix-command" "flakes" ];
-    settings.trusted-users = [ 
+    package = pkgs.nixVersions.latest;
+    settings.experimental-features = ["nix-command" "flakes"];
+    settings.trusted-users = [
       username
       "@wheel"
     ];
@@ -66,22 +79,23 @@ in {
   };
 
   programs.yazi = let
-    mkYaziPlugin = name: pkgs.stdenv.mkDerivation {
-      name = name;
-      phases = [ "unpackPhase" "buildPhase" ];
-      buildPhase = ''
-        mkdir -p "$out"
-        cp -r "${name}".yazi/* "$out"
-      '';
-      src = pkgs.fetchgit {
-        rev  = "5e65389d1308188e5a990059c06729e2edb18f8a";
-        url = "https://github.com/yazi-rs/plugins.git";
-        hash = "sha256-XHaQjudV9YSMm4vF7PQrKGJ078oVF1U1Du10zXEJ9I0=";
+    mkYaziPlugin = name:
+      pkgs.stdenv.mkDerivation {
+        name = name;
+        phases = ["unpackPhase" "buildPhase"];
+        buildPhase = ''
+          mkdir -p "$out"
+          cp -r "${name}".yazi/* "$out"
+        '';
+        src = pkgs.fetchgit {
+          rev = "5e65389d1308188e5a990059c06729e2edb18f8a";
+          url = "https://github.com/yazi-rs/plugins.git";
+          hash = "sha256-XHaQjudV9YSMm4vF7PQrKGJ078oVF1U1Du10zXEJ9I0=";
+        };
       };
-    };
     gruvbox-dark = pkgs.stdenv.mkDerivation {
       name = "gruvbox-dark";
-      phases = [ "unpackPhase" "buildPhase" ];
+      phases = ["unpackPhase" "buildPhase"];
       buildPhase = "mkdir -p $out ; cp -r . $out";
       src = pkgs.fetchgit {
         url = "https://github.com/bennyyip/gruvbox-dark.yazi.git";
@@ -99,87 +113,113 @@ in {
     '';
     keymap = {
       manager.prepend_keymap = [
-        { on = "e"; run = "shell --interactive --block $EDITOR $0"; desc = "Edit file"; }
-        # Selection
-        { on = ";"; run = "escape --select"; desc = "Deselect all files"; }
-        { on   = "?"; run  = "help"; desc = "View help"; }
         {
-          on   = "%";
-          run  = "select_all --state=true";
+          on = "e";
+          run = "shell --interactive --block $EDITOR $0";
+          desc = "Edit file";
+        }
+        # Selection
+        {
+          on = ";";
+          run = "escape --select";
+          desc = "Deselect all files";
+        }
+        {
+          on = "?";
+          run = "help";
+          desc = "View help";
+        }
+        {
+          on = "%";
+          run = "select_all --state=true";
           desc = "Select all files";
-        } {
-          on   = "J";
-          run  = [ "select --state=none" "arrow 1" ];
+        }
+        {
+          on = "J";
+          run = ["select --state=none" "arrow 1"];
           desc = "Select down";
-        } {
-          on   = "K";
-          run  = [ "select --state=none" "arrow -1" ];
+        }
+        {
+          on = "K";
+          run = ["select --state=none" "arrow -1"];
           desc = "Select up";
         }
         # Plugins
         {
-          on   = "'";
-          run  = "plugin smart-filter";
+          on = "'";
+          run = "plugin smart-filter";
           desc = "Smart filter";
-        } {
-          on   = [ "c" "m" ];
-          run  = "plugin chmod";
+        }
+        {
+          on = ["c" "m"];
+          run = "plugin chmod";
           desc = "Chmod on selected files";
-        } {
-          on   = "t";
-          run  = "plugin --sync hide-preview";
+        }
+        {
+          on = "t";
+          run = "plugin --sync hide-preview";
           desc = "Hide or show preview";
-        } {
-          on   = "T";
-          run  = "plugin --sync max-preview";
+        }
+        {
+          on = "T";
+          run = "plugin --sync max-preview";
           desc = "Maximize or restore preview";
         }
         # Goto
         {
-          on   = [ "g" "~" ];
-          run  = "cd ~";
+          on = ["g" "~"];
+          run = "cd ~";
           desc = "Goto home dir";
-        } {
-          on   = [ "g" "`" ];
-          run  = "cd /";
+        }
+        {
+          on = ["g" "`"];
+          run = "cd /";
           desc = "Goto root directory";
-        } {
-          on   = [ "g" "e" ];
-          run  = "arrow 99999999999";
+        }
+        {
+          on = ["g" "e"];
+          run = "arrow 99999999999";
           desc = "Move cursor to bottom";
         }
         # Bookmarks
         {
-          on   = [ "b" "u" ];
-          run  = "cd $XDG_DOWNLOAD_DIR";
+          on = ["b" "u"];
+          run = "cd $XDG_DOWNLOAD_DIR";
           desc = "Goto bookmarked download directory";
-        } {
-          on   = [ "b" "b" ];
-          run  = "cd ~/media/books";
+        }
+        {
+          on = ["b" "b"];
+          run = "cd ~/media/books";
           desc = "Goto bookmarked books directory";
-        } {
-          on   = [ "b" "p" ];
-          run  = "cd ~/media/documents/programming";
+        }
+        {
+          on = ["b" "p"];
+          run = "cd ~/media/documents/programming";
           desc = "Goto bookmarked programming directory";
-        } {
-          on   = [ "b" "a" ];
-          run  = "cd ~/media/audio";
+        }
+        {
+          on = ["b" "a"];
+          run = "cd ~/media/audio";
           desc = "Goto bookmarked audio directory";
-        } {
-          on   = [ "b" "a" ];
-          run  = "cd $XDG_VIDEOS_DIR";
+        }
+        {
+          on = ["b" "a"];
+          run = "cd $XDG_VIDEOS_DIR";
           desc = "Goto bookmarked videos directory";
-        } {
-          on   = [ "b" "d" ];
-          run  = "cd $XDG_DOCUMENTS_DIR";
+        }
+        {
+          on = ["b" "d"];
+          run = "cd $XDG_DOCUMENTS_DIR";
           desc = "Goto bookmarked download directory";
-        } {
-          on   = [ "b" "s" ];
-          run  = "cd ~/media/documents/study";
+        }
+        {
+          on = ["b" "s"];
+          run = "cd ~/media/documents/study";
           desc = "Goto bookmarked study directory";
-        } {
-          on   = [ "b" "i" ];
-          run  = "cd $XDG_PICTURES_DIR";
+        }
+        {
+          on = ["b" "i"];
+          run = "cd $XDG_PICTURES_DIR";
           desc = "Goto bookmarked images directory";
         }
       ];
@@ -190,7 +230,8 @@ in {
           id = "git";
           name = "*/";
           run = "git";
-        } {
+        }
+        {
           id = "git";
           name = "*";
           run = "git";
@@ -214,7 +255,7 @@ in {
     extraConfig = ''
       (use-package kakoune)
     '';
-    extraPackages = epkgs: [ epkgs.kakoune ];
+    extraPackages = epkgs: [epkgs.kakoune];
   };
 
   # TODO: Add to kirk-module
@@ -246,7 +287,7 @@ in {
 
       "Alt+r" = "playlist-shuffle";
     };
-    scripts = with pkgs.mpvScripts; [ 
+    scripts = with pkgs.mpvScripts; [
       # Load all files in directory to playlist, playing next alphabetically ordered file on playback end.
       autoload
       # Better UI
@@ -262,8 +303,8 @@ in {
       # TODO: wtf is the reason for this? It should not be necessary. WHY DOES IT WORK!?
       vo = "x11";
 
-      alang = [ "jpn" "eng" ];
-      slang = [ "eng" ];
+      alang = ["jpn" "eng"];
+      slang = ["eng"];
       #extension.gif = {
       #  cache = "no";
       #  no-pause = "";
@@ -315,7 +356,7 @@ in {
     signal-desktop
 
     # Fonts
-    (nerdfonts.override { fonts = [ "FiraCode" ]; })
+    (nerdfonts.override {fonts = ["FiraCode"];})
     fira-code
 
     # Document handling

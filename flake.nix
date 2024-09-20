@@ -24,10 +24,10 @@
     agenix,
     home-manager,
     nixos-hardware,
-    flake-parts, 
+    flake-parts,
     flake-root,
     ...
-    }:
+  }:
     flake-parts.lib.mkFlake {
       inherit inputs;
     } {
@@ -60,7 +60,7 @@
               self.nixosModules.default
             ];
 
-            specialArgs = { inherit inputs; };
+            specialArgs = {inherit inputs;};
           };
         };
         homeConfigurations = {
@@ -68,9 +68,9 @@
             pkgs = import nixpkgs {
               system = "x86_64-linux";
               config.allowUnfree = true;
-            };        
+            };
 
-            modules = [ 
+            modules = [
               ./configurations/home-manager/work/home.nix
               self.homeManagerModules.default
             ];
@@ -80,9 +80,9 @@
             pkgs = import nixpkgs {
               system = "x86_64-linux";
               config.allowUnfree = true;
-            };        
+            };
 
-            modules = [ 
+            modules = [
               ./configurations/home-manager/deck/home.nix
               self.homeManagerModules.default
             ];
@@ -94,7 +94,7 @@
               config.allowUnfree = true;
             };
 
-            modules = [ 
+            modules = [
               ./configurations/home-manager/pi/home.nix
               self.homeManagerModules.default
             ];
@@ -118,8 +118,8 @@
         };
 
         packages = {
-          docs = pkgs.callPackage ./mkDocs.nix { inherit inputs; };
-          hugo = pkgs.callPackage ./mkHugo.nix { inherit inputs; };
+          docs = pkgs.callPackage ./mkDocs.nix {inherit inputs;};
+          hugo = pkgs.callPackage ./mkHugo.nix {inherit inputs;};
         };
 
         devshells.default = {

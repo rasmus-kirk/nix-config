@@ -1,8 +1,11 @@
-{ inputs, config, pkgs, ... }:
-let
+{
+  inputs,
+  config,
+  pkgs,
+  ...
+}: let
   # This is dumb, but it works. Nix caches failures so changing this unbound
   # variable to anything else forces a rebuild
-  force-rebuild = 0;
   machine = "pi";
   username = "user";
   dataDir = "/data";
@@ -12,7 +15,7 @@ let
 in {
   # Load secrets
   age = {
-    identityPaths = [ "${secretDir}/pi/ssh/id_ed25519" ];
+    identityPaths = ["${secretDir}/pi/ssh/id_ed25519"];
     secrets = {
       airvpn-wg.file = ./age/airvpn-wg.age;
       airvpn-wg-address.file = ./age/airvpn-wg-address.age;
@@ -69,7 +72,7 @@ in {
         enable = true;
         useVpn = false;
       };
-      
+
       radarr = {
         enable = true;
         useVpn = false;
@@ -103,13 +106,13 @@ in {
   };
 
   networking = {
-    nameservers = [ "91.239.100.100" ];
+    nameservers = ["91.239.100.100"];
     hostName = machine;
     wireless = {
       enable = true;
       environmentFile = config.age.secrets.wifi.path;
       networks = {
-        "dd-wrt" = { psk = "@HOME@"; };
+        "dd-wrt" = {psk = "@HOME@";};
       };
     };
   };
@@ -120,7 +123,7 @@ in {
       shell = pkgs.zsh;
       isNormalUser = true;
       hashedPasswordFile = config.age.secrets.user.path;
-      extraGroups = [ "wheel" "docker" ];
+      extraGroups = ["wheel" "docker"];
     };
   };
 
@@ -128,7 +131,7 @@ in {
     enable = true;
     openFirewall = true;
     settings.PasswordAuthentication = false;
-    ports = [ 6000 ];
+    ports = [6000];
   };
   users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
     "${./pubkeys/work.pub}"
@@ -169,7 +172,7 @@ in {
     "/" = {
       device = "/dev/disk/by-label/NIXOS_SD";
       fsType = "ext4";
-      options = [ "noatime" ];
+      options = ["noatime"];
     };
   };
 
@@ -196,4 +199,3 @@ in {
 
   system.stateVersion = "20.09";
 }
-

@@ -1,0 +1,3 @@
+[submodule "hugo/themes/risotto"]
+	path = hugo/themes/risotto
+	url = https://github.com/joeroe/risotto.git
