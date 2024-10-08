@@ -6,10 +6,11 @@ feel inspired by something.
 **Features:**
 
 - Single flake setup
-- Agenix for secrets management
+- [Agenix](https://github.com/ryantm/agenix) for secrets management
 - Home-manager
 - Modularization
 - Automatic module options documentation generation at [https://nix.rasmuskirk.com/](https://nix.rasmuskirk.com/)
+- Pi-based NAS-setup
 
 **Directions:**
 
