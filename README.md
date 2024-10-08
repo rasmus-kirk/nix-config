@@ -1,6 +1,17 @@
 # My nix config
 
-Repo for my nix config.
+Repo for my nix config. Feel free to look around and grab anything if you
+feel inspired by something.
+
+**Features:**
+
+- Single flake setup
+- Agenix for secrets management
+- Home-manager
+- Modularization
+- Automatic module options documentation generation at [https://nix.rasmuskirk.com/](https://nix.rasmuskirk.com/)
+
+**Directions:**
 
 - `configurations/home-manager`:
   - Home-Manager configurations for my machines (deck, pi, and work).
@@ -17,7 +28,14 @@ Repo for my nix config.
 
 ## The Configurations
 
-TODO!
+The Home-Manager configurations are not very interesting since they mostly just
+make use of the modules, but the nixos configuration has some notable features:
+
+  - [Agenix](https://github.com/ryantm/agenix) for handling secrets
+  - [Nixarr](https://nixarr.com/)
+  - Syncthing
+  - SSH-tunneling
+  - Sudo insults
 
 ## The Modules
 
@@ -32,22 +50,19 @@ Example follows below:
 
 ```nix
   kirk = {
-    fonts.enable = true;
-    foot.enable = true;
-    fzf.enable = true;
-    git = { enable = true; userEmail = "mail@rasmuskirk.com"; userName = "rasmus-kirk"; };
     helix.enable = true;
-    homeManagerScripts = { enable = true; configDir = configDir; machine = machine; };
-    jiten.enable = true;
-    joshuto.enableZshIntegration = false;
-    kakoune.enable = true;
-    scripts.enable = true;
-    ssh = { enable = true; identityPath = "${secretDir}/id_ed25519"; };
-    terminalTools.enable = true;
-    userDirs = { enable = true; autoSortDownloads = true; };
-    yazi = { enable = true; configDir = configDir; };
-    zathura = { enable = true; darkmode = false; };
+    yazi = {
+      enable = true;
+      configDir = configDir;
+    };
+    git = {
+      enable = true;
+      userEmail = "mail@rasmuskirk.com";
+      userName = "rasmus-kirk";
+    };
     zsh.enable = true;
+    fonts.enable = true;
+    terminalTools.enable = true;
   };
 ```
 
@@ -55,26 +70,32 @@ Example follows below:
 
 ```nix
   kirk = {
-    terminalTools.enable = true;
-    fzf.enable = true;
-    git = { enable = true; userEmail = "mail@rasmuskirk.com"; userName = "rasmus-kirk"; };
-    helix = { enable = true; installMostLsps = false; extraPackages = with pkgs; [nil marksman nodePackages_latest.bash-language-server]; };
-    homeManagerScripts = { enable = true; configDir = configDir; machine = machine; };
-    userDirs = { enable = true; autoSortDownloads = true; };
-    yazi = { enable = true; configDir = configDir; };
-    kakoune.enable = true;
-    ssh = { enable = true; identityPath = "${secretDir}/${machine}/ssh/id_ed25519"; };
+    helix = {
+      enable = true;
+      installMostLsps = false;
+      extraPackages = with pkgs; [nil marksman nodePackages_latest.bash-language-server];
+    };
+    yazi = {
+      enable = true;
+      configDir = configDir;
+    };
+    git = {
+      enable = true;
+      userEmail = "mail@rasmuskirk.com";
+      userName = "rasmus-kirk";
+    };
     zsh.enable = true;
     fonts.enable = true;
+    terminalTools.enable = true;
   };
 ```
 
 ### Importing Modules
 
 The options that I have created allows varying behaviour between machines,
-while keeping configuration duplication low. Even though the modules are
-created and maintained for personal use the flake allows others to reuse
-the modules if they so please.
+while avoiding writing the same configuration snippets twice. Even though
+the modules are created and maintained for personal use the flake allows
+others to reuse the modules if they so please:
 
 ```nix
 {
