@@ -148,6 +148,31 @@ in {
     };
   };
 
+  xdg.desktopEntries = with pkgs.lib; {
+    zathura = {
+      name = "Zathura";
+      exec = "${getExe pkgs.zathura} %U";
+      #mimeType = [ "application/pdf" ];
+    };
+    yazi = {
+      name = "Yazi";
+      exec = "${getExe pkgs.foot} ${getExe pkgs.yazi} %u";
+      mimeType = [ "inode/directory" ];
+    };
+  };
+
+  xdg.mimeApps = {
+    enable = true;
+    defaultApplications = {
+      "application/pdf" = [ "zathura.desktop" ];
+      "inode/directory" = [ "yazi.desktop" ];
+      "x-scheme-handler/about" = [ "librewolf.desktop" ];
+      "x-scheme-handler/http" = [ "librewolf.desktop" ];
+      "x-scheme-handler/https" = [ "librewolf.desktop" ];
+      "x-scheme-handler/unknown" = [ "librewolf.desktop" ];
+    };
+  };
+
   programs.zsh.profileExtra = ''
     export PATH=$PATH:~/.cargo/bin:~/.local/bin
 
@@ -198,5 +223,17 @@ in {
     # Misc Terminal Tools
     wl-clipboard
     yt-dlp
+
+    (pkgs.writeShellApplication {
+      name = "concordium-test-smart-contracts";
+      text = ''
+        CONCORDIUM_STD_PATH="$HOME/desktop/concordium/concordium-rust-smart-contracts/concordium-std"
+        CARGO_CONCORDIUM_PATH="$HOME/desktop/concordium/concordium-smart-contract-tools/cargo-concordium/Cargo.toml"
+
+        pushd "$CONCORDIUM_STD_PATH"
+        cargo run --manifest-path "$CARGO_CONCORDIUM_PATH" -- concordium test --only-unit-tests -- --features internal-wasm-test
+        popd
+      '';
+    })
   ];
 }

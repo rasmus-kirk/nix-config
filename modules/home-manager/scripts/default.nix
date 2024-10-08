@@ -74,6 +74,13 @@ with lib; let
     name = "updap";
     runtimeInputs = with pkgs; [rsync];
     text = ''
+      set +e
+
+      if [ "$EUID" -ne 0 ]; then
+        echo "Please run as root"
+        exit
+      fi
+
       if [[ $# -ne 1 ]]; then
         echo "Error: Script takes one argument, the path to the audio directory"
         exit 0
@@ -128,6 +135,11 @@ with lib; let
     text = ''
       set +e
 
+      if [ "$EUID" -ne 0 ]; then
+        echo "Please run as root"
+        exit
+      fi
+
       if [[ $# -ne 1 ]]; then
         echo "Error: Script takes one argument, the path to the book directory"
         exit 0
@@ -169,7 +181,8 @@ with lib; let
         driveSize=$(lsblk --output LABEL,SIZE | grep "$driveLabel" | grep -Po "[^ \t]*$") &&
 
         echo "$driveUsedSize/$driveSize" &&
-        echo ""
+        echo "" ||
+        echo "Error: Something went wrong!"
       else
         echo "Error: Kobo not detected!"
       fi

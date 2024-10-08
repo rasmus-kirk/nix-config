@@ -32,6 +32,9 @@ in {
         alias rustfmt="cargo +nightly-2023-04-01-x86_64-unknown-linux-gnu fmt"
         alias todo="$EDITOR ~/.local/share/todo.md"
         alias g="git"
+        # Fuck ghostscript!
+        alias gs="git status"
+
         # TODO: this is bad, generalize...
         alias t="foot </dev/null &>/dev/null zsh &"
 

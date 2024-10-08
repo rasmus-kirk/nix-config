@@ -62,6 +62,7 @@ in {
         su = "status -uno";
       };
       extraConfig = {
+        init.defaultBranch = "main";
         push = {
           autoSetupRemote = true;
         };

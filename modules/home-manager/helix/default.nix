@@ -29,7 +29,7 @@ with lib; let
     # Nix
     nil
     # Rust
-    rust-analyzer-unwrapped
+    #rust-analyzer-unwrapped
     # Scala
     metals
     # Makdown
