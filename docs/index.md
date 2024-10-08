@@ -17,7 +17,7 @@ others to reuse the modules if they so please:
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
-    kirk-modules.url = "github:rasmus-kirk/nixarr/nix-configuration";
+    kirk-modules.url = "github:rasmus-kirk/nix-configuration";
     kirk-modules.inputs.nixpkgs.follows = "nixpkgs";
 
     home-manager.url = "github:nix-community/home-manager/release-23.11";

@@ -42,8 +42,8 @@ make use of the modules, but the nixos configuration has some notable features:
 
 The modules allow configuration to be reused efficiently and without
 duplication between machines. For example, I want to share configuration
-between my Pi-based nas and my work laptop such as editor, file manager,
-git, shell and more.
+between my Pi-based NAS and my work laptop for programs such as my editor,
+file manager, git, shell and more.
 
 Example follows below:
 
@@ -105,7 +105,7 @@ others to reuse the modules if they so please:
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
-    kirk-modules.url = "github:rasmus-kirk/nixarr/nix-configuration";
+    kirk-modules.url = "github:rasmus-kirk/nix-configuration";
     kirk-modules.inputs.nixpkgs.follows = "nixpkgs";
 
     home-manager.url = "github:nix-community/home-manager/release-23.11";
