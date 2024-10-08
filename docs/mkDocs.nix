@@ -64,7 +64,7 @@ in
         pandoc \
           --standalone \
           --metadata title="$title" \
-          --metadata date="$(date -u '+%Y-%m-%d - %H:%M:%S %Z')" \
+          --metadata timestamp="$(date -u '+%Y-%m-%d - %H:%M:%S %Z')" \
           --highlight-style docs/pandoc/gruvbox.theme \
           --template docs/pandoc/template.html \
           --css docs/pandoc/style.css \
@@ -94,7 +94,7 @@ in
         --standalone \
         --highlight-style docs/pandoc/gruvbox.theme \
         --metadata title="Kirk Modules - Option Documentation" \
-        --metadata date="$(date -u '+%Y-%m-%d - %H:%M:%S %Z')" \
+        --metadata timestamp="$(date -u '+%Y-%m-%d - %H:%M:%S %Z')" \
         --css /docs/pandoc/style.css \
         --template docs/pandoc/template.html \
         -V lang=en \

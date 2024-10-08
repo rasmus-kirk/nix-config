@@ -5,10 +5,9 @@ This is the options documentation for my personal nix modules
 
 ### Importing Modules
 
-The options that I have created allows varying behaviour between machines,
-while avoiding writing the same configuration snippets twice. Even though
-the modules are created and maintained for personal use the flake allows
-others to reuse the modules if they so please:
+The options I’ve created allow for different behaviors across devices, while
+avoiding redundant configuration snippets. Although these modules are designed
+for personal use, it's possible for others to reuse them:
 
 ```nix
 {
