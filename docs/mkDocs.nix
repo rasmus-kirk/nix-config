@@ -95,7 +95,7 @@ in
         --highlight-style docs/pandoc/gruvbox.theme \
         --metadata title="Kirk Modules - Option Documentation" \
         --metadata timestamp="$(date -u '+%Y-%m-%d - %H:%M:%S %Z')" \
-        --css /docs/pandoc/style.css \
+        --css docs/pandoc/style.css \
         --template docs/pandoc/template.html \
         -V lang=en \
         -V --mathjax \
