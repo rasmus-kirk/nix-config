@@ -10,12 +10,14 @@ with lib; let
     Terminal tools to make your life easier. The installed packages are:
 
     - terminal-tools: Displays this message
+    - bat: Pretty cat with syntax highlighting
     - batman: Pretty Man Pages
     - btop: Task Manager
-    - dust: Pretty du
+    - dust: Pretty du for seeing disk usage
     - duf: Pretty df
     - eza: Pretty ls
     - fd: Find Files
+    - fzf: Search text
     - jq: JSON Parser
     - rig: Random Identities for Privacy
     - ag: Search in Files
@@ -47,22 +49,28 @@ in {
       description = toolsDescription;
     };
 
-    theme = mkOption {
+    enableZshIntegration = mkOption {
+      type = types.bool;
+      default = true;
+      description = "Whether to enable zsh integration for bat and fzf.";
+    };
+
+    tealdeer.autoUpdate = mkOption {
+      type = types.bool;
+      default = true;
+      description = "Whether to auto-update tealdeer.";
+    };
+
+    bat.theme = mkOption {
       type = types.str;
       default = "gruvbox-dark";
       description = "What syntax highlighting colorscheme to use.";
     };
 
-    enableZshIntegration = mkOption {
-      type = types.bool;
-      default = true;
-      description = "Whether to enable zsh integration for bat.";
-    };
-
-    autoUpdateTealdeer = mkOption {
-      type = types.bool;
-      default = true;
-      description = "Whether to auto-update tealdeer.";
+    fzf.colorscheme = mkOption {
+      type = types.attrs;
+      default = config.kirk.gruvbox.colorscheme;
+      description = "A colorscheme attribute set.";
     };
 
     trashCleaner = {
@@ -71,6 +79,7 @@ in {
         default = true;
         description = "Enable the trash-cli cleanup script";
       };
+
       persistance = mkOption {
         type = types.number;
         default = 30;
@@ -94,7 +103,7 @@ in {
         "$@" --help 2>&1 | bathelp
       }
 
-      # exa
+      # eza
       alias ll="eza --icons --long"
       alias lh="eza --icons --long --all"
     '';
@@ -102,7 +111,7 @@ in {
     systemd.user = mkIf cfg.trashCleaner.enable {
       timers = {
         trashCleaner = {
-          Unit.Description = "Gets a japanese word from the Jiten dictionary";
+          Unit.Description = "Timer for trash-cli cleaner";
 
           Timer = {
             OnCalendar = "daily";
@@ -116,7 +125,7 @@ in {
 
       services = {
         trashCleaner = {
-          Unit.Description = "Updates the daily japanese word";
+          Unit.Description = "Cleans trash-cli trash bin";
 
           Service = {
             ExecStart = "${pkgs.trash-cli}/bin/trash-empty -fv ${toString cfg.trashCleaner.persistance}";
@@ -126,17 +135,39 @@ in {
       };
     };
 
-    programs.tealdeer = {
-      enable = true;
-      settings = {
-        auto_update = cfg.autoUpdateTealdeer;
-        auto_update_interval_hours = 24;
-      };
-    };
+    programs = {
+      fzf = {
+        enable = true;
+        enableZshIntegration = cfg.enableZshIntegration;
 
-    programs.bat = {
-      enable = true;
-      config.theme = cfg.theme;
+        colors = mkIf (cfg.fzf.colorscheme != {}) {
+          "fg" = "#${cfg.fzf.colorscheme.fg}";
+          "fg+" = "#${cfg.fzf.colorscheme.white}";
+          "bg" = "#${cfg.fzf.colorscheme.bg}";
+          "bg+" = "#${cfg.fzf.colorscheme.black}";
+          "hl" = "#${cfg.fzf.colorscheme.blue}";
+          "hl+" = "#${cfg.fzf.colorscheme.bright.blue}";
+          "info" = "#${cfg.fzf.colorscheme.bright.white}";
+          "marker" = "#${cfg.fzf.colorscheme.green}";
+          "prompt" = "#${cfg.fzf.colorscheme.red}";
+          "spinner" = "#${cfg.fzf.colorscheme.purple}";
+          "pointer" = "#${cfg.fzf.colorscheme.purple}";
+          "header" = "#${cfg.fzf.colorscheme.blue}";
+        };
+      };
+
+      tealdeer = {
+        enable = true;
+        settings = {
+          auto_update = cfg.tealdeer.autoUpdate;
+          auto_update_interval_hours = 24;
+        };
+      };
+
+      bat = {
+        enable = true;
+        config.theme = cfg.bat.theme;
+      };
     };
 
     home.packages = with pkgs; [

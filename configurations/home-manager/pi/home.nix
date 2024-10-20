@@ -6,7 +6,6 @@
 in {
   kirk = {
     terminalTools.enable = true;
-    fzf.enable = true;
     git = {
       enable = true;
       userEmail = "mail@rasmuskirk.com";

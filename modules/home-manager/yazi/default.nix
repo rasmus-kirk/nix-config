@@ -230,6 +230,14 @@ in {
           });
       };
       settings = {
+        #opener = {
+        #  xdg = [
+        #    { run = ''xdg-open "$@"''; desc = "xdg-open"; for = "unix"; }
+        #  ];
+        #};
+        #open.prepend_rules = [
+        #  { mime = "*"; use = "xdg"; }
+        #];
         plugin = {
           prepend_previewers = [
               { mime = "audio/*"; run = "exifaudio"; }

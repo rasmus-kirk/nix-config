@@ -2,19 +2,19 @@
   imports = [
     ./fonts
     ./foot
-    ./fzf
-    ./scripts
     ./git
     ./gruvboxTheme
     ./helix
     ./homeManagerScripts
     ./jiten
-    ./joshuto
-    ./kakoune
+    ./mpv
+    ./mvi
+    ./scripts
     ./ssh
-    ./yazi
     ./terminalTools
     ./userDirs
+    ./xdgMime
+    ./yazi
     ./zathura
     ./zsh
   ];

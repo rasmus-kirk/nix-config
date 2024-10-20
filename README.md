@@ -104,7 +104,7 @@ for personal use, it's possible for others to reuse them:
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
 
-    kirk-modules.url = "github:rasmus-kirk/nix-configuration";
+    kirk-modules.url = "github:rasmus-kirk/nix-config";
     kirk-modules.inputs.nixpkgs.follows = "nixpkgs";
 
     home-manager.url = "github:nix-community/home-manager/release-23.11";
