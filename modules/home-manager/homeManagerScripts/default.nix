@@ -44,8 +44,11 @@ with lib; let
   hm-rebuild = pkgs.writeShellApplication {
     name = "hm-rebuild";
     text = ''
+      pushd ${configDir}
+      git add .
       # Switch configuration, backing up files
-      home-manager switch -b backup --flake ${configDir}#${cfg.machine}
+      home-manager switch -b backup --flake .#${cfg.machine}
+      popd
     '';
   };
 
@@ -78,7 +81,6 @@ in {
         configurations/garbage collects
       - `hm-rollback`: Use this command to roll back to a previous working
         home manager configuration.
-
     '';
 
     configDir = mkOption {
@@ -94,11 +96,25 @@ in {
 
     machine = mkOption {
       type = types.nullOr types.str;
+      default = null;
       description = "**REQUIRED!** Path to the home-manager configuration.";
+    };
+
+    disableNews = mkOption {
+      type = types.nullOr types.str;
+      default = true;
+      description = "Disable annoying home-manager news on rebuild.";
     };
   };
 
   config = mkIf cfg.enable {
+    # Disable home manager news
+    news = mkIf cfg.disableNews {
+      display = "silent";
+      json = lib.mkForce { };
+      entries = lib.mkForce [ ];
+    };
+
     home.packages = [
       hm-update
       hm-upgrade
