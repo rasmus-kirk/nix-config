@@ -3,7 +3,9 @@
     "agenix": {
       "inputs": {
         "darwin": "darwin",
-        "home-manager": "home-manager",
+        "home-manager": [
+          "home-manager"
+        ],
         "nixpkgs": [
           "nixpkgs"
         ],
@@ -45,47 +47,7 @@
         "type": "github"
       }
     },
-    "devshell": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1728330715,
-        "narHash": "sha256-xRJ2nPOXb//u1jaBnDP56M7v5ldavjbtR6lfGqSvcKg=",
-        "owner": "numtide",
-        "repo": "devshell",
-        "rev": "dd6b80932022cea34a019e2bb32f6fa9e494dfef",
-        "type": "github"
-      },
-      "original": {
-        "owner": "numtide",
-        "repo": "devshell",
-        "type": "github"
-      }
-    },
     "flake-parts": {
-      "inputs": {
-        "nixpkgs-lib": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1727826117,
-        "narHash": "sha256-K5ZLCyfO/Zj9mPFldf3iwS6oZStJcU4tSpiXTMYaaL0=",
-        "owner": "hercules-ci",
-        "repo": "flake-parts",
-        "rev": "3d04084d54bedc3d6b8b736c70ef449225c361b1",
-        "type": "github"
-      },
-      "original": {
-        "owner": "hercules-ci",
-        "repo": "flake-parts",
-        "type": "github"
-      }
-    },
-    "flake-parts_2": {
       "inputs": {
         "nixpkgs-lib": [
           "nixarr",
@@ -94,56 +56,20 @@
         ]
       },
       "locked": {
-        "lastModified": 1727826117,
-        "narHash": "sha256-K5ZLCyfO/Zj9mPFldf3iwS6oZStJcU4tSpiXTMYaaL0=",
+        "lastModified": 1717285511,
+        "narHash": "sha256-iKzJcpdXih14qYVcZ9QC9XuZYnPc6T8YImb6dX166kw=",
         "owner": "hercules-ci",
         "repo": "flake-parts",
-        "rev": "3d04084d54bedc3d6b8b736c70ef449225c361b1",
+        "rev": "2a55567fcf15b1b1c7ed712a2c6fadaec7412ea8",
         "type": "github"
       },
       "original": {
         "owner": "hercules-ci",
         "repo": "flake-parts",
-        "type": "github"
-      }
-    },
-    "flake-root": {
-      "locked": {
-        "lastModified": 1723604017,
-        "narHash": "sha256-rBtQ8gg+Dn4Sx/s+pvjdq3CB2wQNzx9XGFq/JVGCB6k=",
-        "owner": "srid",
-        "repo": "flake-root",
-        "rev": "b759a56851e10cb13f6b8e5698af7b59c44be26e",
-        "type": "github"
-      },
-      "original": {
-        "owner": "srid",
-        "repo": "flake-root",
         "type": "github"
       }
     },
     "home-manager": {
-      "inputs": {
-        "nixpkgs": [
-          "agenix",
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1703113217,
-        "narHash": "sha256-7ulcXOk63TIT2lVDSExj7XzFx09LpdSAPtvgtM7yQPE=",
-        "owner": "nix-community",
-        "repo": "home-manager",
-        "rev": "3bfaacf46133c037bb356193bd2f1765d9dc82c1",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nix-community",
-        "repo": "home-manager",
-        "type": "github"
-      }
-    },
-    "home-manager_2": {
       "inputs": {
         "nixpkgs": [
           "nixpkgs"
@@ -172,11 +98,11 @@
         "vpnconfinement": "vpnconfinement"
       },
       "locked": {
-        "lastModified": 1729941747,
-        "narHash": "sha256-2W+AI3nGwxokjEQtOlCbp1z0iMf3RY0ymorBlQyUo0s=",
+        "lastModified": 1729944572,
+        "narHash": "sha256-g1Xf4+DjOkHYek6CzuZRRd1H/s7jYo4kYhn3yx7QLgY=",
         "owner": "rasmus-kirk",
         "repo": "nixarr",
-        "rev": "ad0a2db5e404b0c92c78ee542d2cb21817da8d83",
+        "rev": "7f686e25673c2e581232e07ecf3fedd94fde2b7d",
         "type": "github"
       },
       "original": {
@@ -237,15 +163,11 @@
     "root": {
       "inputs": {
         "agenix": "agenix",
-        "devshell": "devshell",
-        "flake-parts": "flake-parts",
-        "flake-root": "flake-root",
-        "home-manager": "home-manager_2",
+        "home-manager": "home-manager",
         "nixarr": "nixarr",
         "nixos-hardware": "nixos-hardware",
         "nixpkgs": "nixpkgs",
-        "nixpkgs-2405": "nixpkgs-2405",
-        "treefmt-nix": "treefmt-nix"
+        "nixpkgs-2405": "nixpkgs-2405"
       }
     },
     "rust-overlay": {
@@ -257,11 +179,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1726626348,
-        "narHash": "sha256-sYV7e1B1yLcxo8/h+/hTwzZYmaju2oObNiy5iRI0C30=",
+        "lastModified": 1729909612,
+        "narHash": "sha256-eXqxxbOagphPfjPptSlv0pQONB3fH15CQ4G8uCu1BW4=",
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "rev": "6fd52ad8bd88f39efb2c999cc971921c2fb9f3a2",
+        "rev": "17cadbc36da05e75197d082decb382a5f4208e30",
         "type": "github"
       },
       "original": {
@@ -279,11 +201,11 @@
         "rust-overlay": "rust-overlay"
       },
       "locked": {
-        "lastModified": 1726842908,
-        "narHash": "sha256-sn3oWKcdXmy42wsBg1yCFBHHRCKVkQ+D8YnlLY/RX3A=",
+        "lastModified": 1729941594,
+        "narHash": "sha256-edy337w7tQ8dsEEl/gHfgyXCufghUVh3/plT+wqZOZ4=",
         "owner": "rasmus-kirk",
         "repo": "submerger",
-        "rev": "6ffa3b28017d9d67c48a2f9de98788da05aa5ba2",
+        "rev": "9956bc9e91a5bcc56c63bb0a6cbb39b1632b49c6",
         "type": "github"
       },
       "original": {
@@ -307,40 +229,20 @@
         "type": "github"
       }
     },
-    "treefmt-nix": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1729613947,
-        "narHash": "sha256-XGOvuIPW1XRfPgHtGYXd5MAmJzZtOuwlfKDgxX5KT3s=",
-        "owner": "numtide",
-        "repo": "treefmt-nix",
-        "rev": "aac86347fb5063960eccb19493e0cadcdb4205ca",
-        "type": "github"
-      },
-      "original": {
-        "owner": "numtide",
-        "repo": "treefmt-nix",
-        "type": "github"
-      }
-    },
     "vpnconfinement": {
       "inputs": {
-        "flake-parts": "flake-parts_2",
+        "flake-parts": "flake-parts",
         "nixpkgs": [
           "nixarr",
           "nixpkgs"
         ]
       },
       "locked": {
-        "lastModified": 1725824375,
-        "narHash": "sha256-c0nVYn1Jcjqt7XLXRM7jBmkvwMu+qcUVO7AL8+ZwiaQ=",
+        "lastModified": 1728856097,
+        "narHash": "sha256-GcheritdNs1AHFWksLWZOe48J0NXUibiZVSewqWfo44=",
         "owner": "Maroka-chan",
         "repo": "VPN-Confinement",
-        "rev": "0fc1023446e906094fef69ccd6991d8659b34d42",
+        "rev": "eb39d4c45db70818d58239454fd7747aab5e1871",
         "type": "github"
       },
       "original": {

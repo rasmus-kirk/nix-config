@@ -37,6 +37,8 @@ in {
     enable = true;
     mediaUsers = [username];
 
+    submerger.enable = true;
+
     vpn = {
       enable = true;
       wgConf = config.age.secrets."airvpn-wg.conf".path;
@@ -173,10 +175,6 @@ in {
     "panic=10" # Reboot after 10 seconds of kernel panic
     "panic_on_oops=1" # Reboot on any kernel oops (optional)
   ];
-
-  # https://github.com/NixOS/nixos-hardware/issues/858
-  boot.initrd.systemd.enableTpm2 = false;
-
 
   environment.systemPackages = with pkgs; [
     # Compression
