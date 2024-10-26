@@ -39,8 +39,8 @@ in {
 
     vpn = {
       enable = true;
-      vpnTestService.enable = true;
       wgConf = config.age.secrets."airvpn-wg.conf".path;
+      vpnTestService.enable = true;
     };
 
     ddns.njalla = {
@@ -66,11 +66,6 @@ in {
       package = inputs.nixpkgs-2405.legacyPackages.${pkgs.system}.transmission_4;
       vpn.enable = true;
       peerPort = transmissionPort;
-      flood.enable = true;
-      extraSettings = {
-        download-queue-enabled = true;
-        download-queue-size = 3;
-      };
     };
 
     sonarr.enable = true;
@@ -94,13 +89,10 @@ in {
   # This should force systemd to restart, no matter what.
   systemd.services.systemd-journald.unitConfig.StartLimitIntervalSec = 0;
 
-  # Setup swap ram for stability
-  swapDevices = [
-    {
-      device = "/var/lib/swapfile";
-      size = 6 * 1024;
-    }
-  ];
+  services.earlyoom = {
+    enable = true;
+    freeMemThreshold = 3; # In percent
+  };
 
   services = {
     syncthing = {
@@ -113,14 +105,7 @@ in {
     };
   };
 
-  networking = {
-    hostName = machine;
-    wireless = {
-      enable = true;
-      environmentFile = config.age.secrets.wifi.path;
-      networks."dd-wrt" = {psk = "@HOME@";};
-    };
-  };
+  networking.hostName = machine;
 
   users = {
     mutableUsers = false;
@@ -188,6 +173,10 @@ in {
     "panic=10" # Reboot after 10 seconds of kernel panic
     "panic_on_oops=1" # Reboot on any kernel oops (optional)
   ];
+
+  # https://github.com/NixOS/nixos-hardware/issues/858
+  boot.initrd.systemd.enableTpm2 = false;
+
 
   environment.systemPackages = with pkgs; [
     # Compression

@@ -13,6 +13,7 @@
 
     agenix.url = "github:ryantm/agenix";
     agenix.inputs.nixpkgs.follows = "nixpkgs";
+    #agenix.inputs.home-manager.follows = "home-manager";
 
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
 

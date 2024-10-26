@@ -21,9 +21,6 @@ in {
       configDir = configDir;
       machine = machine;
     };
-    jiten.enable = false;
-    joshuto.enable = true;
-    kakoune.enable = true;
     ssh = {
       enable = true;
       identityPath = "${secretDir}/deck/ssh/id_ed25519";
@@ -54,11 +51,6 @@ in {
 
   programs.bash = {
     enable = true;
-    profileExtra = ''
-      # Fix programs not showing up
-      export XDG_DATA_DIRS="$HOME/.nix-profile/share:$XDG_DATA_DIRS"
-    '';
-
     initExtra = "exec zsh";
   };
 

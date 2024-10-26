@@ -23,13 +23,12 @@ in {
     };
     userDirs = {
       enable = true;
-      autoSortDownloads = true;
+      autoSortDownloads = false;
     };
     yazi = {
       enable = true;
       configDir = configDir;
     };
-    kakoune.enable = true;
     ssh = {
       enable = true;
       identityPath = "${secretDir}/${machine}/ssh/id_ed25519";
