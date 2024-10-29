@@ -33,48 +33,52 @@ in {
     machine = "pi";
   };
 
-  nixarr = {
-    enable = true;
-    mediaUsers = [username];
+  imports = [
+    ./test.nix
+  ];
 
-    submerger.enable = true;
+  # nixarr = {
+  #   enable = true;
+  #   mediaUsers = [username];
 
-    vpn = {
-      enable = true;
-      wgConf = config.age.secrets."airvpn-wg.conf".path;
-      vpnTestService.enable = true;
-    };
+  #   submerger.enable = true;
 
-    ddns.njalla = {
-      enable = true;
-      keysFile = config.age.secrets.njalla.path;
-      vpn = {
-        enable = true;
-        keysFile = config.age.secrets.njalla-vpn.path;
-      };
-    };
+  #   vpn = {
+  #     enable = true;
+  #     wgConf = config.age.secrets."airvpn-wg.conf".path;
+  #     vpnTestService.enable = true;
+  #   };
 
-    jellyfin = {
-      enable = true;
-      expose.https = {
-        enable = true;
-        domainName = builtins.readFile config.age.secrets.domain.path;
-        acmeMail = "slimness_bullish683@simplelogin.com";
-      };
-    };
+  #   ddns.njalla = {
+  #     enable = true;
+  #     keysFile = config.age.secrets.njalla.path;
+  #     vpn = {
+  #       enable = true;
+  #       keysFile = config.age.secrets.njalla-vpn.path;
+  #     };
+  #   };
 
-    transmission = {
-      enable = true;
-      package = inputs.nixpkgs-2405.legacyPackages.${pkgs.system}.transmission_4;
-      vpn.enable = true;
-      peerPort = transmissionPort;
-    };
+  #   jellyfin = {
+  #     enable = true;
+  #     expose.https = {
+  #       enable = true;
+  #       domainName = builtins.readFile config.age.secrets.domain.path;
+  #       acmeMail = "slimness_bullish683@simplelogin.com";
+  #     };
+  #   };
 
-    sonarr.enable = true;
-    bazarr.enable = true;
-    radarr.enable = true;
-    prowlarr.enable = true;
-  };
+  #   transmission = {
+  #     enable = true;
+  #     package = inputs.nixpkgs-2405.legacyPackages.${pkgs.system}.transmission_4;
+  #     vpn.enable = true;
+  #     peerPort = transmissionPort;
+  #   };
+
+  #   sonarr.enable = true;
+  #   bazarr.enable = true;
+  #   radarr.enable = true;
+  #   prowlarr.enable = true;
+  # };
 
   # Forces full colors in terminal over SSH
   environment.variables = {

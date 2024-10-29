@@ -5,8 +5,10 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     nixpkgs-2405.url = "github:nixos/nixpkgs/nixos-24.05";
 
-    nixarr.url = "github:rasmus-kirk/nixarr/dev";
-    nixarr.inputs.nixpkgs.follows = "nixpkgs";
+    #nixarr.url = "github:rasmus-kirk/nixarr/dev";
+    #nixarr.inputs.nixpkgs.follows = "nixpkgs";
+
+    vpn-confinement.url = "github:rasmus-kirk/VPN-Confinement";
 
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
@@ -22,7 +24,8 @@
     self,
     nixpkgs,
     agenix,
-    nixarr,
+    #nixarr,
+    vpn-confinement,
     home-manager,
     nixos-hardware,
     ...
@@ -70,7 +73,8 @@
             agenix.nixosModules.default
             nixos-hardware.nixosModules.raspberry-pi-4
             self.nixosModules.default
-            nixarr.nixosModules.default
+            #nixarr.nixosModules.default
+            vpn-confinement.nixosModules.default
             home-manager.nixosModules.home-manager
             {
               home-manager.users.user = {

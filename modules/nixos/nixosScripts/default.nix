@@ -51,7 +51,8 @@ with lib; let
         exit
       fi
 
-      nix flake update nixarr --flake ${cfg.configDir}
+      #nix flake update nixarr --flake ${cfg.configDir}
+
       # Switch configuration, backing up files
       # impure is a little disgusting, but will cause issues otherwise
       nixos-rebuild switch --flake ${cfg.configDir}#${cfg.machine} --show-trace --impure
