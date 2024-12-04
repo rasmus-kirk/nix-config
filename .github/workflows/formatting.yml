@@ -22,4 +22,4 @@ jobs:
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@main
 
-      - run: nix fmt -- --check
+      - run: nix fmt -- --check .
