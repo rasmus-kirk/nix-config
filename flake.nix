@@ -46,10 +46,12 @@
       kirk = import ./modules/nixos;
       default = kirk;
     };
+
     homeManagerModules = rec {
       kirk = import ./modules/home-manager;
       default = kirk;
     };
+
     devShells = forAllSystems ({pkgs}: {
       default = pkgs.mkShell {
         packages = with pkgs; [
@@ -58,10 +60,13 @@
         ];
       };
     });
+
     packages = forAllSystems ({pkgs}: {
       default = pkgs.callPackage ./docs/mkDocs.nix {inherit inputs;};
     });
+
     formatter = forAllSystems ({pkgs}: pkgs.alejandra);
+
     nixosConfigurations = {
       pi = nixpkgs.lib.nixosSystem rec {
         system = "aarch64-linux";
@@ -89,6 +94,7 @@
         specialArgs = {inherit inputs;};
       };
     };
+
     homeConfigurations = {
       work = home-manager.lib.homeManagerConfiguration {
         pkgs = import nixpkgs {
