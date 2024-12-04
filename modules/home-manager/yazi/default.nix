@@ -103,12 +103,12 @@ in {
               desc = "Open the selected files in editor";
             }
             {
-              on = [ "m" "d" ];
+              on = ["m" "d"];
               run = "plugin mkdir";
               desc = "Create a directory";
             }
             {
-              on = [ "m" "f" ];
+              on = ["m" "f"];
               run = "create";
               desc = "Create a file";
             }
@@ -234,7 +234,10 @@ in {
         #];
         plugin = {
           prepend_previewers = [
-              { mime = "audio/*"; run = "exifaudio"; }
+            {
+              mime = "audio/*";
+              run = "exifaudio";
+            }
           ];
           prepend_fetchers = [
             {

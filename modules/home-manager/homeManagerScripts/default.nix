@@ -111,8 +111,8 @@ in {
     # Disable home manager news
     news = mkIf cfg.disableNews {
       display = "silent";
-      json = lib.mkForce { };
-      entries = lib.mkForce [ ];
+      json = lib.mkForce {};
+      entries = lib.mkForce [];
     };
 
     home.packages = [

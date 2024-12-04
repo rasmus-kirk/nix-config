@@ -40,32 +40,32 @@ in {
       enable = true;
       defaultApplications = {
         # Audio
-        "application/octet-stream" = [ "audio.desktop" ];
-        "audio/flac" = [ "audio.desktop" ];
-        "audio/mpeg" = [ "audio.desktop" ];
-        "audio/x-vorbis+ogg" = [ "audio.desktop" ];
+        "application/octet-stream" = ["audio.desktop"];
+        "audio/flac" = ["audio.desktop"];
+        "audio/mpeg" = ["audio.desktop"];
+        "audio/x-vorbis+ogg" = ["audio.desktop"];
 
         # Image
-        "image/jpeg" = [ "image.desktop" ];
-        "image/png" = [ "image.desktop" ];
-        "image/webp" = [ "image.desktop" ];
+        "image/jpeg" = ["image.desktop"];
+        "image/png" = ["image.desktop"];
+        "image/webp" = ["image.desktop"];
 
         # Video
-        "image/gif" = [ "video.desktop" ];
-        "video/mp4" = [ "video.desktop" ];
-        "video/x-matroska" = [ "video.desktop" ];
+        "image/gif" = ["video.desktop"];
+        "video/mp4" = ["video.desktop"];
+        "video/x-matroska" = ["video.desktop"];
 
         # PDF
-        "application/pdf" = [ "pdf.desktop" ];
+        "application/pdf" = ["pdf.desktop"];
 
         # File Manager
-        "inode/directory" = [ "yazi.desktop" ];
+        "inode/directory" = ["yazi.desktop"];
 
         # Browser
-        "x-scheme-handler/about" = [ "librewolf.desktop" ];
-        "x-scheme-handler/http" = [ "librewolf.desktop" ];
-        "x-scheme-handler/https" = [ "librewolf.desktop" ];
-        "x-scheme-handler/unknown" = [ "librewolf.desktop" ];
+        "x-scheme-handler/about" = ["librewolf.desktop"];
+        "x-scheme-handler/http" = ["librewolf.desktop"];
+        "x-scheme-handler/https" = ["librewolf.desktop"];
+        "x-scheme-handler/unknown" = ["librewolf.desktop"];
       };
     };
   };
