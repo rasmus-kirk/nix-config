@@ -101,7 +101,7 @@ in {
     };
 
     disableNews = mkOption {
-      type = types.nullOr types.str;
+      type = types.nullOr types.bool;
       default = true;
       description = "Disable annoying home-manager news on rebuild.";
     };

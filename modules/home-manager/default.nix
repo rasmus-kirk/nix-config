@@ -7,6 +7,7 @@
     ./helix
     ./homeManagerScripts
     ./jiten
+    ./monero
     ./mpv
     ./mvi
     ./scripts

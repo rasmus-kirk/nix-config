@@ -15,6 +15,7 @@ in {
     mpv.enable = true;
     mvi.enable = true;
     xdgMime.enable = true;
+    monero.enable = true;
     git = {
       enable = true;
       userEmail = "mail@rasmuskirk.com";
