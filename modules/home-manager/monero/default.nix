@@ -14,6 +14,17 @@ with lib; let
 
     ${cfg.extraConfig}
   '';
+
+  monero = pkgs.writeShellApplication {
+    name = "monero";
+    text = ''
+      wallet_path="$HOME/media/documents/wallets/user"
+      mkdir -p "$wallet_path"
+      monero-wallet-cli \
+        --wallet-file "$wallet_path"/user.keys \
+        --log-file "$wallet_path"/log.log
+    '';
+  };
 in {
   options.kirk.monero = {
     enable = mkEnableOption "the monero node user-level systemd-service.";
@@ -41,5 +52,10 @@ in {
         SuccessExitStatus = [0 1];
       };
     };
+
+    home.packages = with pkgs; [
+      monero-cli
+      monero
+    ];
   };
 }

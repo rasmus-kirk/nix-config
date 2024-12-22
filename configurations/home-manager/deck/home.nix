@@ -8,14 +8,13 @@
 in {
   kirk = {
     terminalTools.enable = true;
-    foot.enable = true;
-    fzf.enable = true;
     git = {
       enable = true;
       userEmail = "mail@rasmuskirk.com";
       userName = "rasmus-kirk";
     };
     helix.enable = true;
+    #mpv.enable = true;
     homeManagerScripts = {
       enable = true;
       configDir = configDir;
@@ -56,19 +55,14 @@ in {
 
   home.packages = with pkgs; [
     # Misc
-    freetube
-    jellyfin
     mpv
+    qbittorrent
 
     # Browsers
     librewolf
 
     # Chat
     signal-desktop
-
-    # Fonts
-    (nerdfonts.override {fonts = ["FiraCode"];})
-    fira-code
 
     # Misc Terminal Tools
     wl-clipboard
