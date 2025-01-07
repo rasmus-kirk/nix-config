@@ -48,7 +48,10 @@
     };
 
     homeManagerModules = rec {
-      kirk = import ./modules/home-manager;
+      kirk = {
+        imports = [ ./modules/home-manager ];
+        config._module.args = {inherit inputs;};
+      };
       default = kirk;
     };
 

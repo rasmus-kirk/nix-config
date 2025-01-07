@@ -120,10 +120,6 @@ in {
     slack
     signal-desktop
 
-    # Fonts
-    (nerdfonts.override {fonts = ["FiraCode"];})
-    fira-code
-
     # Document handling
     texlive.combined.scheme-full
     pandoc

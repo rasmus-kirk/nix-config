@@ -35,8 +35,18 @@ in {
   config = mkIf cfg.enable {
     home.packages = with pkgs; [jiten];
 
-    programs.zsh.initExtra = mkIf cfg.dailyWord "cat ${config.xdg.stateHome}/word-of-the-day/japanese.txt";
-    programs.bash.initExtra = mkIf cfg.dailyWord "cat ${config.xdg.stateHome}/word-of-the-day/japanese.txt";
+    programs.zsh.initExtra = mkIf cfg.dailyWord ''
+      if [[ -z "$ZSH_WORD_DISPLAYED" ]]; then
+        export ZSH_WORD_DISPLAYED=true
+        cat ${config.xdg.stateHome}/word-of-the-day/japanese.txt
+      fi
+    '';
+    programs.bash.initExtra = mkIf cfg.dailyWord ''
+      if [[ -z "$BASH_WORD_DISPLAYED" ]]; then
+        export BASH_WORD_DISPLAYED=true
+        cat ${config.xdg.stateHome}/word-of-the-day/japanese.txt
+      fi
+    '';
 
     systemd.user = mkIf cfg.dailyWord {
       timers = {

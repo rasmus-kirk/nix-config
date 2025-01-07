@@ -1,4 +1,5 @@
 {
+  inputs,
   config,
   pkgs,
   lib,
@@ -11,56 +12,106 @@ with lib; let
     then cfg.configDir
     else "${config.xdg.configHome}/home-manager";
 
-  hm-clean = pkgs.writeShellApplication {
-    name = "hm-clean";
+  hm = pkgs.writeShellApplication {
+    name = "hm";
+    runtimeInputs = with pkgs; [ fzf git ];
     text = ''
-      # Delete old home-manager profiles
-      home-manager expire-generations '-30 days' &&
-      # Delete old nix profiles
-      nix profile wipe-history --older-than 30d &&
-      # Optimize space
-      nix store gc &&
-      nix store optimise
-    '';
-  };
+      command="''${1:-}"
+      # Check if a parameter is provided
+      if [ -z "$command" ]; then
+        echo "Usage: hm <command>"
+        echo ""
+        echo "Commands:"
+        echo "  rebuild           Rebuild the Home Manager configuration."
+        echo "  upgrade           Upgrade Home Manager packages. Note that this also rebuilds the configuration."
+        echo "  options           Shows available Home Manager configuration options."
+        echo "  garbage-collect   Garbage collects, freeing up unused hard drive space allocated to unused Nix packages."
+        echo "  update            Updating Nix flake inputs. This updates packages for the next rebuild..."
+        echo "  test              Test the Home Manager configuration."
+        echo "  rollback          Roll back to the previous configuration."
+        echo ""
+        echo "Garbage collecting will:"
+        echo "- Delete Home Manager configurations and nix profiles older than 30 days"
+        echo "- Delete unused packages in the Nix store"
+        echo "- Optimize the Nix store, by replacing identical files in the store by hard links"
+        exit 1
+      fi
 
-  hm-update = pkgs.writeShellApplication {
-    name = "hm-update";
-    text = ''
-      nix flake update --flake ${configDir}
-    '';
-  };
+      update() {
+        echo "[HM-INFO]: Updating packages for the next rebuild, by updating the Nix flake inputs..."
+        echo ""
+        nix flake update --flake ${configDir}
+      }
 
-  hm-upgrade = pkgs.writeShellApplication {
-    name = "hm-upgrade";
-    text = ''
-      # Update, switch to new config, and cleanup
-      ${hm-update}/bin/hm-update &&
-      ${hm-rebuild}/bin/hm-rebuild &&
-      ${hm-clean}/bin/hm-clean
-    '';
-  };
+      rebuild() {
+        echo "[HM-INFO]: Rebuilding Home Manager configuration..."
+        echo ""
+        pushd "${configDir}"
+        git add .
+        home-manager switch -b backup --flake .#${cfg.machine}
+        popd
+      }
 
-  hm-rebuild = pkgs.writeShellApplication {
-    name = "hm-rebuild";
-    text = ''
-      pushd ${configDir}
-      git add .
-      # Switch configuration, backing up files
-      home-manager switch -b backup --flake .#${cfg.machine}
-      popd
-    '';
-  };
+      garbage_collect() {
+        echo "[HM-INFO]: Garbage collecting the Nix store..."
+        echo ""
+        home-manager expire-generations '-30 days'
+        nix profile wipe-history --older-than 30d
+        nix store gc
+        nix store optimise
+      }
 
-  hm-rollback = pkgs.writeShellApplication {
-    name = "hm-rollback";
-    runtimeInputs = [pkgs.fzf];
-    text = ''
-      gen=$(home-manager generations | grep -P "^[0-9]{4}-[0-9]{2}-[0-9]{2}" | fzf)
-      genPath=$(echo "$gen" | grep -oP "/nix/store/.*")
+      rollback() {
+        echo ""
+        gen=$(home-manager generations | grep -P "^[0-9]{4}-[0-9]{2}-[0-9]{2}" | fzf)
+        genPath=$(echo "$gen" | grep -oP "/nix/store/.*")
+        genId=$(echo "$gen" | grep -oP "(?<=id )\d+")
 
-      echo -e '\033[1mActivating selected generation:\n\033[0m'
-      "$genPath"/activate
+        if [ -z "$gen" ]; then
+          echo "[HM-ERROR]: No generation selected. Aborting."
+          exit 1
+        fi
+
+        echo "[HM-INFO]: Activating generation $genId:"
+        "$genPath"/activate
+      }
+
+      # Handle the command
+      case "$1" in
+        rebuild)
+          rebuild
+          ;;
+        upgrade)
+          echo "[HM-INFO]: Upgrading Home Manager packages..."
+          echo ""
+          update &&
+          rebuild &&
+          garbage-collect
+          ;;
+        options)
+          man home-configuration.nix
+          ;;
+        garbage-collect)
+          garbage-collect
+          ;;
+        update)
+          update
+          ;;
+        rollback)
+          rollback
+          ;;
+        test)
+          tmpdir=$(mktemp -d) &&
+          echo "[HM-INFO]: Building the test configuration to \"$tmpdir\"..." &&
+          cd "$tmpdir" &&
+          home-manager build --show-trace --flake ${configDir}#${cfg.machine}
+          ;;
+        *)
+          echo "[HM-ERROR]: Unknown command: $1"
+          echo "Valid commands are: rebuild, upgrade, options, garbage-collect, rollback, update, test"
+          exit 1
+          ;;
+      esac
     '';
   };
 in {
@@ -70,17 +121,13 @@ in {
       managing home-manager easier. These scripts are lean bash scripts that
       compose a couple of nix and home-manager commands:
 
-      - `hm-update`: Updates the available packages, usually, you don't need
-        to run this, but the other scripts use it.
-      - `hm-clean`: Cleans up older configurations and garbage collects the
-        nix store, cleaning up unused packages and freeing up harddisk space
-      - `hm-rebuild`: Builds your configuration. Backs up files; if you
-        fx have a `.bashrc` and home-manager needs to overwrite it, the old
-        `.bashrc` is renamed to `.bashrc.bck`
-      - `hm-upgrade`: Updates all packages, rebuilds and finally older
-        configurations/garbage collects
-      - `hm-rollback`: Use this command to roll back to a previous working
-        home manager configuration.
+      - `hm rebuild`: Rebuild the Home Manager configuration."
+      - `hm upgrade`: Upgrade Home Manager packages. Note that this also rebuilds the configuration."
+      - `hm options`: Shows available Home Manager configuration options."
+      - `hm garbage-collect`: Garbage collects, freeing up unused hard drive space allocated to unused Nix packages."
+      - `hm update`: Updating Nix flake inputs. This updates packages for the next rebuild..."
+      - `hm test`: Test the Home Manager configuration."
+      - `hm rollback`: Roll back to the previous configuration."
     '';
 
     configDir = mkOption {
@@ -115,12 +162,14 @@ in {
       entries = lib.mkForce [];
     };
 
+    # Use the pinned nixpkgs version that is already used, when using `nix shell nixpkgs#package`
+    nix.registry.nixpkgs = {
+      from = { id = "nixpkgs"; type = "indirect"; };
+      flake = inputs.nixpkgs;
+    };
+
     home.packages = [
-      hm-update
-      hm-upgrade
-      hm-rebuild
-      hm-clean
-      hm-rollback
+      hm
     ];
   };
 }

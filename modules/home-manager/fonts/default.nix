@@ -31,7 +31,7 @@ in {
 
     home.packages = with pkgs; [
       # Fonts
-      (nerdfonts.override {fonts = ["FiraCode"];})
+      nerd-fonts.fira-code
       fira-code
     ];
   };

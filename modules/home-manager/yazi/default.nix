@@ -15,9 +15,9 @@ with lib; let
         cp -r "${name}".yazi/* "$out"
       '';
       src = pkgs.fetchgit {
-        rev = "5e65389d1308188e5a990059c06729e2edb18f8a";
+        rev = "600614a9dc59a12a63721738498c5541c7923873";
         url = "https://github.com/yazi-rs/plugins.git";
-        hash = "sha256-XHaQjudV9YSMm4vF7PQrKGJ078oVF1U1Du10zXEJ9I0=";
+        hash = "sha256-mQkivPt9tOXom78jgvSwveF/8SD8M2XCXxGY8oijl+o=";
       };
     };
   mkYaziPluginGithub = x:
@@ -38,8 +38,8 @@ with lib; let
     gruvbox-dark = mkYaziPluginGithub {
       name = "gruvbox-dark";
       url = "https://github.com/bennyyip/gruvbox-dark.yazi.git";
-      rev = "c204853de7a78bc99ea628e51857ce65506468db";
-      hash = "sha256-NBco10MINyAJk1YWHwYUzvI9mnTJl9aYyDtQSTUP3Hs=";
+      rev = "b4cc9f2a3016f9b5a9bbb5aeb4619d029ee61397";
+      hash = "sha256-9ZZHXP0Junaj6r80nE8oDNEU5WIKVdtz4g72BFzcSAM=";
     };
     exifaudio = mkYaziPluginGithub {
       name = "exifaudio";
@@ -81,8 +81,11 @@ in {
       enableZshIntegration = true;
       shellWrapperName = "j";
       initLua = ''
-        require("full-border"):setup()
         require("git"):setup()
+        require("full-border"):setup()
+        require("session"):setup {
+          sync_yanked = true,
+        }
       '';
       keymap = {
         manager.prepend_keymap =
@@ -111,6 +114,20 @@ in {
               on = ["m" "f"];
               run = "create";
               desc = "Create a file";
+            }
+            {
+              on = ["m" "t"];
+              run = ''shell "foot </dev/null &>/dev/null &"'';
+              desc = "Create a new terminal";
+            }
+            {
+              on = ["m" "j"];
+              run = ''shell "foot </dev/null &>/dev/null zsh -c 'source ~/.zshrc; j; zsh'& "'';
+              desc = "Create a new terminal with yazi open";
+            }
+            {
+              on = [ "2" ];
+              run = "plugin switch-create-tab --args=1";
             }
             # Selection
             {
