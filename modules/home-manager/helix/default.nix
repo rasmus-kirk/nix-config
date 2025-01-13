@@ -97,6 +97,9 @@ in {
             display-inlay-hints = true;
           };
 
+          end-of-line-diagnostics = "hint";
+          inline-diagnostics.cursor-line = "error";
+
           cursor-shape = {
             insert = "bar";
             normal = "block";

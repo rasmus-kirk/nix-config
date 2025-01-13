@@ -62,7 +62,6 @@ with lib; let
       }
 
       rollback() {
-        echo ""
         gen=$(home-manager generations | grep -P "^[0-9]{4}-[0-9]{2}-[0-9]{2}" | fzf)
         genPath=$(echo "$gen" | grep -oP "/nix/store/.*")
         genId=$(echo "$gen" | grep -oP "(?<=id )\d+")

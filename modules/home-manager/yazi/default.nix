@@ -142,18 +142,8 @@ in {
             }
             {
               on = "%";
-              run = "select_all --state=true";
+              run = "toggle_all --state=true";
               desc = "Select all files";
-            }
-            {
-              on = "J";
-              run = ["select --state=none" "arrow 1"];
-              desc = "Select down";
-            }
-            {
-              on = "K";
-              run = ["select --state=none" "arrow -1"];
-              desc = "Select up";
             }
             # Plugins
             {
@@ -168,12 +158,12 @@ in {
             }
             {
               on = "t";
-              run = "plugin --sync hide-preview";
+              run = "plugin hide-preview";
               desc = "Hide or show preview";
             }
             {
               on = "T";
-              run = "plugin --sync max-preview";
+              run = "plugin max-preview";
               desc = "Maximize or restore preview";
             }
             # Goto
@@ -273,6 +263,7 @@ in {
       flavors.gruvbox-dark = plugins.gruvbox-dark;
       plugins = {
         mkdir = ./plugins/mkdir;
+        autotab = ./plugins/autotab;
         exifaudio = plugins.exifaudio;
         full-border = mkYaziPlugin "full-border";
         git = mkYaziPlugin "git";
