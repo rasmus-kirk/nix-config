@@ -37,8 +37,6 @@ in {
     enable = true;
     mediaUsers = [username];
 
-    submerger.enable = true;
-
     vpn = {
       enable = true;
       wgConf = config.age.secrets."airvpn-wg.conf".path;
