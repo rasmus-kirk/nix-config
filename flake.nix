@@ -16,6 +16,7 @@
     agenix.inputs.home-manager.follows = "home-manager";
 
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
+    website-builder.url = "github:rasmus-kirk/website-builder";
   };
 
   outputs = inputs @ {
@@ -25,6 +26,7 @@
     nixarr,
     home-manager,
     nixos-hardware,
+    website-builder,
     ...
   }: let
     # Systems supported
@@ -42,17 +44,11 @@
           pkgs = import nixpkgs {inherit system;};
         });
   in {
-    nixosModules = rec {
-      kirk = import ./modules/nixos;
-      default = kirk;
-    };
+    nixosModules.default = import ./modules/nixos;
 
-    homeManagerModules = rec {
-      kirk = {
-        imports = [ ./modules/home-manager ];
-        config._module.args = {inherit inputs;};
-      };
-      default = kirk;
+    homeManagerModules.default = {
+      imports = [ ./modules/home-manager ];
+      config._module.args = {inherit inputs;};
     };
 
     devShells = forAllSystems ({pkgs}: {
@@ -64,8 +60,26 @@
       };
     });
 
-    packages = forAllSystems ({pkgs}: {
-      default = pkgs.callPackage ./docs/mkDocs.nix {inherit inputs;};
+    packages = forAllSystems ({pkgs}: let
+        website = website-builder.lib {
+          pkgs = pkgs;
+          headerTitle = "Rasmus Kirk";
+          standalonePages = [{
+            inputFile = ./docs/index.md;
+            title = "Kirk Modules - Option Documentation";
+          }];
+          navbar = [
+            { title = "Home"; location = "/"; }
+            { title = "Nixos"; location = "/nixos"; }
+            { title = "Home Manager"; location = "/home-manager"; }
+            { title = "Github"; location = "https://github.com/rasmus-kirk/nix-config"; }
+          ];
+          homemanagerModules = ./modules/home-manager;
+          nixosModules = ./modules/nixos;
+        };
+    in {
+      default = website.package;
+      debug = website.loop;
     });
 
     formatter = forAllSystems ({pkgs}: pkgs.alejandra);
