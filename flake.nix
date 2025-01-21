@@ -16,7 +16,9 @@
     agenix.inputs.home-manager.follows = "home-manager";
 
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
+
     website-builder.url = "github:rasmus-kirk/website-builder";
+    website-builder.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = inputs @ {
@@ -70,8 +72,8 @@
           }];
           navbar = [
             { title = "Home"; location = "/"; }
-            { title = "Nixos"; location = "/nixos"; }
-            { title = "Home Manager"; location = "/home-manager"; }
+            { title = "Nixos"; location = "/nixos-options"; }
+            { title = "Home Manager"; location = "/home-manager-options"; }
             { title = "Github"; location = "https://github.com/rasmus-kirk/nix-config"; }
           ];
           homemanagerModules = ./modules/home-manager;
