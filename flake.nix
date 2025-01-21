@@ -65,6 +65,7 @@
     packages = forAllSystems ({pkgs}: let
         website = website-builder.lib {
           pkgs = pkgs;
+          src = ./.;
           headerTitle = "Rasmus Kirk";
           standalonePages = [{
             inputFile = ./docs/index.md;
