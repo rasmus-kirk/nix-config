@@ -126,7 +126,7 @@ in {
               desc = "Create a new terminal with yazi open";
             }
             {
-              on = [ "2" ];
+              on = ["2"];
               run = "plugin switch-create-tab --args=1";
             }
             # Selection

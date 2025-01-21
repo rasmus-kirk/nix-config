@@ -14,7 +14,7 @@ with lib; let
 
   hm = pkgs.writeShellApplication {
     name = "hm";
-    runtimeInputs = with pkgs; [ fzf git ];
+    runtimeInputs = with pkgs; [fzf git];
     text = ''
       command="''${1:-}"
       # Check if a parameter is provided
@@ -163,7 +163,10 @@ in {
 
     # Use the pinned nixpkgs version that is already used, when using `nix shell nixpkgs#package`
     nix.registry.nixpkgs = {
-      from = { id = "nixpkgs"; type = "indirect"; };
+      from = {
+        id = "nixpkgs";
+        type = "indirect";
+      };
       flake = inputs.nixpkgs;
     };
 

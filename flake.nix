@@ -49,7 +49,7 @@
     nixosModules.default = import ./modules/nixos;
 
     homeManagerModules.default = {
-      imports = [ ./modules/home-manager ];
+      imports = [./modules/home-manager];
       config._module.args = {inherit inputs;};
     };
 
@@ -63,23 +63,37 @@
     });
 
     packages = forAllSystems ({pkgs}: let
-        website = website-builder.lib {
-          pkgs = pkgs;
-          src = ./.;
-          headerTitle = "Rasmus Kirk";
-          standalonePages = [{
+      website = website-builder.lib {
+        pkgs = pkgs;
+        src = ./.;
+        headerTitle = "Rasmus Kirk";
+        standalonePages = [
+          {
             inputFile = ./docs/index.md;
             title = "Kirk Modules - Option Documentation";
-          }];
-          navbar = [
-            { title = "Home"; location = "/"; }
-            { title = "Nixos"; location = "/nixos-options"; }
-            { title = "Home Manager"; location = "/home-manager-options"; }
-            { title = "Github"; location = "https://github.com/rasmus-kirk/nix-config"; }
-          ];
-          homemanagerModules = ./modules/home-manager;
-          nixosModules = ./modules/nixos;
-        };
+          }
+        ];
+        navbar = [
+          {
+            title = "Home";
+            location = "/";
+          }
+          {
+            title = "Nixos";
+            location = "/nixos-options";
+          }
+          {
+            title = "Home Manager";
+            location = "/home-manager-options";
+          }
+          {
+            title = "Github";
+            location = "https://github.com/rasmus-kirk/nix-config";
+          }
+        ];
+        homemanagerModules = ./modules/home-manager;
+        nixosModules = ./modules/nixos;
+      };
     in {
       default = website.package;
       debug = website.loop;
