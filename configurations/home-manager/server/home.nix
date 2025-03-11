@@ -1,4 +1,8 @@
-{pkgs, lib, ...}: let
+{
+  pkgs,
+  lib,
+  ...
+}: let
   configDir = "/data/.system-configuration";
   secretDir = "/data/.secret";
   machine = "server";
@@ -37,7 +41,7 @@ in {
 
   wayland.windowManager.sway = {
     enable = true;
-    config = let 
+    config = let
       mod = "Mod4";
       left = "h";
       down = "j";
@@ -129,20 +133,25 @@ in {
     settings = [
       {
         profile.name = "undocked";
-        profile.outputs = [ {
-          criteria = "eDP-1";
-          status = "enable";
-        } ];
+        profile.outputs = [
+          {
+            criteria = "eDP-1";
+            status = "enable";
+          }
+        ];
       }
       {
         profile.name = "docked";
-        profile.outputs = [ {
-          criteria = "eDP-1";
-          status = "disable";
-        } {
-          criteria = "*";
-          status = "enable";
-        } ];
+        profile.outputs = [
+          {
+            criteria = "eDP-1";
+            status = "disable";
+          }
+          {
+            criteria = "*";
+            status = "enable";
+          }
+        ];
       }
     ];
   };
@@ -153,7 +162,6 @@ in {
         exec sway
     fi
   '';
-
 
   home.packages = with pkgs; [
     pulsemixer

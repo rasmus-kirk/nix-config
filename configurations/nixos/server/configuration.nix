@@ -3,8 +3,7 @@
   config,
   pkgs,
   ...
-}:
-let
+}: let
   username = "user";
   machine = "server";
   dataDir = "/data";
@@ -13,7 +12,7 @@ let
   stateDir = "${dataDir}/.state";
   transmissionPort = 33915;
 in {
-  imports = [ ./hardware-configuration.nix ];
+  imports = [./hardware-configuration.nix];
 
   # -------------------- Secrets -------------------- #
 
@@ -97,8 +96,8 @@ in {
     TERM = "xterm-256color";
   };
 
-  services.getty.autologinUser = username;  # Enable auto-login
-  services.logind.lidSwitch = "ignore";  # Ignore laptop lid closing
+  services.getty.autologinUser = username; # Enable auto-login
+  services.logind.lidSwitch = "ignore"; # Ignore laptop lid closing
 
   # -------------------- Syncthing -------------------- #
 
@@ -121,7 +120,7 @@ in {
   users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
     ../../../pubkeys/work.pub
   ];
-  
+
   # -------------------- Boilerplate -------------------- #
 
   # Set your time zone.
@@ -167,10 +166,10 @@ in {
     shell = pkgs.zsh;
     isNormalUser = true;
     hashedPasswordFile = config.age.secrets.user.path;
-    extraGroups = [ "networkmanager" "wheel" ];
+    extraGroups = ["networkmanager" "wheel"];
   };
 
-  hardware.graphics.enable = true;  # Needed for sway to boot
+  hardware.graphics.enable = true; # Needed for sway to boot
 
   networking = {
     hostName = machine;
@@ -181,7 +180,7 @@ in {
   programs.zsh.enable = true;
 
   security.sudo = {
-    execWheelOnly = true;  # For security
+    execWheelOnly = true; # For security
     # For insults lol
     package = pkgs.sudo.override {withInsults = true;};
     extraConfig = "Defaults insults";

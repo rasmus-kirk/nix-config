@@ -163,7 +163,7 @@ in {
 
     nix = {
       # TODO: This may be necessary?
-      channels = let nixpkgs = inputs.nixpkgs; in { inherit nixpkgs; };
+      channels = let nixpkgs = inputs.nixpkgs; in {inherit nixpkgs;};
       settings = {
         # Faster builds
         cores = 0;
