@@ -19,6 +19,9 @@
 
     website-builder.url = "github:rasmus-kirk/website-builder";
     website-builder.inputs.nixpkgs.follows = "nixpkgs";
+
+    nix-index-database.url = "github:nix-community/nix-index-database";
+    nix-index-database.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = inputs @ {
@@ -29,6 +32,7 @@
     home-manager,
     nixos-hardware,
     website-builder,
+    nix-index-database,
     ...
   }: let
     # Systems supported
@@ -162,6 +166,7 @@
 
         modules = [
           ./configurations/home-manager/work/home.nix
+          nix-index-database.hmModules.nix-index
           self.homeManagerModules.default
         ];
       };
@@ -174,6 +179,7 @@
 
         modules = [
           ./configurations/home-manager/deck/home.nix
+          nix-index-database.hmModules.nix-index
           self.homeManagerModules.default
         ];
       };

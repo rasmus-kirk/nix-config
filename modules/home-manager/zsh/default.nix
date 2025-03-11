@@ -12,6 +12,8 @@ in {
   };
 
   config = mkIf cfg.enable {
+    programs.nix-index.enable = true;
+
     programs.zsh = {
       enable = true;
       autosuggestion.enable = true;

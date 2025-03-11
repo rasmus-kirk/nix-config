@@ -15,9 +15,9 @@ with lib; let
         cp -r "${name}".yazi/* "$out"
       '';
       src = pkgs.fetchgit {
-        rev = "600614a9dc59a12a63721738498c5541c7923873";
+        rev = "a1b678dfacfd2726fad364607aeaa7e1fded3cfa";
         url = "https://github.com/yazi-rs/plugins.git";
-        hash = "sha256-mQkivPt9tOXom78jgvSwveF/8SD8M2XCXxGY8oijl+o=";
+        hash = "sha256-Vvq7uau+UNcriuLE7YMK5rSOXvVaD0ElT59q+09WwdQ=";
       };
     };
   mkYaziPluginGithub = x:
@@ -44,8 +44,8 @@ with lib; let
     exifaudio = mkYaziPluginGithub {
       name = "exifaudio";
       url = "https://github.com/Sonico98/exifaudio.yazi";
-      rev = "6205460405fa39c017d0eef12997c1180658e695";
-      hash = "sha256-mYvq7xnd4gI0KoG5G+ygDxqCWdpZbMn3Im1EiW3eSyI=";
+      rev = "de526f336dfed54c8545d1e445cb8511e195fecd";
+      hash = "sha256-s+WPSUfHNuS+xVgtPjjIOFMuu+mAUD6j7jsiZmZpcf0=";
     };
   };
 in {
@@ -126,8 +126,20 @@ in {
               desc = "Create a new terminal with yazi open";
             }
             {
+              on = ["1"];
+              run = "plugin autotab 1";
+            }
+            {
               on = ["2"];
-              run = "plugin switch-create-tab --args=1";
+              run = "plugin autotab 2";
+            }
+            {
+              on = ["3"];
+              run = "plugin autotab 3";
+            }
+            {
+              on = ["4"];
+              run = "plugin autotab 4";
             }
             # Selection
             {
@@ -168,6 +180,11 @@ in {
             }
             # Goto
             {
+              on = ["~"];
+              run = "cd ~";
+              desc = "Goto home dir";
+            }
+            {
               on = ["g" "~"];
               run = "cd ~";
               desc = "Goto home dir";
@@ -179,7 +196,7 @@ in {
             }
             {
               on = ["g" "e"];
-              run = "arrow 99999999999";
+              run = "arrow bot";
               desc = "Move cursor to bottom";
             }
             # Bookmarks

@@ -85,13 +85,13 @@ with lib; let
           echo ""
           update &&
           rebuild &&
-          garbage-collect
+          garbage_collect
           ;;
         options)
           man home-configuration.nix
           ;;
         garbage-collect)
-          garbage-collect
+          garbage_collect
           ;;
         update)
           update
@@ -161,13 +161,23 @@ in {
       entries = lib.mkForce [];
     };
 
-    # Use the pinned nixpkgs version that is already used, when using `nix shell nixpkgs#package`
-    nix.registry.nixpkgs = {
-      from = {
-        id = "nixpkgs";
-        type = "indirect";
+    nix = {
+      # TODO: This may be necessary?
+      channels = let nixpkgs = inputs.nixpkgs; in { inherit nixpkgs; };
+      settings = {
+        # Faster builds
+        cores = 0;
+        # Return more information when errors happen
+        show-trace = true;
       };
-      flake = inputs.nixpkgs;
+      # Use the pinned nixpkgs version that is already used, when using `nix shell nixpkgs#package`
+      registry.nixpkgs = {
+        from = {
+          id = "nixpkgs";
+          type = "indirect";
+        };
+        flake = inputs.nixpkgs;
+      };
     };
 
     home.packages = [
