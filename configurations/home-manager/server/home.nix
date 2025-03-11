@@ -1,7 +1,7 @@
 {pkgs, lib, ...}: let
   configDir = "/data/.system-configuration";
   secretDir = "/data/.secret";
-  machine = "jellyfin-client";
+  machine = "server";
   username = "user";
 in {
   kirk = {

@@ -102,17 +102,19 @@
     formatter = forAllSystems ({pkgs}: pkgs.alejandra);
 
     nixosConfigurations = {
-      jellyfin-client = nixpkgs.lib.nixosSystem rec {
+      server = nixpkgs.lib.nixosSystem rec {
         system = "x86_64-linux";
 
         modules = [
-          ./configurations/nixos/jellyfin-client/configuration.nix
+          ./configurations/nixos/server/configuration.nix
+          agenix.nixosModules.default
           self.nixosModules.default
+          nixarr.nixosModules.default
           home-manager.nixosModules.home-manager
           {
             home-manager.users.user = {
               imports = [
-                ./configurations/home-manager/jellyfin-client/home.nix
+                ./configurations/home-manager/server/home.nix
                 self.homeManagerModules.default
               ];
               config.home.packages = [home-manager.packages."${system}".default];
