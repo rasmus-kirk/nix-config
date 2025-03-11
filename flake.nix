@@ -102,6 +102,28 @@
     formatter = forAllSystems ({pkgs}: pkgs.alejandra);
 
     nixosConfigurations = {
+      jellyfin-client = nixpkgs.lib.nixosSystem rec {
+        system = "x86_64-linux";
+
+        modules = [
+          ./configurations/nixos/jellyfin-client/configuration.nix
+          self.nixosModules.default
+          home-manager.nixosModules.home-manager
+          {
+            home-manager.users.user = {
+              imports = [
+                ./configurations/home-manager/jellyfin-client/home.nix
+                self.homeManagerModules.default
+              ];
+              config.home.packages = [home-manager.packages."${system}".default];
+            };
+            home-manager.useGlobalPkgs = true;
+            home-manager.useUserPackages = true;
+          }
+        ];
+
+        specialArgs = {inherit inputs;};
+      };
       pi = nixpkgs.lib.nixosSystem rec {
         system = "aarch64-linux";
 
