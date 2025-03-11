@@ -70,6 +70,7 @@
       website = website-builder.lib {
         pkgs = pkgs;
         src = ./.;
+        timestamp = self.lastModified;
         headerTitle = "Rasmus Kirk";
         standalonePages = [
           {
