@@ -1,15 +1,16 @@
 {pkgs, lib, ...}: let
   configDir = "/data/.system-configuration";
+  secretDir = "/data/.secret";
   machine = "jellyfin-client";
   username = "user";
-
-  timeout = 15;
-  timer = 3;
-  logLength = timeout / timer;
 in {
   kirk = {
     foot.enable = true;
     terminalTools.enable = true;
+    ssh = {
+      enable = true;
+      identityPath = "${secretDir}/server/ssh/id_ed25519";
+    };
     git = {
       enable = true;
       userEmail = "mail@rasmuskirk.com";
@@ -42,32 +43,9 @@ in {
       down = "j";
       up = "k";
       right = "l";
-      jellyfinLog = pkgs.writeShellScriptBin "start-jellyfin" ''
-        log_dir="$HOME/.local/share/start-jellyfin"
-
-        # Make sure $log_file exists
-        mkdir -p "$log_dir"
-        touch "$log_dir/log"
-
-        ${lib.getExe pkgs.jellyfin-media-player} > "$log_dir/log" 2>&1
-      '';
-      startJellyfin = pkgs.writeShellScriptBin "start-jellyfin" ''
-        sleep 3
-        exec swaymsg 'workspace main; exec ${lib.getExe jellyfinLog}'
-        #exec swaymsg 'workspace main; exec ${lib.getExe pkgs.jellyfin-media-player} --tv'
-
-        #${lib.getExe pkgs.jellyfin-media-player} --tv > "$log_dir/log" 2>&1
-        #exec swaymsg 'workspace main; exec ${lib.getExe pkgs.jellyfin-media-player} --tv' > "$log_dir/sway" 2>&1
-        #exec swaymsg 'workspace main; exec ${lib.getExe pkgs.jellyfin-media-player} --tv > "$log_dir/jellyfin" 2>&1' > "$log_dir/sway" 2>&1
-        #${lib.getExe pkgs.jellyfin-media-player} --tv > "$log_dir/jellyfin" 2>&1
-      '';
     in {
       modifier = mod;
       bars = [];
-      startup = [ {
-        command = "swaymsg 'workspace main; exec ${lib.getExe startJellyfin}'";
-        #command = "swaymsg 'workspace main; exec ${lib.getExe pkgs.jellyfin-media-player} --tv'";
-      } ];
       # Remove window borders
       window.border = 0;
       # Hide cursor after 1 second
@@ -148,19 +126,25 @@ in {
   # Autoconnect HDMI
   services.kanshi = {
     enable = true;
-    profiles = {
-      undocked.outputs = [ {
-        criteria = "eDP-1";
-        status = "enable";
-      } ];
-      docked.outputs = [ {
-        criteria = "eDP-1";
-        status = "disable";
-      } {
-        criteria = "*";
-        status = "enable";
-      } ];
-    };
+    settings = [
+      {
+        profile.name = "undocked";
+        profile.outputs = [ {
+          criteria = "eDP-1";
+          status = "enable";
+        } ];
+      }
+      {
+        profile.name = "docked";
+        profile.outputs = [ {
+          criteria = "eDP-1";
+          status = "disable";
+        } {
+          criteria = "*";
+          status = "enable";
+        } ];
+      }
+    ];
   };
 
   # Start sway on system startup
@@ -170,153 +154,6 @@ in {
     fi
   '';
 
-  services.swayidle = {
-    enable = true;
-    timeouts = let
-      checkSoundScript = pkgs.writeShellApplication {
-        name = "check-sound";
-        runtimeInputs = with pkgs; [ coreutils gawk systemd ];
-        text = ''
-          # TODO: Option or global here
-          log_file="$HOME/.local/cache/soundOutput/log"
-
-          self_log_dir="$HOME/.local/share/swayidle-custom"
-
-          # Make sure $log_file exists
-          mkdir -p "$self_log_dir"
-          touch "$self_log_dir/log"
-
-          sum=$(awk '{s+=$1} END {print s}' "$log_file")
-          if [ "$sum" -eq "0" ]; then
-            systemctl suspend
-          fi
-        '';
-      };
-    in [ {
-      timeout = timeout * 60;
-      command = lib.getExe checkSoundScript;
-    } ];
-  };
-
-  systemd.user = {
-    #timers = {
-    #  logSound = {
-    #    Unit.Description = "Timer for logSound";
-
-    #    Timer = {
-    #      OnBootSec = "0";
-    #      OnUnitActiveSec = "${builtins.toString timer} min";
-    #      Persistent = "true"; # Run service immediately if last window was missed
-    #    };
-
-    #    Install.WantedBy = ["timers.target"];
-    #  };
-    #};
-
-    services = let 
-      logSoundScript = pkgs.writeShellApplication {
-        name = "log-sound";
-        runtimeInputs = with pkgs; [ coreutils gnugrep pipewire ];
-        text = ''
-          log_file="$HOME/.local/cache/soundOutput/log"
-          log_file_test="$HOME/.local/cache/soundOutput/log_test"
-
-          # Make sure $log_file exists
-          mkdir -p "$(dirname "$log_file")"
-          touch "$log_file"
-
-          # Get current current number of playing streams
-          #current_playing=$(pw-dump | grep running -c || true)
-          current_playing=$(pactl list sink-inputs | grep -c "Corked: no" || true)
-          pactl list sink-inputs > "$log_file_test"
-          log_len=$(wc -l < "$log_file")
-          echo "Current playing streams $current_playing"
-
-          # Log the current number of playing streams
-          #echo "$current_playing" >> "$log_file"
-          echo 1 >> "$log_file"
-
-          # If we have more than $timeout entries in log,
-          # we remove an entry
-          echo "Log length: $log_len / ${builtins.toString logLength}"
-          if [ "$log_len" -ge "${builtins.toString logLength}" ]; then
-            echo "Removing the first line of $log_file"
-            tmp=$(mktemp)
-            tail -n +2 "$log_file" > "$tmp"
-            cat "$tmp" > "$log_file"
-          fi
-        '';
-      };
-    in {
-      logSound = {
-        Unit.Description = "Logs current sound level.";
-
-        Service = {
-          ExecStart = lib.getExe logSoundScript;
-          #Type = "oneshot";
-          Restart = "always";
-          RestartSec = "${builtins.toString timer} min";
-        };
-      };
-    };
-  };
-
-  # TODO: Add to kirk-module
-  programs.mpv = {
-    enable = true;
-    bindings = {
-      UP = "add chapter 1";
-      DOWN = "add chapter -1";
-      ESC = "quit";
-      ENTER = "cycle pause";
-      f = "cycle fullscreen";
-      h = "seek -5";
-      j = "add chapter -1";
-      k = "add chapter 1";
-      l = "seek 5";
-
-      "Shift+LEFT" = "cycle sub down";
-      "Shift+RIGHT" = "cycle sub";
-      "Shift+UP" = "cycle audio";
-      "Shift+DOWN" = "cycle audio down";
-
-      y = "add audio-delay 0.010";
-      o = "add audio-delay -0.010";
-
-      i = ''cycle-values vf "sub,lavfi=negate" ""'';
-      S = "playlist-shuffle";
-
-      a = "ab-loop";
-
-      "Alt+r" = "playlist-shuffle";
-    };
-    scripts = with pkgs.mpvScripts; [
-      # Load all files in directory to playlist, playing next alphabetically ordered file on playback end.
-      autoload
-      # Better UI
-      uosc
-      # Allows media playback buttons to work in mpv
-      mpris
-      # Thumbnail support, needs uosc to work
-      thumbfast
-    ];
-    config = {
-      # TODO: wtf is the reason for this? It should not be necessary. WHY DOES IT WORK!?
-      #vo = "x11";
-
-      alang = ["jpn" "eng"];
-      slang = ["eng"];
-      #extension.gif = {
-      #  cache = "no";
-      #  no-pause = "";
-      #  loop-file = "yes";
-      #};
-      #extension.webm = {
-      #  no-pause = "";
-      #  loop-file = "yes";
-      #};
-    };
-  };
 
   home.packages = with pkgs; [
     pulsemixer
