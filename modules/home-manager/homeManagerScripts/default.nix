@@ -14,9 +14,36 @@ with lib; let
 
   hm = pkgs.writeShellApplication {
     name = "hm";
-    runtimeInputs = with pkgs; [fzf git];
+    runtimeInputs = with pkgs; [fzf git dateutils];
     text = ''
       command="''${1:-}"
+
+      NC='\033[0m'               # No Color
+
+      # Regular Colors
+      #BLACK='\033[0;30m'        # Black
+      #RED='\033[0;31m'          # Red
+      #GREEN='\033[0;32m'        # Green
+      #YELLOW='\033[0;33m'       # Yellow
+      #BLUE='\033[0;34m'         # Blue
+      #PURPLE='\033[0;35m'       # Purple
+      #CYAN='\033[0;36m'         # Cyan
+      #WHITE='\033[0;37m'        # White
+
+      # Bold
+      #BBLACK='\033[1;30m'       # Black
+      BRED='\033[1;31m'          # Red
+      #BGREEN='\033[1;32m'       # Green
+      BYELLOW='\033[1;33m'       # Yellow
+      #BBLUE='\033[1;34m'        # Blue
+      #BPURPLE='\033[1;35m'      # Purple
+      #BCYAN='\033[1;36m'        # Cyan
+      BWHITE='\033[1;37m'        # White
+
+      HM_INFO="''${BWHITE}[HM-INFO]:''${NC}"
+      HM_WARNING="''${BWHITE}[''${BYELLOW}HM-WARNING''${BWHITE}]:''${NC}"
+      HM_ERROR="''${BWHITE}[''${BRED}HM-ERROR''${BWHITE}]:''${NC}"
+
       # Check if a parameter is provided
       if [ -z "$command" ]; then
         echo "Usage: hm <command>"
@@ -38,27 +65,37 @@ with lib; let
       fi
 
       update() {
-        echo "[HM-INFO]: Updating packages for the next rebuild, by updating the Nix flake inputs..."
-        echo ""
-        nix flake update --flake ${configDir}
+        echo -e "$HM_INFO Updating packages for the next rebuild, by updating the Nix flake inputs... \n"
+        nix flake update --flake ${configDir} --no-warn-dirty
       }
 
       rebuild() {
-        echo "[HM-INFO]: Rebuilding Home Manager configuration..."
-        echo ""
-        pushd "${configDir}"
+        echo -e "$HM_INFO Rebuilding Home Manager configuration... \n"
+
+        HM_DIR=''${XDG_CACHE_HOME:-"$HOME/.cache"}/hm
+        if [ ! -f "$HM_DIR/last-update" ]; then
+          echo -e "$HM_WARNING Could not determine last full upgrade, please run \"hm upgrade\""
+        fi
+        TODAY=$(date -u '+%Y-%m-%d')
+        LAST_UPDATE=$(cat "$HM_DIR/last-update" || date --date="-31 day" -u '+%Y-%m-%d')
+        DATE_DIFF=$(ddiff "$TODAY" "$LAST_UPDATE")
+        if [ "$DATE_DIFF" -gt 30 ]; then
+
+          echo -e "$HM_WARNING Last full upgrade was $DATE_DIFF days ago, please run \"hm upgrade\""
+        fi
+
+        pushd "${configDir}" > /dev/null
         git add .
-        home-manager switch -b backup --flake .#${cfg.machine}
-        popd
+        home-manager switch -b backup --flake .#${cfg.machine} --option warn-dirty false
+        popd > /dev/null
       }
 
       garbage_collect() {
-        echo "[HM-INFO]: Garbage collecting the Nix store..."
-        echo ""
+        echo -e "$HM_INFO Garbage collecting the Nix store... \n"
         home-manager expire-generations '-30 days'
-        nix profile wipe-history --older-than 30d
-        nix store gc
-        nix store optimise
+        nix profile wipe-history --older-than 30d --no-warn-dirty
+        nix store gc --no-warn-dirty
+        nix store optimise --no-warn-dirty
       }
 
       rollback() {
@@ -67,11 +104,11 @@ with lib; let
         genId=$(echo "$gen" | grep -oP "(?<=id )\d+")
 
         if [ -z "$gen" ]; then
-          echo "[HM-ERROR]: No generation selected. Aborting."
+          echo -e "$HM_ERROR No generation selected. Aborting."
           exit 1
         fi
 
-        echo "[HM-INFO]: Activating generation $genId:"
+        echo -e "$HM_INFO Activating generation $genId:"
         "$genPath"/activate
       }
 
@@ -81,11 +118,15 @@ with lib; let
           rebuild
           ;;
         upgrade)
-          echo "[HM-INFO]: Upgrading Home Manager packages..."
-          echo ""
+          echo -e "$HM_INFO Upgrading Home Manager packages... \n"
           update &&
           rebuild &&
           garbage_collect
+
+          # Log upgrade date
+          HM_DIR=''${XDG_CACHE_HOME:-"$HOME/.cache"}/hm
+          mkdir -p "$HM_DIR"
+          date -u '+%Y-%m-%d' > "$HM_DIR/last-update"
           ;;
         options)
           man home-configuration.nix
@@ -101,12 +142,12 @@ with lib; let
           ;;
         test)
           tmpdir=$(mktemp -d) &&
-          echo "[HM-INFO]: Building the test configuration to \"$tmpdir\"..." &&
+          echo -e "$HM_INFO Building the test configuration to \"$tmpdir\"... \n" &&
           cd "$tmpdir" &&
           home-manager build --show-trace --flake ${configDir}#${cfg.machine}
           ;;
         *)
-          echo "[HM-ERROR]: Unknown command: $1"
+          echo -e "$HM_ERROR Unknown command: $1 \n"
           echo "Valid commands are: rebuild, upgrade, options, garbage-collect, rollback, update, test"
           exit 1
           ;;
@@ -162,9 +203,13 @@ in {
     };
 
     nix = {
-      # TODO: This may be necessary?
+      # Use latest nix version
+      package = pkgs.nixVersions.latest;
+      # Use the pinned nixpkgs version that is already used, when using `nix-shell package`
       channels = let nixpkgs = inputs.nixpkgs; in {inherit nixpkgs;};
       settings = {
+        # Force this, even if nix is installed through the official installer
+        experimental-features = ["nix-command" "flakes"];
         # Faster builds
         cores = 0;
         # Return more information when errors happen

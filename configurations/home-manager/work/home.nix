@@ -61,14 +61,10 @@ in {
 
   services.syncthing.enable = true;
 
-  nix = {
-    package = pkgs.nixVersions.latest;
-    settings.experimental-features = ["nix-command" "flakes"];
-    settings.trusted-users = [
-      username
-      "@wheel"
-    ];
-  };
+  nix.settings.trusted-users = [
+    username
+    "@wheel"
+  ];
 
   programs.bash = {
     enable = true;
@@ -111,19 +107,10 @@ in {
 
     # Media
     qbittorrent
-    #mpv
-
-    # Crytpo
-    monero-gui
 
     # Chat
     slack
     signal-desktop
-
-    # Document handling
-    texlive.combined.scheme-full
-    pandoc
-    inotify-tools
 
     # Misc Terminal Tools
     wl-clipboard
@@ -136,7 +123,7 @@ in {
         CARGO_CONCORDIUM_PATH="$HOME/desktop/concordium/concordium-smart-contract-tools/cargo-concordium/Cargo.toml"
 
         pushd "$CONCORDIUM_STD_PATH"
-        cargo run --manifest-path "$CARGO_CONCORDIUM_PATH" -- concordium test --only-unit-tests -- --features internal-wasm-test
+        cargo run --manifest-path "$CARGO_CONCORDIUM_PATH" -- concordium test --allow-debug --only-unit-tests -- --features internal-wasm-test
         popd
       '';
     })

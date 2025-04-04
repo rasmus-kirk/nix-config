@@ -19,12 +19,12 @@ in {
     xdg.configFile = {
       "fontconfig/fonts.conf".text = ''
         <alias>
-        	<family>monospace</family>
-        	<prefer>
-        		<family>FiraCode Nerd Font</family>
-        		<family>Inconsolata</family>
-        		<family>DejaVu Sans Mono</family>
-        	</prefer>
+          <family>monospace</family>
+          <prefer>
+            <family>FiraCode Nerd Font</family>
+            <family>Inconsolata</family>
+            <family>DejaVu Sans Mono</family>
+          </prefer>
         </alias>
       '';
     };
