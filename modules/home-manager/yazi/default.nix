@@ -15,9 +15,9 @@ with lib; let
         cp -r "${name}".yazi/* "$out"
       '';
       src = pkgs.fetchgit {
-        rev = "a1b678dfacfd2726fad364607aeaa7e1fded3cfa";
+        rev = "b12a9ab085a8c2fe2b921e1547ee667b714185f9";
         url = "https://github.com/yazi-rs/plugins.git";
-        hash = "sha256-Vvq7uau+UNcriuLE7YMK5rSOXvVaD0ElT59q+09WwdQ=";
+        hash = "sha256-LWN0riaUazQl3llTNNUMktG+7GLAHaG/IxNj1gFhDRE=";
       };
     };
   mkYaziPluginGithub = x:

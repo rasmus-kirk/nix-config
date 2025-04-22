@@ -110,7 +110,7 @@ in {
 
     # Chat
     slack
-    signal-desktop
+    signal-desktop-bin
 
     # Misc Terminal Tools
     wl-clipboard

@@ -28,8 +28,6 @@ with lib; let
     python311Packages.python-lsp-server
     # Nix
     nil
-    # Rust
-    #rust-analyzer-unwrapped
     # Scala
     metals
     # Makdown
