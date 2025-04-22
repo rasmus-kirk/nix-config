@@ -70,6 +70,7 @@ in {
     sonarr.enable = true;
     bazarr.enable = true;
     radarr.enable = true;
+    lidarr.enable = true;
     prowlarr.enable = true;
   };
 
@@ -80,10 +81,10 @@ in {
   systemd.services.systemd-journald.unitConfig.StartLimitIntervalSec = 0;
 
   # Kill services if we run out of ram
-  services.earlyoom = {
-    enable = true;
-    freeMemThreshold = 3; # In percent
-  };
+  # services.earlyoom = {
+  #   enable = true;
+  #   freeMemThreshold = 3; # In percent
+  # };
 
   boot.kernelParams = [
     "panic=10" # Reboot after 10 seconds of kernel panic
@@ -142,20 +143,33 @@ in {
 
   nix = {
     package = pkgs.nixVersions.latest;
-    extraOptions = ''
-      experimental-features = nix-command flakes
-    '';
+    settings = {
+      experimental-features = [ "nix-command" "flakes" ];
+      download-buffer-size = 500000000; # 500 MB
+      # Faster builds
+      cores = 0;
+      # Return more information when errors happen
+      show-trace = true;
+    };
+    # Use the pinned nixpkgs version that is already used, when using `nix shell nixpkgs#package`
+    registry.nixpkgs = {
+      from = {
+        id = "nixpkgs";
+        type = "indirect";
+      };
+      flake = inputs.nixpkgs;
+    };
   };
 
   # Enable sound with pipewire.
-  hardware.pulseaudio.enable = false;
-  security.rtkit.enable = true;
-  services.pipewire = {
-    enable = true;
-    alsa.enable = true;
-    alsa.support32Bit = true;
-    pulse.enable = true;
-  };
+  # services.pulseaudio.enable = false;
+  # security.rtkit.enable = true;
+  # services.pipewire = {
+  #   enable = true;
+  #   alsa.enable = true;
+  #   alsa.support32Bit = true;
+  #   pulse.enable = true;
+  # };
 
   boot.loader.systemd-boot.enable = true;
 
