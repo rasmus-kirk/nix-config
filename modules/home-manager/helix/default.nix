@@ -24,8 +24,6 @@ with lib; let
     nodePackages_latest.dockerfile-language-server-nodejs
     # Typescript
     nodePackages_latest.typescript-language-server
-    # Python
-    python311Packages.python-lsp-server
     # Nix
     nil
     # Scala

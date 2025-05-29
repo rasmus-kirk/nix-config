@@ -139,5 +139,5 @@ for personal use, it's possible for others to reuse them:
 The Nix modules include built-in compilation of module options to
 Markdown. I further convert this Markdown into HTML using Pandoc, which
 is then deployed via GitHub Pages. You can find the module documentation
-[here](https://nix.rasmuskirk.com/). For more details, see the `./docs`
-directory.
+[here](https://nix.rasmuskirk.com/). For more details, see [this
+repo](https://github.com/rasmus-kirk/website-builder).

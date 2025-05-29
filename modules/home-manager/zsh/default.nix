@@ -28,7 +28,7 @@ in {
         export NIX_PATH=''${NIX_PATH:+$NIX_PATH:}$HOME/.nix-defexpr/channels:/nix/var/nix/profiles/per-user/root/channels
       '';
 
-      initExtra = ''
+      initContent = ''
         #alias ls="exa --icons"
 
         alias rustfmt="cargo +nightly-2023-04-01-x86_64-unknown-linux-gnu fmt"
