@@ -10,14 +10,14 @@ use any part that inspires you.
 - Home-Manager integration
 - Modularization
 - Automatic module options documentation generation at [https://nix.rasmuskirk.com/](https://nix.rasmuskirk.com/)
-- Pi-based NAS setup
+- NAS setup
 
 **Directions:**
 
 - `configurations/home-manager`:
-  - Home-Manager configurations for my devices (deck, Pi, and work).
+  - Home-Manager configurations for my devices (deck, NAS, and work).
 - `configurations/nixos`:
-  - NixOS configurations for my devices (Pi).
+  - NixOS configurations for my devices.
 - `modules/home-manager`:
   - Home-Manager modules generalizing configuration for various tools.
 - `modules/nixos`:
@@ -42,7 +42,7 @@ reuse modules, but the NixOS configuration has some notable features:
 
 The modules allow configuration to be reused efficiently and without
 duplication between machines. For example, I want to share configuration
-between my Pi-based NAS and my work laptop for programs such as my editor,
+between my NAS and my work laptop for programs such as my editor,
 file manager, git, shell and more.
 
 An example follows below:
@@ -67,7 +67,7 @@ An example follows below:
   };
 ```
 
-### Snippet from NAS/Pi Configuration
+### Snippet from NAS Configuration
 
 ```nix
   kirk = {

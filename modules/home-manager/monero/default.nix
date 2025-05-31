@@ -51,6 +51,8 @@ in {
         Restart = "always";
         SuccessExitStatus = [0 1];
       };
+
+      Install.WantedBy = [ "multi-user.target" ];
     };
 
     home.packages = with pkgs; [

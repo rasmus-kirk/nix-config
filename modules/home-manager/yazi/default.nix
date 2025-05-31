@@ -12,12 +12,13 @@ with lib; let
       phases = ["unpackPhase" "buildPhase"];
       buildPhase = ''
         mkdir -p "$out"
-        cp -r "${name}".yazi/* "$out"
+        echo "${name}.yazi/*" "$out"
+        cp -vr ${name}.yazi/* "$out"
       '';
       src = pkgs.fetchgit {
-        rev = "b12a9ab085a8c2fe2b921e1547ee667b714185f9";
+        rev = "63f9650e522336e0010261dcd0ffb0bf114cf912";
         url = "https://github.com/yazi-rs/plugins.git";
-        hash = "sha256-LWN0riaUazQl3llTNNUMktG+7GLAHaG/IxNj1gFhDRE=";
+        hash = "sha256-ZCLJ6BjMAj64/zM606qxnmzl2la4dvO/F5QFicBEYfU=";
       };
     };
   mkYaziPluginGithub = x:
@@ -26,7 +27,9 @@ with lib; let
       phases = ["unpackPhase" "buildPhase"];
       buildPhase = ''
         mkdir -p "$out"
-        cp -r . "$out"
+        ls .
+        echo "$out"
+        cp -vr . "$out"
       '';
       src = pkgs.fetchgit {
         rev = x.rev;
@@ -38,14 +41,14 @@ with lib; let
     gruvbox-dark = mkYaziPluginGithub {
       name = "gruvbox-dark";
       url = "https://github.com/bennyyip/gruvbox-dark.yazi.git";
-      rev = "b4cc9f2a3016f9b5a9bbb5aeb4619d029ee61397";
-      hash = "sha256-9ZZHXP0Junaj6r80nE8oDNEU5WIKVdtz4g72BFzcSAM=";
+      rev = "91fdfa70f6d593934e62aba1e449f4ec3d3ccc90";
+      hash = "sha256-RWqyAdETD/EkDVGcnBPiMcw1mSd78Aayky9yoxSsry4=";
     };
     exifaudio = mkYaziPluginGithub {
       name = "exifaudio";
       url = "https://github.com/Sonico98/exifaudio.yazi";
-      rev = "de526f336dfed54c8545d1e445cb8511e195fecd";
-      hash = "sha256-s+WPSUfHNuS+xVgtPjjIOFMuu+mAUD6j7jsiZmZpcf0=";
+      rev = "7ff714155f538b6460fdc8e911a9240674ad9b89";
+      hash = "sha256-qRUAKlrYWV0qzI3SAQUYhnL3QR+0yiRc+0XbN/MyufI=";
     };
   };
 in {
@@ -88,7 +91,7 @@ in {
         }
       '';
       keymap = {
-        manager.prepend_keymap =
+        mgr.prepend_keymap =
           [
             {
               on = "!";
@@ -170,12 +173,12 @@ in {
             }
             {
               on = "t";
-              run = "plugin hide-preview";
+              run = "plugin toggle-preview";
               desc = "Hide or show preview";
             }
             {
               on = "T";
-              run = "plugin max-preview";
+              run = "plugin toggle-pane";
               desc = "Maximize or restore preview";
             }
             # Goto
@@ -286,8 +289,7 @@ in {
         git = mkYaziPlugin "git";
         smart-filter = mkYaziPlugin "smart-filter";
         chmod = mkYaziPlugin "chmod";
-        hide-preview = mkYaziPlugin "hide-preview";
-        max-preview = mkYaziPlugin "max-preview";
+        toggle-pane= mkYaziPlugin "toggle-pane";
       };
       theme.flavor.use = "gruvbox-dark";
     };

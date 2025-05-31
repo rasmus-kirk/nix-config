@@ -35,7 +35,7 @@ in {
   config = mkIf cfg.enable {
     home.packages = with pkgs; [jiten];
 
-    programs.zsh.initExtra = mkIf cfg.dailyWord ''
+    programs.zsh.initContent = mkIf cfg.dailyWord ''
       if [[ -z "$ZSH_WORD_DISPLAYED" ]]; then
         export ZSH_WORD_DISPLAYED=true
         cat ${config.xdg.stateHome}/word-of-the-day/japanese.txt
