@@ -65,9 +65,11 @@ in {
       };
       # Set background to jellyfin logo
       output."*".bg = "${./wallpaper.png} fill";
-      startup = [ {
-        command = "workspace 1; exec ${lib.getExe startJellyfin}";
-      } ];
+      startup = [
+        {
+          command = "workspace 1; exec ${lib.getExe startJellyfin}";
+        }
+      ];
 
       # Standard keybindings
       keybindings = with pkgs.lib; {

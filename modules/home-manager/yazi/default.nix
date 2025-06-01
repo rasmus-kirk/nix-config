@@ -289,7 +289,7 @@ in {
         git = mkYaziPlugin "git";
         smart-filter = mkYaziPlugin "smart-filter";
         chmod = mkYaziPlugin "chmod";
-        toggle-pane= mkYaziPlugin "toggle-pane";
+        toggle-pane = mkYaziPlugin "toggle-pane";
       };
       theme.flavor.use = "gruvbox-dark";
     };

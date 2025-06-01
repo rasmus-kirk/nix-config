@@ -181,7 +181,7 @@ in {
   nix = {
     package = pkgs.nixVersions.latest;
     settings = {
-      experimental-features = [ "nix-command" "flakes" ];
+      experimental-features = ["nix-command" "flakes"];
       download-buffer-size = 500000000; # 500 MB
       # Faster builds
       cores = 0;

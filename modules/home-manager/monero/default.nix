@@ -52,7 +52,7 @@ in {
         SuccessExitStatus = [0 1];
       };
 
-      Install.WantedBy = [ "multi-user.target" ];
+      Install.WantedBy = ["multi-user.target"];
     };
 
     home.packages = with pkgs; [
