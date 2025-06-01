@@ -20,6 +20,7 @@ in {
     identityPaths = ["${secretDir}/server/ssh/id_ed25519"];
     secrets = {
       "airvpn-wg.conf".file = ./age/airvpn-wg.conf.age;
+      mam.file = ./age/mam.age;
       user.file = ./age/user.age;
       domain.file = ./age/domain.age;
       njalla.file = ./age/njalla.age;
@@ -55,7 +56,16 @@ in {
       enable = true;
       expose.https = {
         enable = true;
-        domainName = builtins.readFile config.age.secrets.domain.path;
+        domainName = "glowiefin.${builtins.readFile config.age.secrets.domain.path}";
+        acmeMail = "slimness_bullish683@simplelogin.com";
+      };
+    };
+
+    audiobookshelf = {
+      enable = true;
+      expose.https = {
+        enable = true;
+        domainName = "audiobookshelf.${builtins.readFile config.age.secrets.domain.path}";
         acmeMail = "slimness_bullish683@simplelogin.com";
       };
     };
@@ -72,6 +82,33 @@ in {
     radarr.enable = true;
     lidarr.enable = true;
     prowlarr.enable = true;
+    readarr.enable = true;
+  };
+
+  # MAM
+  systemd = {
+    timers.mam = {
+      timerConfig = {
+        OnBootSec = "120"; # Run 30 seconds after system boot
+        OnCalendar = "hourly";
+        Persistent = true; # Run service immediately if last window was missed
+        RandomizedDelaySec = "15min"; # Run service OnCalendar +- 5min
+      };
+
+      wantedBy = ["multi-user.target"];
+    };
+
+    services.mam = {
+      serviceConfig = {
+        Environment = "PATH=${pkgs.curl}/bin:$PATH";
+        ExecStart = "${pkgs.lib.getExe pkgs.bash} ${config.age.secrets.mam.path}";
+        Type = "oneshot";
+      };
+      vpnConfinement = {
+        enable = true;
+        vpnNamespace = "wg";
+      };
+    };
   };
 
   # -------------------- Server Defaults -------------------- #
@@ -162,14 +199,14 @@ in {
   };
 
   # Enable sound with pipewire.
-  # services.pulseaudio.enable = false;
-  # security.rtkit.enable = true;
-  # services.pipewire = {
-  #   enable = true;
-  #   alsa.enable = true;
-  #   alsa.support32Bit = true;
-  #   pulse.enable = true;
-  # };
+  services.pulseaudio.enable = false;
+  security.rtkit.enable = true;
+  services.pipewire = {
+    enable = true;
+    alsa.enable = true;
+    alsa.support32Bit = true;
+    pulse.enable = true;
+  };
 
   boot.loader.systemd-boot.enable = true;
 

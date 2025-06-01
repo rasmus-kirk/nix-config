@@ -3,6 +3,7 @@ let
 in {
   "airvpn-wg.conf.age".publicKeys = [key];
   "domain.age".publicKeys = [key];
+  "mam.age".publicKeys = [key];
   "njalla.age".publicKeys = [key];
   "user.age".publicKeys = [key];
 }
