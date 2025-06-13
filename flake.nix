@@ -22,6 +22,9 @@
 
     nix-index-database.url = "github:nix-community/nix-index-database";
     nix-index-database.inputs.nixpkgs.follows = "nixpkgs";
+
+    rustle.url = "github:rasmus-kirk/rustle";
+    rustle.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = inputs @ {
@@ -33,6 +36,7 @@
     nixos-hardware,
     website-builder,
     nix-index-database,
+    rustle,
     ...
   }: let
     # Systems supported
@@ -177,6 +181,8 @@
           system = "x86_64-linux";
           config.allowUnfree = true;
         };
+
+        specialArgs = {inherit inputs;};
 
         modules = [
           ./configurations/home-manager/deck/home.nix
