@@ -75,13 +75,13 @@ with lib; let
         HM_DIR=''${XDG_CACHE_HOME:-"$HOME/.cache"}/hm
         if [ ! -f "$HM_DIR/last-update" ]; then
           echo -e "$HM_WARNING Could not determine last full upgrade, please run \"hm upgrade\""
-        fi
-        TODAY=$(date -u '+%Y-%m-%d')
-        LAST_UPDATE=$(cat "$HM_DIR/last-update" || date --date="-31 day" -u '+%Y-%m-%d')
-        DATE_DIFF=$(ddiff "$TODAY" "$LAST_UPDATE")
-        if [ "$DATE_DIFF" -gt 30 ]; then
-
-          echo -e "$HM_WARNING Last full upgrade was $DATE_DIFF days ago, please run \"hm upgrade\""
+        else 
+          TODAY=$(date -u '+%Y-%m-%d')
+          LAST_UPDATE=$(cat "$HM_DIR/last-update" || date --date="-31 day" -u '+%Y-%m-%d')
+          DATE_DIFF=$(ddiff "$TODAY" "$LAST_UPDATE")
+          if [ "$DATE_DIFF" -gt 30 ]; then
+            echo -e "$HM_WARNING Last full upgrade was $DATE_DIFF days ago, please run \"hm upgrade\""
+          fi
         fi
 
         pushd "${configDir}" > /dev/null

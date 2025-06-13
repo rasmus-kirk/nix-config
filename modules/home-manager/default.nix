@@ -8,6 +8,7 @@
     ./homeManagerScripts
     ./jiten
     ./monero
+    ./rustle
     ./mpv
     ./mvi
     ./scripts

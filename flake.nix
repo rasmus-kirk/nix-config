@@ -73,7 +73,7 @@
     packages = forAllSystems ({pkgs}: let
       website = website-builder.lib {
         pkgs = pkgs;
-        src = ./.;
+        src = self;
         timestamp = self.lastModified;
         headerTitle = "Rasmus Kirk";
         standalonePages = [
@@ -169,6 +169,8 @@
           config.allowUnfree = true;
         };
 
+        extraSpecialArgs = { inherit inputs; };
+
         modules = [
           ./configurations/home-manager/work/home.nix
           nix-index-database.hmModules.nix-index
@@ -182,7 +184,7 @@
           config.allowUnfree = true;
         };
 
-        specialArgs = {inherit inputs;};
+        extraSpecialArgs = { inherit inputs; };
 
         modules = [
           ./configurations/home-manager/deck/home.nix

@@ -167,7 +167,50 @@
         "nixos-hardware": "nixos-hardware",
         "nixpkgs": "nixpkgs",
         "nixpkgs-2405": "nixpkgs-2405",
+        "rustle": "rustle",
         "website-builder": "website-builder_2"
+      }
+    },
+    "rust-overlay": {
+      "inputs": {
+        "nixpkgs": [
+          "rustle",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1749695868,
+        "narHash": "sha256-debjTLOyqqsYOUuUGQsAHskFXH5+Kx2t3dOo/FCoNRA=",
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "55f914d5228b5c8120e9e0f9698ed5b7214d09cd",
+        "type": "github"
+      },
+      "original": {
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "type": "github"
+      }
+    },
+    "rustle": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "rust-overlay": "rust-overlay"
+      },
+      "locked": {
+        "lastModified": 1749884512,
+        "narHash": "sha256-hYQMs+oZoZGhNrNW8WODiFdP6w8aSrvEOODqjDACzcM=",
+        "owner": "rasmus-kirk",
+        "repo": "rustle",
+        "rev": "98a4a007da1df8824657d0f18c244d726b1fb45f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "rasmus-kirk",
+        "repo": "rustle",
+        "type": "github"
       }
     },
     "systems": {

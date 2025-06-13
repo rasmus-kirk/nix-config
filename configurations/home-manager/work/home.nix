@@ -46,6 +46,7 @@ in {
       darkmode = false;
     };
     zsh.enable = true;
+    rustle.enable = true;
     fonts.enable = true;
   };
 

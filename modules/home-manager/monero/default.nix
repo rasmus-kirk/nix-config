@@ -44,7 +44,12 @@ in {
 
   config = mkIf cfg.enable {
     systemd.user.services.monero = {
-      Unit.Description = "Monero node daemon";
+      Unit = {
+        Description = "Monero node daemon";
+        StartLimitIntervalSec = 0; # Disable rate-limiting on restarts
+        StartLimitBurst = 0; # Allow unlimited restart attempts
+      };
+
 
       Service = {
         ExecStart = "${pkgs.bash}/bin/bash -c '${pkgs.monero-cli}/bin/monerod --config-file=${configFile} --data-dir=${cfg.dataDir} --non-interactive'";
