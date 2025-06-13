@@ -1,10 +1,10 @@
 # My home manager config
 {pkgs, ...}: let
-  username = "user";
+  username = "deck";
   machine = "deck";
   dataDir = "/data";
-  configDir = "${dataDir}/.system-configuration";
-  secretDir = "${dataDir}/.secret";
+  configDir = "/home/deck/.system-configuration";
+  secretDir = "/home/deck/.secret";
 in {
   kirk = {
     terminalTools.enable = true;
@@ -28,6 +28,7 @@ in {
       enable = true;
       autoSortDownloads = true;
     };
+    yazi.enable = true;
     zathura.enable = true;
     zsh.enable = true;
     fonts.enable = true;
@@ -57,6 +58,7 @@ in {
     # Misc
     mpv
     qbittorrent
+    keepassxc
 
     # Browsers
     librewolf

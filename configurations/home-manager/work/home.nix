@@ -61,10 +61,10 @@ in {
 
   services.syncthing.enable = true;
 
-  nix.settings.trusted-users = [
-    username
-    "@wheel"
-  ];
+  # nix.settings.trusted-users = [
+  #   username
+  #   "@wheel"
+  # ];
 
   programs.bash = {
     enable = true;
@@ -85,7 +85,7 @@ in {
     export TERM=foot
 
     # Fix weird cargo concordium bug
-    export LD_LIBRARY_PATH="${pkgs.zlib}/lib:$LD_LIBRARY_PATH";
+    #export LD_LIBRARY_PATH="${pkgs.zlib}/lib:$LD_LIBRARY_PATH";
 
     # Fix nix programs not showing up in gnome menus:
     #export XDG_DATA_DIRS="$HOME/.nix-profile/share:$XDG_DATA_DIRS"
