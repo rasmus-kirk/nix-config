@@ -35,10 +35,17 @@ in {
       description = "Minutes of undetected sound until the tone plays.";
     };
 
-    debug = mkOption {
-      type = types.bool;
-      default = false;
-      description = "Whether or not to enable debugging.";
+    debug = {
+      enable = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Whether or not to enable debugging.";
+      };
+      interval = mkOption {
+        type = types.int;
+        default = 60;
+        description = "Debug information interval in seconds.";
+      };
     };
   };
 
@@ -58,7 +65,7 @@ in {
             --amplitude ${builtins.toString cfg.amplitude} \
             --minutes-of-silence ${builtins.toString cfg.minutesOfSilence}
         '';
-        Environment = lib.optionals cfg.debug ["RUST_LOG=debug"];
+        Environment = lib.optionals cfg.debug.enable ["RUST_LOG=debug" "DEBUG_INTERVAL=${builtins.toString cfg.debug.interval}"];
         Restart = "always";
         RestartSec = 5; # Wait 5 seconds before restarting
         SuccessExitStatus = [0 1];
