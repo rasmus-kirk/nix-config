@@ -200,11 +200,11 @@
         "rust-overlay": "rust-overlay"
       },
       "locked": {
-        "lastModified": 1749884512,
-        "narHash": "sha256-hYQMs+oZoZGhNrNW8WODiFdP6w8aSrvEOODqjDACzcM=",
+        "lastModified": 1749917596,
+        "narHash": "sha256-GTDXPN6l0FfchtE033vCe+SwLfeO5+R5I3iOijSarjk=",
         "owner": "rasmus-kirk",
         "repo": "rustle",
-        "rev": "98a4a007da1df8824657d0f18c244d726b1fb45f",
+        "rev": "a73aa7925b705a422bd71d13cbce322871470aeb",
         "type": "github"
       },
       "original": {
