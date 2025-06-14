@@ -169,7 +169,7 @@
           config.allowUnfree = true;
         };
 
-        extraSpecialArgs = { inherit inputs; };
+        extraSpecialArgs = {inherit inputs;};
 
         modules = [
           ./configurations/home-manager/work/home.nix
@@ -184,7 +184,7 @@
           config.allowUnfree = true;
         };
 
-        extraSpecialArgs = { inherit inputs; };
+        extraSpecialArgs = {inherit inputs;};
 
         modules = [
           ./configurations/home-manager/deck/home.nix

@@ -50,7 +50,6 @@ in {
         StartLimitBurst = 0; # Allow unlimited restart attempts
       };
 
-
       Service = {
         ExecStart = "${pkgs.bash}/bin/bash -c '${pkgs.monero-cli}/bin/monerod --config-file=${configFile} --data-dir=${cfg.dataDir} --non-interactive'";
         Restart = "always";
