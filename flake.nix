@@ -23,8 +23,11 @@
     nix-index-database.url = "github:nix-community/nix-index-database";
     nix-index-database.inputs.nixpkgs.follows = "nixpkgs";
 
-    rustle.url = "github:rasmus-kirk/rustle";
+    rustle.url = "github:rasmus-kirk/rustle/dev";
     rustle.inputs.nixpkgs.follows = "nixpkgs";
+
+    submerger.url = "github:rasmus-kirk/submerger";
+    submerger.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = inputs @ {
@@ -36,7 +39,6 @@
     nixos-hardware,
     website-builder,
     nix-index-database,
-    rustle,
     ...
   }: let
     # Systems supported

@@ -35,6 +35,18 @@ in {
       description = "Minutes of undetected sound until the tone plays.";
     };
 
+    threshold = mkOption {
+      type = types.float;
+      default = 0.001;
+      description = "Threshold sound level that counts as \"undetected sound\".";
+    };
+
+    checkInterval = mkOption {
+      type = types.ints.unsigned;
+      default = 1;
+      description = "How often to check for sound in seconds.";
+    };
+
     debug = {
       enable = mkOption {
         type = types.bool;

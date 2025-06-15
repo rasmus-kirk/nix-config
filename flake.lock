@@ -168,6 +168,7 @@
         "nixpkgs": "nixpkgs",
         "nixpkgs-2405": "nixpkgs-2405",
         "rustle": "rustle",
+        "submerger": "submerger",
         "website-builder": "website-builder_2"
       }
     },
@@ -192,6 +193,27 @@
         "type": "github"
       }
     },
+    "rust-overlay_2": {
+      "inputs": {
+        "nixpkgs": [
+          "submerger",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1729909612,
+        "narHash": "sha256-eXqxxbOagphPfjPptSlv0pQONB3fH15CQ4G8uCu1BW4=",
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "rev": "17cadbc36da05e75197d082decb382a5f4208e30",
+        "type": "github"
+      },
+      "original": {
+        "owner": "oxalica",
+        "repo": "rust-overlay",
+        "type": "github"
+      }
+    },
     "rustle": {
       "inputs": {
         "nixpkgs": [
@@ -200,16 +222,38 @@
         "rust-overlay": "rust-overlay"
       },
       "locked": {
-        "lastModified": 1749921059,
-        "narHash": "sha256-sdIXmZ4xeQMLxH7mZdyEj+si/F/8Wgc4OabmKtX7GNQ=",
+        "lastModified": 1749993061,
+        "narHash": "sha256-k88jc97ttRh+AVV6Kv61lywQTHkFZ58jE9q6xI5CqeU=",
         "owner": "rasmus-kirk",
         "repo": "rustle",
-        "rev": "92efd745e68cfb750b15a5611f6d8fc4e90c7848",
+        "rev": "f1da671e941f53ed112dfa237bc227812796d92a",
         "type": "github"
       },
       "original": {
         "owner": "rasmus-kirk",
+        "ref": "dev",
         "repo": "rustle",
+        "type": "github"
+      }
+    },
+    "submerger": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "rust-overlay": "rust-overlay_2"
+      },
+      "locked": {
+        "lastModified": 1729941594,
+        "narHash": "sha256-edy337w7tQ8dsEEl/gHfgyXCufghUVh3/plT+wqZOZ4=",
+        "owner": "rasmus-kirk",
+        "repo": "submerger",
+        "rev": "9956bc9e91a5bcc56c63bb0a6cbb39b1632b49c6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "rasmus-kirk",
+        "repo": "submerger",
         "type": "github"
       }
     },

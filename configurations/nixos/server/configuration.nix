@@ -266,6 +266,7 @@ in {
 
     # Agenix
     inputs.agenix.packages."${system}".default
+    inputs.submerger.packages."${system}".default
   ];
 
   system.stateVersion = "24.05";
