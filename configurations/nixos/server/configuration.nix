@@ -21,6 +21,7 @@ in {
     secrets = {
       "airvpn-wg.conf".file = ./age/airvpn-wg.conf.age;
       mam.file = ./age/mam.age;
+      mam-vpn.file = ./age/mam-vpn.age;
       user.file = ./age/user.age;
       domain.file = ./age/domain.age;
       njalla.file = ./age/njalla.age;
@@ -77,6 +78,12 @@ in {
       peerPort = transmissionPort;
     };
 
+    sabnzbd = {
+      enable = true;
+      vpn.enable = true;
+      #openFirewall = true;
+    };
+
     sonarr.enable = true;
     bazarr.enable = true;
     radarr.enable = true;
@@ -94,14 +101,27 @@ in {
         Persistent = true; # Run service immediately if last window was missed
         RandomizedDelaySec = "15min"; # Run service OnCalendar +- 5min
       };
-
       wantedBy = ["multi-user.target"];
     };
+    services.mam.serviceConfig = {
+      Environment = "PATH=${pkgs.curl}/bin:$PATH";
+      ExecStart = "${pkgs.lib.getExe pkgs.bash} ${config.age.secrets.mam.path}";
+      Type = "oneshot";
+    };
 
-    services.mam = {
+    timers.mam-vpn = {
+      timerConfig = {
+        OnBootSec = "120"; # Run 30 seconds after system boot
+        OnCalendar = "hourly";
+        Persistent = true; # Run service immediately if last window was missed
+        RandomizedDelaySec = "15min"; # Run service OnCalendar +- 5min
+      };
+      wantedBy = ["multi-user.target"];
+    };
+    services.mam-vpn = {
       serviceConfig = {
         Environment = "PATH=${pkgs.curl}/bin:$PATH";
-        ExecStart = "${pkgs.lib.getExe pkgs.bash} ${config.age.secrets.mam.path}";
+        ExecStart = "${pkgs.lib.getExe pkgs.bash} ${config.age.secrets.mam-vpn.path}";
         Type = "oneshot";
       };
       vpnConfinement = {
