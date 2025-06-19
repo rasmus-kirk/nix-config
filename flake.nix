@@ -23,7 +23,7 @@
     nix-index-database.url = "github:nix-community/nix-index-database";
     nix-index-database.inputs.nixpkgs.follows = "nixpkgs";
 
-    rustle.url = "github:rasmus-kirk/rustle/dev";
+    rustle.url = "github:rasmus-kirk/rustle";
     rustle.inputs.nixpkgs.follows = "nixpkgs";
 
     submerger.url = "github:rasmus-kirk/submerger";

@@ -84,6 +84,12 @@ with lib; let
           fi
         fi
 
+        MIMEAPPS_LIST="$HOME/.config/mimeapps.list.backup"
+        if [ -f "$MIMEAPPS_LIST" ]; then
+          echo -e "$HM_INFO trashing $MIMEAPPS_LIST..."
+          trash-put "$MIMEAPPS_LIST"
+        fi
+
         pushd "${configDir}" > /dev/null
         git add .
         home-manager switch -b backup --flake .#${cfg.machine} --option warn-dirty false

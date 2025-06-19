@@ -15,7 +15,7 @@ return {
 		end
 
 		local child = Command("mkdir")
-			:args(args)
+			:arg(args)
 			:stderr(Command.PIPED)
 			:spawn()
 

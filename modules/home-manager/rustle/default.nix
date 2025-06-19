@@ -35,6 +35,18 @@ in {
       description = "Minutes of undetected sound until the tone plays.";
     };
 
+    minutesUntilSuspend = mkOption {
+      type = types.ints.unsigned;
+      default = 0;
+      description = "Minutes of undetected sound until suspend, set to zero to disable this feature.";
+    };
+
+    suspendCpu = mkOption {
+      type = types.float;
+      default = 0.0;
+      description = "Maximum average allowed cpu usage allowed when checking for suspend.";
+    };
+
     threshold = mkOption {
       type = types.float;
       default = 0.001;
@@ -75,7 +87,11 @@ in {
             --pulse-duration ${builtins.toString cfg.pulseDuration} \
             --frequency ${builtins.toString cfg.frequency} \
             --amplitude ${builtins.toString cfg.amplitude} \
-            --minutes-of-silence ${builtins.toString cfg.minutesOfSilence}
+            --minutes-of-silence ${builtins.toString cfg.minutesOfSilence} \
+            --minutes-until-suspend ${builtins.toString cfg.minutesUntilSuspend} \
+            --suspend-cpu ${builtins.toString cfg.suspendCpu} \
+            --threshold ${builtins.toString cfg.threshold} \
+            --check-interval ${builtins.toString cfg.checkInterval}
         '';
         Environment = lib.optionals cfg.debug.enable ["RUST_LOG=debug" "DEBUG_INTERVAL=${builtins.toString cfg.debug.interval}"];
         Restart = "always";
