@@ -99,7 +99,7 @@ in {
         SuccessExitStatus = [0 1];
       };
 
-      Install.WantedBy = ["multi-user.target"];
+      Install.WantedBy = ["default.target"];
     };
   };
 }

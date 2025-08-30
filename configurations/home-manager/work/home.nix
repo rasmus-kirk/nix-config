@@ -24,6 +24,7 @@ in {
     helix.enable = true;
     homeManagerScripts = {
       enable = true;
+      extraNixOptions = true;
       configDir = configDir;
       machine = machine;
     };
@@ -48,6 +49,14 @@ in {
     zsh.enable = true;
     rustle.enable = true;
     fonts.enable = true;
+    chromiumLaunchers = {
+      enable = true;
+      launchers = {
+        kraken = "https://kraken.com/c";
+        grok = "https://grok.com/";
+        chat-gpt = "https://chatgpt.com/";
+      };
+    };
   };
 
   home.username = username;
@@ -60,7 +69,10 @@ in {
 
   targets.genericLinux.enable = true;
 
-  services.syncthing.enable = true;
+  services = {
+    syncthing.enable = true;
+    podman.enable = true;
+  };
 
   # nix.settings.trusted-users = [
   #   username
@@ -95,12 +107,30 @@ in {
     export XCURSOR_PATH="$XCURSOR_PATH":/usr/share/icons:~/.local/share/icons
   '';
 
+  programs.direnv = {
+    enable = true;
+    enableBashIntegration = true;
+    enableZshIntegration = true;
+    nix-direnv.enable = true;
+    silent = true;
+  };
+
   home.packages = with pkgs; [
     # Misc
     gnome-tweaks
     keepassxc
     thunderbird
     yarn
+    slurp
+    grim
+
+    (pkgs.writeShellApplication {
+      name = "screenshot";
+      text = ''
+        mkdir -p "$HOME"/.local/state
+        slurp | grim -g - "$HOME"/.local/state/kanji/"$(date +%s)".png
+      '';
+    })
 
     # Browsers
     librewolf

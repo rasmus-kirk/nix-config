@@ -28,6 +28,9 @@
 
     submerger.url = "github:rasmus-kirk/submerger";
     submerger.inputs.nixpkgs.follows = "nixpkgs";
+
+    nixctl.url = "github:rasmus-kirk/nixctl";
+    nixctl.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = inputs @ {
@@ -175,7 +178,7 @@
 
         modules = [
           ./configurations/home-manager/work/home.nix
-          nix-index-database.hmModules.nix-index
+          nix-index-database.homeModules.nix-index
           self.homeManagerModules.default
         ];
       };
@@ -190,7 +193,7 @@
 
         modules = [
           ./configurations/home-manager/deck/home.nix
-          nix-index-database.hmModules.nix-index
+          nix-index-database.homeModules.nix-index
           self.homeManagerModules.default
         ];
       };

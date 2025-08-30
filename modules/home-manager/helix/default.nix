@@ -70,6 +70,18 @@ in {
       defaultEditor = true;
 
       languages = {
+        rust = {
+          auto-format = true;
+          roots = [
+            "Cargo.toml"
+            "Cargo.lock"
+          ];
+          language-server.rust-analyzer.config = {
+            inlayHints.parameterHints.enable = false;
+            diagnostics.experimental.enable = true;
+            diagnostics.styleLints.enable = true;
+          };
+        };
         c-sharp = {
           language-server = {
             command = "dotnet";
@@ -83,7 +95,7 @@ in {
 
         editor = {
           mouse = true;
-          auto-format = false;
+          auto-format = true;
           line-number = "relative";
           shell = ["zsh" "-c"];
           bufferline = "always";

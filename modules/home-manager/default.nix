@@ -1,5 +1,6 @@
 {
   imports = [
+    ./chromiumLaunchers
     ./fonts
     ./foot
     ./git

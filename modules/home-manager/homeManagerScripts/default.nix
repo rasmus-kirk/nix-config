@@ -216,7 +216,7 @@ in {
       # Use the pinned nixpkgs version that is already used, when using `nix-shell package`
       channels = let nixpkgs = inputs.nixpkgs; in {inherit nixpkgs;};
       settings = {
-        download-buffer-size = 500000000; # 500 MB
+        #download-buffer-size = 500000000; # 500 MB
         # Force this, even if nix is installed through the official installer
         experimental-features = ["nix-command" "flakes"];
         # Faster builds
