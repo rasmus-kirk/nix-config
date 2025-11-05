@@ -52,7 +52,9 @@ in {
     chromiumLaunchers = {
       enable = true;
       launchers = {
-        kraken = "https://kraken.com/c";
+        mattermost = "https://mattermost.cs.au.dk/";
+        discord = "https://discord.com/app";
+        slack = "https://concordium.slack.com/";
         grok = "https://grok.com/";
         chat-gpt = "https://chatgpt.com/";
       };
@@ -74,11 +76,6 @@ in {
     podman.enable = true;
   };
 
-  # nix.settings.trusted-users = [
-  #   username
-  #   "@wheel"
-  # ];
-
   programs.bash = {
     enable = true;
     profileExtra = ''
@@ -92,16 +89,10 @@ in {
   };
 
   programs.zsh.profileExtra = ''
-    export PATH=$PATH:~/.cargo/bin:~/.local/bin
+    # export PATH=$PATH:~/.cargo/bin:~/.local/bin
 
     # Yazi
     export TERM=foot
-
-    # Fix weird cargo concordium bug
-    #export LD_LIBRARY_PATH="${pkgs.zlib}/lib:$LD_LIBRARY_PATH";
-
-    # Fix nix programs not showing up in gnome menus:
-    #export XDG_DATA_DIRS="$HOME/.nix-profile/share:$XDG_DATA_DIRS"
 
     export XCURSOR_THEME="Capitaine Cursors (Gruvbox)"
     export XCURSOR_PATH="$XCURSOR_PATH":/usr/share/icons:~/.local/share/icons
@@ -117,15 +108,12 @@ in {
 
   home.packages = with pkgs; [
     # Misc
-    gnome-tweaks
     keepassxc
     thunderbird
-    yarn
-    slurp
-    grim
 
     (pkgs.writeShellApplication {
       name = "screenshot";
+      runtimeInputs = with pkgs; [ slurp grim ];
       text = ''
         mkdir -p "$HOME"/.local/state
         slurp | grim -g - "$HOME"/.local/state/kanji/"$(date +%s)".png
@@ -140,23 +128,10 @@ in {
     qbittorrent
 
     # Chat
-    slack
     signal-desktop-bin
 
     # Misc Terminal Tools
     wl-clipboard
     yt-dlp
-
-    (pkgs.writeShellApplication {
-      name = "concordium-test-smart-contracts";
-      text = ''
-        CONCORDIUM_STD_PATH="$HOME/desktop/concordium/concordium-rust-smart-contracts/concordium-std"
-        CARGO_CONCORDIUM_PATH="$HOME/desktop/concordium/concordium-smart-contract-tools/cargo-concordium/Cargo.toml"
-
-        pushd "$CONCORDIUM_STD_PATH"
-        cargo run --manifest-path "$CARGO_CONCORDIUM_PATH" -- concordium test --allow-debug --only-unit-tests -- --features internal-wasm-test
-        popd
-      '';
-    })
   ];
 }

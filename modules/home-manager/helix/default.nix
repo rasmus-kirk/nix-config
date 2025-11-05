@@ -21,7 +21,7 @@ with lib; let
     # C-sharp
     omnisharp-roslyn
     # Docker files
-    nodePackages_latest.dockerfile-language-server-nodejs
+    dockerfile-language-server
     # Typescript
     nodePackages_latest.typescript-language-server
     # Nix

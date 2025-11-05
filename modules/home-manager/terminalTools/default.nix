@@ -175,7 +175,7 @@ in {
       bat-extras.batman # Pretty Man Pages
       ripgrep # Faster, better grep
       btop # Task Manager
-      du-dust # Pretty du
+      dust # Pretty du
       duf # Pretty df
       eza # Pretty ls
       fd # Find Files
