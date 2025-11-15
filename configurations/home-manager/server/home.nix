@@ -47,10 +47,10 @@ in {
       down = "j";
       up = "k";
       right = "l";
-      startJellyfin = pkgs.writeShellScriptBin "start-jellyfin" ''
-        sleep 3
-        ${lib.getExe pkgs.jellyfin-media-player}
-      '';
+      # startJellyfin = pkgs.writeShellScriptBin "start-jellyfin" ''
+      #   sleep 3
+      #   ${lib.getExe pkgs.jellyfin-media-player}
+      # '';
     in {
       modifier = mod;
       bars = [];
@@ -66,9 +66,9 @@ in {
       # Set background to jellyfin logo
       output."*".bg = "${./wallpaper.png} fill";
       startup = [
-        {
-          command = "workspace 1; exec ${lib.getExe startJellyfin}";
-        }
+        # {
+        #   command = "workspace 1; exec ${lib.getExe startJellyfin}";
+        # }
       ];
 
       # Standard keybindings
@@ -76,7 +76,7 @@ in {
         "${mod}+Space" = "exec ${getExe pkgs.foot}";
         "${mod}+Return" = "exec ${getExe pkgs.foot}";
         "${mod}+w" = "exec ${getExe pkgs.librewolf}";
-        "${mod}+e" = "exec ${getExe pkgs.jellyfin-media-player}";
+        # "${mod}+e" = "exec ${getExe pkgs.jellyfin-media-player}";
         "${mod}+q" = "kill";
         "${mod}+f" = "fullscreen";
 
@@ -130,7 +130,7 @@ in {
         # "XF86AudioRaiseVolume" = ''exec pactl set-sink-volume \@DEFAULT_SINK@ +5%'';
         # "XF86AudioMicMute" = ''exec pactl set-source-mute \@DEFAULT_SOURCE@ toggle'';
 
-        "XF86Sleep" = "${getExe pkgs.jellyfin-media-player}";
+        # "XF86Sleep" = "${getExe pkgs.jellyfin-media-player}";
         # Special keys to adjust brightness via brightnessctl
         "XF86MonBrightnessDown" = "exec brightnessctl set 5%-";
         "XF86MonBrightnessUp" = "exec brightnessctl set 5%+";
@@ -176,7 +176,7 @@ in {
 
   home.packages = with pkgs; [
     pulsemixer
-    jellyfin-media-player
+    # jellyfin-media-player
     librewolf
     foot
     wl-clipboard

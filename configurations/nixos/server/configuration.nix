@@ -30,10 +30,24 @@ in {
 
   # -------------------- Kirk Modules -------------------- #
 
-  kirk.nixosScripts = {
-    enable = true;
-    configDir = configDir;
-    machine = machine;
+  kirk = {
+    nixosScripts = {
+      enable = true;
+      configDir = configDir;
+      machine = machine;
+    };
+    youtubeDownloader = {
+      enable = true;
+      group = "media";
+      outputDir = "/data/media/library/youtube";
+      channels = [
+        "https://www.youtube.com/@PBoyle"
+        "https://www.youtube.com/@HistoriaCivilis"
+        "https://www.youtube.com/@emperorlemon"
+        "https://www.youtube.com/@Qxir"
+        "https://www.youtube.com/@veritasium"
+      ];
+    };
   };
 
   # -------------------- Nixarr -------------------- #
@@ -73,6 +87,8 @@ in {
 
     transmission = {
       enable = true;
+      privateTrackers.cross-seed.enable = false;
+      extraSettings.incomplete-dir-enabled = false;
       package = inputs.nixpkgs-2405.legacyPackages.${pkgs.system}.transmission_4;
       vpn.enable = true;
       peerPort = transmissionPort;
@@ -90,6 +106,7 @@ in {
     lidarr.enable = true;
     prowlarr.enable = true;
     readarr.enable = true;
+    readarr-audiobook.enable = true;
   };
 
   # MAM
@@ -131,6 +148,26 @@ in {
     };
   };
 
+  services.minecraft-server = {
+    enable = true;
+    declarative = true;
+    eula = true;
+    openFirewall = true;
+    dataDir = "${stateDir}/minecraft";
+    whitelist = {
+      Augustenborg = "97389804-1e10-48f6-8a72-fdd854a37feb";
+      Jakob290a = "b9150a18-d471-4952-b3d3-c824cfdfdd26";
+      mtface = "ae39f9e6-dd5a-4f70-baff-f8ff725886c5";
+    };
+    serverProperties = {
+      motd = "Kirk's NixOS minecraft server";
+      server-port = 25565;
+      difficulty = "normal";
+      max-players = 20;
+      white-list = true;
+    };
+  };
+
   # -------------------- Server Defaults -------------------- #
 
   # If the system runs out of ram, then journald crashes and the server will be down.
@@ -155,7 +192,7 @@ in {
   };
 
   services.getty.autologinUser = username; # Enable auto-login
-  services.logind.lidSwitch = "ignore"; # Ignore laptop lid closing
+  services.logind.settings.Login.HandleLidSwitch = "ignore";
 
   # -------------------- Syncthing -------------------- #
 
@@ -177,6 +214,7 @@ in {
   };
   users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
     ../../../pubkeys/work.pub
+    ../../../pubkeys/naja-deck.pub
   ];
 
   # -------------------- Boilerplate -------------------- #

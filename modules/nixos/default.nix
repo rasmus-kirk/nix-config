@@ -1,5 +1,6 @@
 {
   imports = [
     ./nixosScripts
+    ./youtubeDownloader
   ];
 }
