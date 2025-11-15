@@ -64,9 +64,7 @@ in {
               }
               + "/themes.gitconfig";
         };
-        # pull = {
-        #   rebase = true;
-        # };
+        pull.rebase = false;
       };
     };
   };
