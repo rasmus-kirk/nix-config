@@ -47,16 +47,16 @@ in {
       darkmode = false;
     };
     zsh.enable = true;
-    rustle.enable = true;
     fonts.enable = true;
     chromiumLaunchers = {
       enable = true;
       launchers = {
+        t3 = "https://t3.chat/";
         mattermost = "https://mattermost.cs.au.dk/";
-        discord = "https://discord.com/app";
+        # discord = "https://discord.com/app";
         slack = "https://concordium.slack.com/";
-        grok = "https://grok.com/";
-        chat-gpt = "https://chatgpt.com/";
+        # grok = "https://grok.com/";
+        # chat-gpt = "https://chatgpt.com/";
       };
     };
   };
@@ -111,21 +111,9 @@ in {
     keepassxc
     thunderbird
 
-    (pkgs.writeShellApplication {
-      name = "screenshot";
-      runtimeInputs = with pkgs; [ slurp grim ];
-      text = ''
-        mkdir -p "$HOME"/.local/state
-        slurp | grim -g - "$HOME"/.local/state/kanji/"$(date +%s)".png
-      '';
-    })
-
     # Browsers
     librewolf
     chromium
-
-    # Media
-    qbittorrent
 
     # Chat
     signal-desktop-bin

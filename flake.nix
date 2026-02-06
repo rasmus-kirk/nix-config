@@ -15,8 +15,6 @@
     agenix.inputs.nixpkgs.follows = "nixpkgs";
     agenix.inputs.home-manager.follows = "home-manager";
 
-    nixos-hardware.url = "github:NixOS/nixos-hardware/master";
-
     website-builder.url = "github:rasmus-kirk/website-builder";
     website-builder.inputs.nixpkgs.follows = "nixpkgs";
 
@@ -39,7 +37,6 @@
     agenix,
     nixarr,
     home-manager,
-    nixos-hardware,
     website-builder,
     nix-index-database,
     ...
@@ -140,31 +137,6 @@
 
         specialArgs = {inherit inputs;};
       };
-      pi = nixpkgs.lib.nixosSystem rec {
-        system = "aarch64-linux";
-
-        modules = [
-          ./configurations/nixos/pi/configuration.nix
-          agenix.nixosModules.default
-          nixos-hardware.nixosModules.raspberry-pi-4
-          self.nixosModules.default
-          nixarr.nixosModules.default
-          home-manager.nixosModules.home-manager
-          {
-            home-manager.users.user = {
-              imports = [
-                ./configurations/home-manager/pi/home.nix
-                self.homeManagerModules.default
-              ];
-              config.home.packages = [home-manager.packages."${system}".default];
-            };
-            home-manager.useGlobalPkgs = true;
-            home-manager.useUserPackages = true;
-          }
-        ];
-
-        specialArgs = {inherit inputs;};
-      };
     };
 
     homeConfigurations = {
@@ -183,7 +155,7 @@
         ];
       };
 
-      deck = home-manager.lib.homeManagerConfiguration {
+      naja-deck = home-manager.lib.homeManagerConfiguration {
         pkgs = import nixpkgs {
           system = "x86_64-linux";
           config.allowUnfree = true;
@@ -192,7 +164,7 @@
         extraSpecialArgs = {inherit inputs;};
 
         modules = [
-          ./configurations/home-manager/deck/home.nix
+          ./configurations/home-manager/naja-deck/home.nix
           nix-index-database.homeModules.nix-index
           self.homeManagerModules.default
         ];
