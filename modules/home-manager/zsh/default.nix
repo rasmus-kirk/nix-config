@@ -9,6 +9,11 @@ with lib; let
 in {
   options.kirk.zsh = {
     enable = mkEnableOption "zsh configuration.";
+    stateDir = mkOption {
+      type = with types; nullOr path;
+      default = null;
+      description = "Where to store stateful ZSH information, ie. the history.";
+    };
   };
 
   config = mkIf cfg.enable {
@@ -19,6 +24,9 @@ in {
       autosuggestion.enable = true;
       syntaxHighlighting.enable = true;
       oh-my-zsh.enable = true;
+      history = mkIf (cfg.stateDir != null) {
+        path = "${cfg.stateDir}/zsh/history";
+      };
 
       profileExtra = ''
         # Enable gnome discovery of nix installed programs

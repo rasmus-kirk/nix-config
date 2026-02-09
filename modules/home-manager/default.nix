@@ -20,5 +20,6 @@
     ./yazi
     ./zathura
     ./zsh
+    ./syncthing
   ];
 }

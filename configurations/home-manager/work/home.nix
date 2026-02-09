@@ -4,8 +4,10 @@
   config,
   ...
 }: let
-  secretDir = "${config.home.homeDirectory}/.secret";
-  configDir = "${config.home.homeDirectory}/.system-configuration";
+  dataDir = "/data";
+  secretDir = "${dataDir}/.secret";
+  configDir = "${dataDir}/.system-configuration";
+  stateDir = "${dataDir}/.state";
   username = "user";
   machine = "work";
 in {
@@ -40,23 +42,29 @@ in {
     };
     userDirs = {
       enable = true;
+      rootDir = dataDir;
       autoSortDownloads = true;
     };
     zathura = {
       enable = true;
       darkmode = false;
     };
-    zsh.enable = true;
+    zsh = {
+      enable = true;
+      stateDir = stateDir;
+    };
     fonts.enable = true;
+    syncthing = {
+      enable = true;
+      dataDir = "${stateDir}/syncthing";
+    };
     chromiumLaunchers = {
       enable = true;
+      stateDir = stateDir;
       launchers = {
         t3 = "https://t3.chat/";
         mattermost = "https://mattermost.cs.au.dk/";
-        # discord = "https://discord.com/app";
         slack = "https://concordium.slack.com/";
-        # grok = "https://grok.com/";
-        # chat-gpt = "https://chatgpt.com/";
       };
     };
   };
@@ -71,19 +79,21 @@ in {
 
   targets.genericLinux.enable = true;
 
-  services = {
-    syncthing.enable = true;
-    podman.enable = true;
-  };
+  services.podman.enable = true;
+
+  systemd.user.tmpfiles.rules = [
+    "d  ${stateDir}/thunderbird                   0755 user user - -"
+    "L+ ${config.home.homeDirectory}/.thunderbird -    -    -    - ${stateDir}/thunderbird"
+  ];
 
   programs.bash = {
     enable = true;
-    profileExtra = ''
-      # Fix programs not showing up
-      export XDG_DATA_DIRS="$HOME/.nix-profile/share:$XDG_DATA_DIRS"
+    # profileExtra = ''
+    #   # Fix programs not showing up
+    #   export XDG_DATA_DIRS="$HOME/.nix-profile/share:$XDG_DATA_DIRS"
 
-      export NIX_PATH=''${NIX_PATH:+$NIX_PATH:}$HOME/.nix-defexpr/channels:/nix/var/nix/profiles/per-user/root/channels
-    '';
+    #   export NIX_PATH=''${NIX_PATH:+$NIX_PATH:}$HOME/.nix-defexpr/channels:/nix/var/nix/profiles/per-user/root/channels
+    # '';
 
     initExtra = "exec zsh";
   };
@@ -94,8 +104,8 @@ in {
     # Yazi
     export TERM=foot
 
-    export XCURSOR_THEME="Capitaine Cursors (Gruvbox)"
-    export XCURSOR_PATH="$XCURSOR_PATH":/usr/share/icons:~/.local/share/icons
+    # export XCURSOR_THEME="Capitaine Cursors (Gruvbox)"
+    # export XCURSOR_PATH="$XCURSOR_PATH":/usr/share/icons:~/.local/share/icons
   '';
 
   programs.direnv = {
@@ -110,6 +120,7 @@ in {
     # Misc
     keepassxc
     thunderbird
+    feishin
 
     # Browsers
     librewolf
