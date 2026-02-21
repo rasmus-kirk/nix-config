@@ -30,7 +30,7 @@ in {
       configDir = configDir;
       machine = machine;
     };
-    userDirs.enable = true;
+    userDirs.enable = false;
     yazi = {
       enable = true;
       configDir = configDir;

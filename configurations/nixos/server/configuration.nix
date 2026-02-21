@@ -21,6 +21,7 @@ in {
     secrets = {
       "airvpn-wg.conf".file = ./age/airvpn-wg.conf.age;
       mam.file = ./age/mam.age;
+      monero.file = ./age/monero.age;
       mam-vpn.file = ./age/mam-vpn.age;
       user.file = ./age/user.age;
       domain.file = ./age/domain.age;
@@ -37,7 +38,7 @@ in {
       machine = machine;
     };
     youtubeDownloader = {
-      enable = true;
+      enable = false;
       group = "media";
       outputDir = "/data/media/library/youtube";
       channels = [
@@ -88,16 +89,14 @@ in {
     transmission = {
       enable = true;
       privateTrackers.cross-seed.enable = false;
-      extraSettings.incomplete-dir-enabled = false;
+      extraSettings = {
+        incomplete-dir-enabled = false;
+        ratio-limit-enabled = true;
+        ratio-limit = 20.0;
+      };
       package = inputs.nixpkgs-2405.legacyPackages.${pkgs.system}.transmission_4;
       vpn.enable = true;
       peerPort = transmissionPort;
-    };
-
-    sabnzbd = {
-      enable = true;
-      vpn.enable = true;
-      #openFirewall = true;
     };
 
     sonarr.enable = true;
@@ -105,8 +104,8 @@ in {
     radarr.enable = true;
     lidarr.enable = true;
     prowlarr.enable = true;
-    readarr.enable = true;
-    readarr-audiobook.enable = true;
+    # readarr.enable = true;
+    # readarr-audiobook.enable = true;
   };
 
   # MAM
@@ -156,6 +155,7 @@ in {
     dataDir = "${stateDir}/minecraft";
     whitelist = {
       Augustenborg = "97389804-1e10-48f6-8a72-fdd854a37feb";
+      migmedstort = "6993065e-1c24-475a-9388-6578d9002e4e";
       Jakob290a = "b9150a18-d471-4952-b3d3-c824cfdfdd26";
       mtface = "ae39f9e6-dd5a-4f70-baff-f8ff725886c5";
     };
@@ -166,6 +166,47 @@ in {
       max-players = 20;
       white-list = true;
     };
+  };
+
+  services.home-assistant = {
+    enable = true;
+    configDir = "${stateDir}/home-assistant";
+    extraComponents = [
+      # Components required to complete the onboarding
+      "analytics"
+      "google_translate"
+      "met"
+      "radio_browser"
+      "shopping_list"
+      "zha"
+      "usb"
+      # "default_config"
+      # Recommended for fast zlib compression
+      # https://www.home-assistant.io/integrations/isal
+      "isal"
+    ];
+    # config = null;
+    # lovelaceConfig = null;
+    configWritable = true;
+    config = {
+      # Includes dependencies for a basic setup
+      # https://www.home-assistant.io/integrations/default_config/
+      default_config = {
+      };
+      automation = "!include automations.yaml";
+    };
+  };
+
+  services.monero = {
+    enable = true;
+    environmentFile = config.age.secrets.monero.path;
+    rpc.password = "$RPC_PASSWORD";
+    rpc.port = 18081;
+  };
+  services.nginx.virtualHosts."monero.${builtins.readFile config.age.secrets.domain.path}".locations."/" = {
+    recommendedProxySettings = true;
+    proxyWebsockets = true;
+    proxyPass = "http://127.0.0.1:18081";
   };
 
   # -------------------- Server Defaults -------------------- #
@@ -257,14 +298,14 @@ in {
   };
 
   # Enable sound with pipewire.
-  services.pulseaudio.enable = false;
-  security.rtkit.enable = true;
-  services.pipewire = {
-    enable = true;
-    alsa.enable = true;
-    alsa.support32Bit = true;
-    pulse.enable = true;
-  };
+  # services.pulseaudio.enable = false;
+  # security.rtkit.enable = true;
+  # services.pipewire = {
+  #   enable = true;
+  #   alsa.enable = true;
+  #   alsa.support32Bit = true;
+  #   pulse.enable = true;
+  # };
 
   boot.loader.systemd-boot.enable = true;
 
@@ -290,15 +331,29 @@ in {
 
   security.sudo = {
     execWheelOnly = true; # For security
-    # For insults lol
-    package = pkgs.sudo.override {withInsults = true;};
+    package = pkgs.sudo.override {withInsults = true;}; # For insults lol
     extraConfig = "Defaults insults";
   };
 
-  fileSystems."/data/media" = {
-    device = "/dev/disk/by-label/media";
-    fsType = "ext4";
-    options = ["noatime"];
+  boot.initrd.kernelModules = [ "usb_storage" "uas" "sd_mod" ];
+  boot.initrd.luks.devices = {
+    crypt_ssd1 = {
+      device = "/dev/disk/by-id/ata-Samsung_SSD_870_QVO_8TB_S5SSNF0WA10922R";
+      keyFile = "/dev/disk/by-id/usb-Generic-_SD_MMC_20120501030900000-0:0";
+      keyFileSize = 34;
+      allowDiscards = true; # Allows SSD trim commands for better performance
+    };
+  };
+
+  fileSystems."/data" = {
+    device = "/dev/mapper/crypt_ssd1";
+    fsType = "btrfs";
+    neededForBoot = true;
+    options = [ 
+      "defaults" 
+      "noatime"
+      "compress=zstd"
+    ];
   };
 
   # Allow unfree packages
