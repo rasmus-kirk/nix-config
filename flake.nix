@@ -26,9 +26,6 @@
 
     submerger.url = "github:rasmus-kirk/submerger";
     submerger.inputs.nixpkgs.follows = "nixpkgs";
-
-    nixctl.url = "github:rasmus-kirk/nixctl";
-    nixctl.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = inputs @ {

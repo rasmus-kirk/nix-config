@@ -49,7 +49,8 @@ in {
           STATE_DIR="$STATE_ROOT/$NAME"
 
           mkdir -p "$STATE_DIR"
-          nohup chromium --app="${x.url}" --user-data-dir="$STATE_DIR" > /dev/null &
+          # nohup chromium --app="${x.url}" --user-data-dir="$STATE_DIR" > /dev/null &
+          chromium --app="${x.url}" --user-data-dir="$STATE_DIR"
         '';
       };
   in mkIf cfg.enable {

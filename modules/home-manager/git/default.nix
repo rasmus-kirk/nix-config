@@ -59,8 +59,8 @@ in {
             path = pkgs.fetchFromGitHub {
                 owner = "dandavison";
                 repo = "delta";
-                rev = "ac396c3fdc5940c724e1f00a519358c27979b539";
-                sha256 = "sha256-vEv3HdLeI3ZXBCSmvd0x7DgEu+DiQqEwFf+WLDdL+4U=";
+                rev = "acd758f7a08df6c2ac5542a2c5a4034c664a9ed8";
+                sha256 = "sha256-L9m5/o1I6Z5U8YdqaXsFVT3X+xvWafiz79IEAnUSLrk=";
               }
               + "/themes.gitconfig";
         };

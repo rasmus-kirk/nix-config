@@ -9,9 +9,9 @@
     ./homeManagerScripts
     ./jiten
     ./monero
-    ./rustle
     ./mpv
     ./mvi
+    ./rustle
     ./scripts
     ./ssh
     ./terminalTools
@@ -20,6 +20,5 @@
     ./yazi
     ./zathura
     ./zsh
-    ./syncthing
   ];
 }
