@@ -215,17 +215,17 @@ in {
             }
             {
               on = ["b" "b"];
-              run = "cd ~/media/books";
+              run = "cd /data/media/books";
               desc = "Goto books dir";
             }
             {
               on = ["b" "p"];
-              run = "cd ~/media/documents/programming";
+              run = "cd /data/media/documents/programming";
               desc = "Goto programming dir";
             }
             {
               on = ["b" "a"];
-              run = "cd ~/media/audio";
+              run = "cd /data/media/audio";
               desc = "Goto audio dir";
             }
             {
@@ -240,7 +240,7 @@ in {
             }
             {
               on = ["b" "s"];
-              run = "cd ~/media/documents/study";
+              run = "cd /data/media/documents/study";
               desc = "Goto study dir";
             }
             {
