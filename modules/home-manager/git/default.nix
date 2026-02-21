@@ -60,7 +60,7 @@ in {
                 owner = "dandavison";
                 repo = "delta";
                 rev = "ac396c3fdc5940c724e1f00a519358c27979b539";
-                sha256 = "sha256-vEv3HdLeI3ZXBCSmvd0x7DgEu+DiQqEwFf+WLDdL+4U=";
+                sha256 = "sha256-J7g1EMcWFSfcELCn/uDQxzat2zoAw+7PornptEPlNd8=";
               }
               + "/themes.gitconfig";
         };

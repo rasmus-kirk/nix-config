@@ -137,6 +137,29 @@
 
         specialArgs = {inherit inputs;};
       };
+      deck-oled = nixpkgs.lib.nixosSystem rec {
+        system = "x86_64-linux";
+
+        modules = [
+          ./configurations/nixos/deck-oled/configuration.nix
+          agenix.nixosModules.default
+          self.nixosModules.default
+          home-manager.nixosModules.home-manager
+          {
+            home-manager.users.user = {
+              imports = [
+                ./configurations/home-manager/deck-oled/home.nix
+                self.homeManagerModules.default
+              ];
+              config.home.packages = [home-manager.packages."${system}".default];
+            };
+            home-manager.useGlobalPkgs = true;
+            home-manager.useUserPackages = true;
+          }
+        ];
+
+        specialArgs = {inherit inputs;};
+      };
     };
 
     homeConfigurations = {
