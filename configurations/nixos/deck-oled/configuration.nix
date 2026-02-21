@@ -2,13 +2,10 @@
 # your system.  Help is available in the configuration.nix(5) man page
 # and in the NixOS manual (accessible by running ‘nixos-help’).
 
-{ config, pkgs, ... }:
+{ config, pkgs, inputs, ... }:
 
 {
-  imports =
-    [ # Include the results of the hardware scan.
-      ./hardware-configuration.nix
-    ];
+  imports = [ ./hardware-configuration.nix ];
   kirk.nixosScripts = {
     enable = true;
     configDir = "/data";
@@ -21,21 +18,13 @@
 
   boot.initrd.luks.devices."luks-e5917c4f-0f75-40e7-bce3-55328c2c5cea".device = "/dev/disk/by-uuid/e5917c4f-0f75-40e7-bce3-55328c2c5cea";
   networking.hostName = "nixos"; # Define your hostname.
-  # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
-
-  # Configure network proxy if necessary
-  # networking.proxy.default = "http://user:password@proxy:port/";
-  # networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
 
   # Enable networking
   networking.networkmanager.enable = true;
 
   # Set your time zone.
   time.timeZone = "Europe/Copenhagen";
-
-  # Select internationalisation properties.
   i18n.defaultLocale = "en_DK.UTF-8";
-
   i18n.extraLocaleSettings = {
     LC_ADDRESS = "da_DK.UTF-8";
     LC_IDENTIFICATION = "da_DK.UTF-8";
@@ -48,21 +37,59 @@
     LC_TIME = "da_DK.UTF-8";
   };
 
+  nix = {
+    package = pkgs.nixVersions.latest;
+    settings = {
+      experimental-features = ["nix-command" "flakes"];
+      download-buffer-size = 500000000; # 500 MB
+      # Faster builds
+      cores = 0;
+      # Return more information when errors happen
+      show-trace = true;
+    };
+    # Use the pinned nixpkgs version that is already used, when using `nix shell nixpkgs#package`
+    registry.nixpkgs = {
+      from = {
+        id = "nixpkgs";
+        type = "indirect";
+      };
+      flake = inputs.nixpkgs;
+    };
+  };
+
   # Enable the X11 windowing system.
   services.xserver.enable = true;
 
   # Enable the Cinnamon Desktop Environment.
-  services.displayManager.cosmic-greeter.enable = true;
+  # services.displayManager.cosmic-greeter.enable = true;
   services.desktopManager.cosmic.enable = true;
-  services.displayManager.autoLogin = {
-    enable = true;
-    user = "user";
-  };
+  # services.displayManager.autoLogin = {
+  #   enable = true;
+  #   user = "user";
+  # };
 
-  # Configure keymap in X11
+  jovian = {
+    devices.steamdeck.enable = true;
+    steamos.useSteamOSConfig = true;
+    steam = {
+      enable = true;
+      autoStart = true;
+      desktopSession = "cosmic";
+      user = "user";
+    };
+    hardware.has.amd.gpu = true;
+  };
+  hardware.enableRedistributableFirmware = true;
+
+  programs.ssh.startAgent = true;
+
   services.xserver.xkb = {
-    layout = "us";
-    variant = "";
+    layout = "rk";
+    extraLayouts.rkj = {
+      description = "Rasmus Kirk KLFC layout";
+      languages = [ "eng" ];
+      symbolsFile = "${inputs.keyboard-layout.packages.${pkgs.system}.rk}/symbols/rk";
+    };
   };
 
   # Enable CUPS to print documents.
@@ -109,6 +136,10 @@
   #  vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
   #  wget
   ];
+
+  security.sudo.extraConfig = ''
+    Defaults timestamp_timeout=60
+  '';
 
   # Some programs need SUID wrappers, can be configured further or are
   # started in user sessions.

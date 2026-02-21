@@ -15,24 +15,9 @@ with lib; let
 
       NC='\033[0m'               # No Color
 
-      # Regular Colors
-      #BLACK='\033[0;30m'        # Black
-      #RED='\033[0;31m'          # Red
-      #GREEN='\033[0;32m'        # Green
-      #YELLOW='\033[0;33m'       # Yellow
-      #BLUE='\033[0;34m'         # Blue
-      #PURPLE='\033[0;35m'       # Purple
-      #CYAN='\033[0;36m'         # Cyan
-      #WHITE='\033[0;37m'        # White
-
       # Bold
-      #BBLACK='\033[1;30m'       # Black
       BRED='\033[1;31m'          # Red
-      #BGREEN='\033[1;32m'       # Green
       BYELLOW='\033[1;33m'       # Yellow
-      #BBLUE='\033[1;34m'        # Blue
-      #BPURPLE='\033[1;35m'      # Purple
-      #BCYAN='\033[1;36m'        # Cyan
       BWHITE='\033[1;37m'        # White
 
       NOS_INFO="''${BWHITE}[NOS-INFO]:''${NC}"
@@ -67,7 +52,7 @@ with lib; let
 
       update() {
         echo -e "$NOS_INFO Updating packages for the next rebuild, by updating the Nix flake inputs... \n"
-        nix flake update --flake ${configDir} --no-warn-dirty
+        nix flake update --flake ${cfg.configDir} --no-warn-dirty
       }
 
       rebuild() {
@@ -86,7 +71,8 @@ with lib; let
           fi
         fi
 
-        pushd "${configDir}" > /dev/null
+        pushd "${cfg.configDir}" > /dev/null
+        ls
         git add .
         nixos-rebuild switch --show-trace --impure --flake ${cfg.configDir}#${cfg.machine}
         popd > /dev/null
@@ -145,7 +131,7 @@ with lib; let
         #   tmpdir=$(mktemp -d) &&
         #   echo -e "$NOS_INFO Building the test configuration to \"$tmpdir\"... \n" &&
         #   cd "$tmpdir" &&
-        #   home-manager build --show-trace --flake ${configDir}#${cfg.machine}
+        #   home-manager build --show-trace --flake ${cfg.configDir}#${cfg.machine}
         #   ;;
         *)
           echo -e "$NOS_ERROR Unknown command: $1 \n"
@@ -186,7 +172,7 @@ in {
       type = types.int;
       default = 30;
       description = "How old in days a NixOS generation has to be in order for it to be garbage collected.";
-    }
+    };
   };
 
   config = mkIf cfg.enable {

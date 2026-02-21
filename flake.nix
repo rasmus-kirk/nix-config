@@ -21,6 +21,12 @@
     nix-index-database.url = "github:nix-community/nix-index-database";
     nix-index-database.inputs.nixpkgs.follows = "nixpkgs";
 
+    jovian.url = "github:Jovian-Experiments/Jovian-NixOS";
+    jovian.inputs.nixpkgs.follows = "nixpkgs";
+
+    keyboard-layout.url = "github:rasmus-kirk/keyboard-layout";
+    keyboard-layout.inputs.nixpkgs.follows = "nixpkgs";
+
     rustle.url = "github:rasmus-kirk/rustle";
     rustle.inputs.nixpkgs.follows = "nixpkgs";
 
@@ -33,6 +39,8 @@
     nixpkgs,
     agenix,
     nixarr,
+    jovian,
+    # keyboard-layout,
     home-manager,
     website-builder,
     nix-index-database,
@@ -141,6 +149,7 @@
           ./configurations/nixos/deck-oled/configuration.nix
           agenix.nixosModules.default
           self.nixosModules.default
+          jovian.nixosModules.default
           home-manager.nixosModules.home-manager
           {
             home-manager.users.user = {
