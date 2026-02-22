@@ -58,17 +58,13 @@
   };
 
   # Enable the X11 windowing system.
+  # TODO: Why???
   services.xserver.enable = true;
 
-  # Enable the Cinnamon Desktop Environment.
-  # services.displayManager.cosmic-greeter.enable = true;
+  # Enable the Cosmic Desktop Environment.
   services.desktopManager.cosmic.enable = true;
   services.gnome.gnome-keyring.enable = false;
   services.gnome.gcr-ssh-agent.enable = false;
-  # services.displayManager.autoLogin = {
-  #   enable = true;
-  #   user = "user";
-  # };
 
   jovian = {
     devices.steamdeck.enable = true;
@@ -95,8 +91,7 @@
     };
   };
 
-  # services.xserver.exportConfiguration = true;
-
+  # Lord have mercy
   environment.sessionVariables.XKB_CONFIG_ROOT = lib.mkForce (let
     klfcPatcher = pkgs.writeShellApplication {
       name = "klfc-patcher";
@@ -150,19 +145,12 @@
         add_type "$out_dir/rules/evdev" "$layout_name"
       '';
     };
-
-    # Grab the generated XKB directory directly from the NixOS option
-    nixosXkbDir = config.services.xserver.xkb.dir;
-    
   in pkgs.runCommand "xkb-rk-patched" {} ''
-    cp -rL ${nixosXkbDir} $out
+    cp -rL ${config.services.xserver.xkb.dir} $out
     chmod -R u+w $out
 
     ${pkgs.lib.getExe klfcPatcher} $out "rk"
   '');
-
-  # Enable CUPS to print documents.
-  services.printing.enable = true;
 
   # Enable sound with pipewire.
   services.pulseaudio.enable = false;
@@ -180,21 +168,12 @@
     #media-session.enable = true;
   };
 
-  # Enable touchpad support (enabled default in most desktopManager).
-  # services.xserver.libinput.enable = true;
-
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.user = {
     isNormalUser = true;
     description = "Rasmus Kirk";
     extraGroups = [ "networkmanager" "wheel" ];
-    packages = with pkgs; [
-    #  thunderbird
-    ];
   };
-
-  # Install firefox.
-  programs.firefox.enable = true;
 
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
@@ -206,9 +185,14 @@
   #  wget
   ];
 
-  security.sudo.extraConfig = ''
-    Defaults timestamp_timeout=60
-  '';
+  security.sudo = {
+    execWheelOnly = true; # For security
+    package = pkgs.sudo.override {withInsults = true;}; # For insults lol
+    extraConfig = ''
+      Defaults insults
+      Defaults timestamp_timeout=60
+    '';
+  };
 
   # Some programs need SUID wrappers, can be configured further or are
   # started in user sessions.
