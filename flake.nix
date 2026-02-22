@@ -5,7 +5,7 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     nixpkgs-2405.url = "github:nixos/nixpkgs/nixos-24.05";
 
-    nixarr.url = "github:rasmus-kirk/nixarr/dev";
+    nixarr.url = "github:nix-media-server/nixarr/kirk/fix-ddns";
     nixarr.inputs.nixpkgs.follows = "nixpkgs";
 
     home-manager.url = "github:nix-community/home-manager";
