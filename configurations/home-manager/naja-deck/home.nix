@@ -14,7 +14,6 @@ in {
       userName = "rasmus-kirk";
     };
     helix.enable = true;
-    #mpv.enable = true;
     homeManagerScripts = {
       enable = true;
       configDir = configDir;
@@ -50,6 +49,7 @@ in {
     settings.experimental-features = ["nix-command" "flakes"];
   };
 
+  # Enable ZSH through a hack
   programs.bash = {
     enable = true;
     initExtra = "exec zsh";
@@ -60,9 +60,6 @@ in {
     mpv
     qbittorrent
     keepassxc
-
-    # Browsers
-    librewolf
 
     # Chat
     signal-desktop

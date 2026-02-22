@@ -15,22 +15,23 @@
     agenix.inputs.nixpkgs.follows = "nixpkgs";
     agenix.inputs.home-manager.follows = "home-manager";
 
-    nixos-hardware.url = "github:NixOS/nixos-hardware/master";
-
     website-builder.url = "github:rasmus-kirk/website-builder";
     website-builder.inputs.nixpkgs.follows = "nixpkgs";
 
     nix-index-database.url = "github:nix-community/nix-index-database";
     nix-index-database.inputs.nixpkgs.follows = "nixpkgs";
 
+    jovian.url = "github:Jovian-Experiments/Jovian-NixOS";
+    jovian.inputs.nixpkgs.follows = "nixpkgs";
+
+    keyboard-layout.url = "github:rasmus-kirk/keyboard-layout";
+    keyboard-layout.inputs.nixpkgs.follows = "nixpkgs";
+
     rustle.url = "github:rasmus-kirk/rustle";
     rustle.inputs.nixpkgs.follows = "nixpkgs";
 
     submerger.url = "github:rasmus-kirk/submerger";
     submerger.inputs.nixpkgs.follows = "nixpkgs";
-
-    nixctl.url = "github:rasmus-kirk/nixctl";
-    nixctl.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = inputs @ {
@@ -38,8 +39,9 @@
     nixpkgs,
     agenix,
     nixarr,
+    jovian,
+    # keyboard-layout,
     home-manager,
-    nixos-hardware,
     website-builder,
     nix-index-database,
     ...
@@ -140,20 +142,19 @@
 
         specialArgs = {inherit inputs;};
       };
-      pi = nixpkgs.lib.nixosSystem rec {
-        system = "aarch64-linux";
+      deck-oled = nixpkgs.lib.nixosSystem rec {
+        system = "x86_64-linux";
 
         modules = [
-          ./configurations/nixos/pi/configuration.nix
+          ./configurations/nixos/deck-oled/configuration.nix
           agenix.nixosModules.default
-          nixos-hardware.nixosModules.raspberry-pi-4
           self.nixosModules.default
-          nixarr.nixosModules.default
+          jovian.nixosModules.default
           home-manager.nixosModules.home-manager
           {
             home-manager.users.user = {
               imports = [
-                ./configurations/home-manager/pi/home.nix
+                ./configurations/home-manager/deck-oled/home.nix
                 self.homeManagerModules.default
               ];
               config.home.packages = [home-manager.packages."${system}".default];
@@ -183,7 +184,7 @@
         ];
       };
 
-      deck = home-manager.lib.homeManagerConfiguration {
+      naja-deck = home-manager.lib.homeManagerConfiguration {
         pkgs = import nixpkgs {
           system = "x86_64-linux";
           config.allowUnfree = true;
@@ -192,7 +193,7 @@
         extraSpecialArgs = {inherit inputs;};
 
         modules = [
-          ./configurations/home-manager/deck/home.nix
+          ./configurations/home-manager/naja-deck/home.nix
           nix-index-database.homeModules.nix-index
           self.homeManagerModules.default
         ];

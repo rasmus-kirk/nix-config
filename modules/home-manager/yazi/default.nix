@@ -41,8 +41,8 @@ with lib; let
     gruvbox-dark = mkYaziPluginGithub {
       name = "gruvbox-dark";
       url = "https://github.com/bennyyip/gruvbox-dark.yazi.git";
-      rev = "91fdfa70f6d593934e62aba1e449f4ec3d3ccc90";
-      hash = "sha256-RWqyAdETD/EkDVGcnBPiMcw1mSd78Aayky9yoxSsry4=";
+      rev = "619fdc5844db0c04f6115a62cf218e707de2821e";
+      hash = "sha256-Y/i+eS04T2+Sg/Z7/CGbuQHo5jxewXIgORTQm25uQb4=";
     };
     exifaudio = mkYaziPluginGithub {
       name = "exifaudio";
@@ -109,14 +109,19 @@ in {
               desc = "Open the selected files in editor";
             }
             {
-              on = ["m" "d"];
-              run = "plugin mkdir";
-              desc = "Create a directory";
+              on = ["a" "d"];
+              run = "shell -- dragon-drop -x -i -T %h";
+              desc = "Drag and drop";
             }
             {
               on = ["m" "f"];
               run = "create";
               desc = "Create a file";
+            }
+            {
+              on = ["m" "d"];
+              run = "plugin mkdir";
+              desc = "Create a directory";
             }
             {
               on = ["m" "t"];
@@ -210,17 +215,17 @@ in {
             }
             {
               on = ["b" "b"];
-              run = "cd ~/media/books";
+              run = "cd /data/media/books";
               desc = "Goto books dir";
             }
             {
               on = ["b" "p"];
-              run = "cd ~/media/documents/programming";
+              run = "cd /data/media/documents/programming";
               desc = "Goto programming dir";
             }
             {
               on = ["b" "a"];
-              run = "cd ~/media/audio";
+              run = "cd /data/media/audio";
               desc = "Goto audio dir";
             }
             {
@@ -235,7 +240,7 @@ in {
             }
             {
               on = ["b" "s"];
-              run = "cd ~/media/documents/study";
+              run = "cd /data/media/documents/study";
               desc = "Goto study dir";
             }
             {

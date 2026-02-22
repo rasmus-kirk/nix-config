@@ -9,9 +9,9 @@
     ./homeManagerScripts
     ./jiten
     ./monero
-    ./rustle
     ./mpv
     ./mvi
+    ./rustle
     ./scripts
     ./ssh
     ./terminalTools

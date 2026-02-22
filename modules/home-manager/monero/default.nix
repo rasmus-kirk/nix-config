@@ -18,11 +18,11 @@ with lib; let
   monero = pkgs.writeShellApplication {
     name = "monero";
     text = ''
-      wallet_path="$HOME/media/documents/wallets/user"
-      mkdir -p "$wallet_path"
+      wallet_dir="${cfg.walletDir}"
+      mkdir -p "$wallet_dir"
       monero-wallet-cli \
-        --wallet-file "$wallet_path"/user.keys \
-        --log-file "$wallet_path"/log.log
+        --wallet-file "$wallet_dir"/user.keys \
+        --log-file "$wallet_dir"/log.log
     '';
   };
 in {
@@ -33,6 +33,12 @@ in {
       type = types.str;
       default = "$HOME/.bitmonero";
       description = "The directory that the node uses for state.";
+    };
+
+    walletDir = mkOption {
+      type = types.str;
+      default = "$HOME/.monero-wallet";
+      description = "The path to the monero wallet dir.";
     };
 
     extraConfig = mkOption {

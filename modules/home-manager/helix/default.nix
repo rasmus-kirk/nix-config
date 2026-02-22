@@ -40,6 +40,8 @@ with lib; let
     gopls
     # Debugger: Rust/CPP/C/Zig
     lldb
+    # Spellchecking
+    harper
   ];
 in {
   options.kirk.helix = {
@@ -70,24 +72,36 @@ in {
       defaultEditor = true;
 
       languages = {
-        rust = {
-          auto-format = true;
-          roots = [
-            "Cargo.toml"
-            "Cargo.lock"
-          ];
-          language-server.rust-analyzer.config = {
-            inlayHints.parameterHints.enable = false;
-            diagnostics.experimental.enable = true;
-            diagnostics.styleLints.enable = true;
-          };
+        language-server.harper-ls = {
+          command = "harper-ls";
+          args = ["--stdio"];
         };
-        c-sharp = {
-          language-server = {
-            command = "dotnet";
-            args = ["${pkgs.omnisharp-roslyn}/bin/OmniSharp" "--languageserver"];
-          };
+        language-server.omnisharp = {
+          command = "dotnet";
+          args = ["${pkgs.omnisharp-roslyn}/bin/OmniSharp" "--languageserver"];
         };
+        language-server.rust-analyzer.config = {
+          inlayHints.parameterHints.enable = false;
+          diagnostics.experimental.enable = true;
+          diagnostics.styleLints.enable = true;
+        };
+
+        language = [
+          {
+            name = "markdown";
+            language-servers = ["marksman" "harper-ls"];
+          }
+          {
+            name = "rust";
+            auto-format = true;
+            roots = ["Cargo.toml" "Cargo.lock"];
+            language-servers = ["rust-analyzer" "harper-ls"];
+          }
+          {
+            name = "c-sharp";
+            language-servers = [ "omnisharp" ];
+          }
+        ];
       };
 
       settings = {

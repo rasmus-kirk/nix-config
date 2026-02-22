@@ -9,6 +9,11 @@ with lib; let
 in {
   options.kirk.zsh = {
     enable = mkEnableOption "zsh configuration.";
+    stateDir = mkOption {
+      type = with types; nullOr path;
+      default = null;
+      description = "Where to store stateful ZSH information, ie. the history.";
+    };
   };
 
   config = mkIf cfg.enable {
@@ -19,6 +24,9 @@ in {
       autosuggestion.enable = true;
       syntaxHighlighting.enable = true;
       oh-my-zsh.enable = true;
+      history = mkIf (cfg.stateDir != null) {
+        path = "${cfg.stateDir}/zsh/history";
+      };
 
       profileExtra = ''
         # Enable gnome discovery of nix installed programs
@@ -28,11 +36,13 @@ in {
         export NIX_PATH=''${NIX_PATH:+$NIX_PATH:}$HOME/.nix-defexpr/channels:/nix/var/nix/profiles/per-user/root/channels
       '';
 
-      initContent = ''
-        #alias ls="exa --icons"
-
-        alias rustfmt="cargo +nightly-2023-04-01-x86_64-unknown-linux-gnu fmt"
-        alias todo="$EDITOR ~/.local/share/todo.md"
+      initContent = let
+        todoPath = if cfg.stateDir != null then
+          "${cfg.stateDir}/todo.md"
+        else
+          "~/.local/share/todo.md";
+      in ''
+        alias todo="$EDITOR ${todoPath}"
         alias g="git"
         # Fuck ghostscript!
         alias gs="git status"
@@ -41,13 +51,21 @@ in {
         alias t="foot </dev/null &>/dev/null zsh &"
 
         gc() {
-        	git clone --recursive $(wl-paste)
+          git clone --recursive $(wl-paste)
+        }
+
+        ns() {
+          nix shell --impure nixpkgs#"$1" "''${@:2}"
+        }
+
+        nr() {
+          nix run --impure nixpkgs#"$1" "''${@:2}"
         }
 
         # What is this?
         if [[ $1 == eval ]]
         then
-        	"$@"
+          "$@"
         set --
         fi
       '';

@@ -202,7 +202,16 @@ in {
     extraNixOptions = mkEnableOption "Enable extra nix options.";
   };
 
-  config = mkIf cfg.enable {
+  config = let
+    nixpkgsConfig = {
+      allowUnfree = true;
+    };
+  in mkIf cfg.enable {
+    nixpkgs.config = nixpkgsConfig;
+
+    xdg.configFile."nixpkgs/config.nix".text = 
+      lib.generators.toPretty {} nixpkgsConfig;
+
     # Disable home manager news
     news = mkIf cfg.disableNews {
       display = "silent";
