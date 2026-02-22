@@ -17,7 +17,7 @@
   boot.loader.efi.canTouchEfiVariables = true;
 
   boot.initrd.luks.devices."luks-e5917c4f-0f75-40e7-bce3-55328c2c5cea".device = "/dev/disk/by-uuid/e5917c4f-0f75-40e7-bce3-55328c2c5cea";
-  networking.hostName = "nixos"; # Define your hostname.
+  networking.hostName = "deck-oled"; # Define your hostname.
 
   # Enable networking
   networking.networkmanager.enable = true;
@@ -81,14 +81,15 @@
   };
   hardware.enableRedistributableFirmware = true;
 
-  programs.ssh.startAgent = true;
+  # programs.ssh.startAgent = true;
 
   services.xserver.xkb = {
     layout = "rk";
-    extraLayouts.rkj = {
+    extraLayouts.rk = {
       description = "Rasmus Kirk KLFC layout";
       languages = [ "eng" ];
       symbolsFile = "${inputs.keyboard-layout.packages.${pkgs.system}.rk}/symbols/rk";
+      typesFile = "${inputs.keyboard-layout.packages.${pkgs.system}.rk}/types/rk";
     };
   };
 
