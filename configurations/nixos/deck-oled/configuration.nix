@@ -87,7 +87,10 @@ in {
   };
   hardware.enableRedistributableFirmware = true;
 
-  # programs.ssh.startAgent = true;
+  programs.ssh.startAgent = true;
+  environment.variables.SSH_ASKPASS = "";
+
+  programs.ssh.askPassword = "";
   programs.firefox.enable = true;
 
   services.xserver.xkb = {
