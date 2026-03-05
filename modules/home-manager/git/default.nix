@@ -45,7 +45,7 @@ in {
         signByDefault = true;
       };
       settings = {
-        gpg.ssh.allowedSignersFile = "${cfg.signKey}";
+        # gpg.ssh.allowedSignersFile = "${cfg.signKey}";
         user.email = cfg.userEmail;
         user.name = cfg.userName;
         alias = {
