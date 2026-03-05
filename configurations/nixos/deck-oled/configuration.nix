@@ -4,23 +4,31 @@
 
 { config, pkgs, lib, inputs, ... }:
 
-{
+let
+  dataDir = "/data";
+  stateDir = "${dataDir}/.state";
+  secretDir = "${dataDir}/.secret";
+in {
   imports = [ ./hardware-configuration.nix ];
+
   kirk.nixosScripts = {
     enable = true;
     configDir = "/data";
     machine = "deck-oled";
   };
 
-  # Bootloader.
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-
-  boot.initrd.luks.devices."luks-e5917c4f-0f75-40e7-bce3-55328c2c5cea".device = "/dev/disk/by-uuid/e5917c4f-0f75-40e7-bce3-55328c2c5cea";
-  networking.hostName = "deck-oled"; # Define your hostname.
+  age = {
+    identityPaths = ["${secretDir}/ssh/age_ed25519"];
+    secrets = {
+      # user.file = ./age/user.age;
+      hosts.file = ./age/hosts.age;
+    };
+  };
 
   # Enable networking
+  networking.hostName = "deck-oled"; # Define your hostname.
   networking.networkmanager.enable = true;
+  networking.extraHosts = builtins.readFile config.age.secrets.hosts.path;
 
   # Set your time zone.
   time.timeZone = "Europe/Copenhagen";
@@ -79,7 +87,8 @@
   };
   hardware.enableRedistributableFirmware = true;
 
-  programs.ssh.startAgent = true;
+  # programs.ssh.startAgent = true;
+  programs.firefox.enable = true;
 
   services.xserver.xkb = {
     layout = "rk";
@@ -152,6 +161,11 @@
     ${pkgs.lib.getExe klfcPatcher} $out "rk"
   '');
 
+  security.pam.services = {
+    login.u2fAuth = true;
+    sudo.u2fAuth = true;
+  };
+
   # Enable sound with pipewire.
   services.pulseaudio.enable = false;
   security.rtkit.enable = true;
@@ -183,6 +197,7 @@
   environment.systemPackages = with pkgs; [
   #  vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
   #  wget
+    inputs.agenix.packages."${system}".default
   ];
 
   security.sudo = {

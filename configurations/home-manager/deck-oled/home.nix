@@ -37,7 +37,7 @@ in {
     };
     ssh = {
       enable = true;
-      identityPath = "${secretDir}/ssh/id_ed25519";
+      identityPath = "${secretDir}/ssh/id_ed25519_yubi";
     };
     userDirs = {
       enable = true;
