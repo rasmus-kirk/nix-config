@@ -125,6 +125,7 @@ in {
     keepassxc
     thunderbird
     feishin
+    yubioauth-flutter
 
     # Browsers
     librewolf
