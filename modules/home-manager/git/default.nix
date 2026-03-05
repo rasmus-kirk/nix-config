@@ -19,6 +19,11 @@ in {
       type = types.str;
       description = "Username to use for git.";
     };
+
+    signKey = mkOption {
+      type = with types; nullOr (either path str);
+      description = "Path to the public key used to sign. All commits will be signed (must be SSH).";
+    };
   };
 
   config = mkIf cfg.enable {
@@ -34,6 +39,11 @@ in {
 
     programs.git = {
       enable = true;
+      signing = mkIf (cfg.signKey != null) {
+        key = cfg.signKey;
+        format = "ssh";
+        signByDefault = true;
+      };
       settings = {
         user.email = cfg.userEmail;
         user.name = cfg.userName;
