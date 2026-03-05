@@ -6,6 +6,7 @@
 
 let
   dataDir = "/data";
+  configDir = "${dataDir}/.system-configuration";
   stateDir = "${dataDir}/.state";
   secretDir = "${dataDir}/.secret";
 in {
@@ -13,7 +14,8 @@ in {
 
   kirk.nixosScripts = {
     enable = true;
-    configDir = "/data";
+    configDir = configDir;
+    stateDir = stateDir;
     machine = "deck-oled";
   };
 
