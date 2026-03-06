@@ -6,100 +6,81 @@
 }:
 with lib; let
   cfg = config.kirk.nixosScripts;
-
+  nosDir = if cfg.stateDir != null then cfg.stateDir else "${cfg.configDir}/.nos-dir";
   nos = pkgs.writeShellApplication {
     name = "nos";
-    runtimeInputs = with pkgs; [fzf git dateutils];
+    runtimeInputs = with pkgs; [ fzf git dateutils gnugrep ];
     text = ''
       command="''${1:-}"
 
-      NC='\033[0m'               # No Color
-
-      # Bold
-      BRED='\033[1;31m'          # Red
-      BYELLOW='\033[1;33m'       # Yellow
-      BWHITE='\033[1;37m'        # White
+      NC='\033[0m'
+      BRED='\033[1;31m'
+      BYELLOW='\033[1;33m'
+      BWHITE='\033[1;37m'
 
       NOS_INFO="''${BWHITE}[NOS-INFO]:''${NC}"
       NOS_WARNING="''${BWHITE}[''${BYELLOW}NOS-WARNING''${BWHITE}]:''${NC}"
       NOS_ERROR="''${BWHITE}[''${BRED}NOS-ERROR''${BWHITE}]:''${NC}"
 
-      # Must run as root
-      # if [ "$EUID" -ne 0 ]; then
-      #   echo "Please run as root"
-      #   exit
-      # fi
+      # Auto-escalate to root
+      if [ "$EUID" -ne 0 ]; then
+        echo -e "$NOS_INFO Escalating privileges..."
+        exec sudo "$0" "$@"
+      fi
 
-      # Check if a parameter is provided
+      ORIG_USER="''${SUDO_USER:-root}"
+      NOS_DIR="${nosDir}"
+
       if [ -z "$command" ]; then
         echo "Usage: nos <command>"
-        echo ""
-        echo "Commands:"
-        echo "  rebuild           Rebuild the NixOS configuration."
-        echo "  upgrade           Upgrade NixOS packages. Note that this also rebuilds the configuration."
-        echo "  options           Shows available NixOS configuration options."
-        echo "  garbage-collect   Garbage collects, freeing up unused hard drive space allocated to unused Nix packages."
-        echo "  update            Updating Nix flake inputs. This updates packages for the next rebuild..."
-        # echo "  test              Test the NixOS configuration."
-        # echo "  rollback          Roll back to the previous configuration."
-        echo ""
-        echo "Garbage collecting will:"
-        echo "- Delete NixOS configurations and nix profiles older than 30 days"
-        echo "- Delete unused packages in the Nix store"
-        echo "- Optimize the Nix store, by replacing identical files in the store by hard links"
+        echo "Commands: rebuild, upgrade, options, garbage-collect, update, rollback, test"
         exit 1
       fi
 
       update() {
-        echo -e "$NOS_INFO Updating packages for the next rebuild, by updating the Nix flake inputs... \n"
-        nix flake update --flake ${cfg.configDir} --no-warn-dirty
+        echo -e "$NOS_INFO Updating packages... \n"
+        sudo -u "$ORIG_USER" nix flake update --flake "${cfg.configDir}" --no-warn-dirty
       }
 
       rebuild() {
         echo -e "$NOS_INFO Rebuilding NixOS configuration... \n"
 
-        # Remind to upgrade if 30 days has passed since last upgrade
-        NOS_DIR=''${XDG_CACHE_HOME:-"$HOME/.cache"}/hm
         if [ ! -f "$NOS_DIR/last-update" ]; then
-          echo -e "$NOS_WARNING Could not determine last full upgrade, please run \"nos upgrade\""
+          echo -e "$NOS_WARNING Could not determine last full upgrade."
         else
           TODAY=$(date -u '+%Y-%m-%d')
-          LAST_UPDATE=$(cat "$NOS_DIR/last-update" || date --date="-31 day" -u '+%Y-%m-%d')
+          LAST_UPDATE=$(cat "$NOS_DIR/last-update")
           DATE_DIFF=$(ddiff "$TODAY" "$LAST_UPDATE")
           if [ "$DATE_DIFF" -gt 30 ]; then
-            echo -e "$NOS_WARNING Last full upgrade was $DATE_DIFF days ago, please run \"nos upgrade\""
+            echo -e "$NOS_WARNING Last full upgrade was $DATE_DIFF days ago."
           fi
         fi
 
         pushd "${cfg.configDir}" > /dev/null
-        ls
-        git add .
+        sudo -u "$ORIG_USER" git add .
         sudo nixos-rebuild switch --show-trace ${if cfg.pure then "--impure" else ""} --flake ${cfg.configDir}#${cfg.machine}
         popd > /dev/null
       }
 
       garbage_collect() {
-        echo -e "$NOS_INFO Garbage collecting the Nix store... \n"
+        echo -e "$NOS_INFO Garbage collecting... \n"
         nix profile wipe-history --profile /nix/var/nix/profiles/system --older-than 30d
-        nix store gc &&
+        nix store gc
         nix store optimise
       }
 
-      # rollback() {
-      #   gen=$(home-manager generations | grep -P "^[0-9]{4}-[0-9]{2}-[0-9]{2}" | fzf)
-      #   genPath=$(echo "$gen" | grep -oP "/nix/store/.*")
-      #   genId=$(echo "$gen" | grep -oP "(?<=id )\d+")
+      rollback() {
+        gen=$(nixos-rebuild list-generations | fzf --reverse)
+        if [ -z "$gen" ]; then
+          echo -e "$NOS_ERROR No generation selected. Aborting."
+          exit 1
+        fi
+        genId=$(echo "$gen" | grep -oP "^\s*\K\d+")
 
-      #   if [ -z "$gen" ]; then
-      #     echo -e "$NOS_ERROR No generation selected. Aborting."
-      #     exit 1
-      #   fi
+        echo -e "$NOS_INFO Activating NixOS generation $genId..."
+        /nix/var/nix/profiles/system-"$genId"-link/bin/switch-to-configuration switch
+      }
 
-      #   echo -e "$NOS_INFO Activating generation $genId:"
-      #   "$genPath"/activate
-      # }
-
-      # Handle the command
       case "$1" in
         rebuild)
           rebuild
@@ -110,10 +91,8 @@ with lib; let
           rebuild &&
           garbage_collect
 
-          # Log upgrade date
-          NOS_DIR=''${XDG_CACHE_HOME:-"$HOME/.cache"}/hm
-          mkdir -p "$NOS_DIR"
-          date -u '+%Y-%m-%d' > "$NOS_DIR/last-update"
+          sudo -u "$ORIG_USER" mkdir -p "$NOS_DIR"
+          sudo -u "$ORIG_USER" bash -c "date -u '+%Y-%m-%d' > '$NOS_DIR/last-update'"
           ;;
         options)
           man configuration.nix
@@ -124,17 +103,23 @@ with lib; let
         update)
           update
           ;;
-        # rollback)
-        #   rollback
-        #   ;;
-        # test)
-        #   tmpdir=$(mktemp -d) &&
-        #   echo -e "$NOS_INFO Building the test configuration to \"$tmpdir\"... \n" &&
-        #   cd "$tmpdir" &&
-        #   home-manager build --show-trace --flake ${cfg.configDir}#${cfg.machine}
-        #   ;;
+        rollback)
+          rollback
+          ;;
+        test)
+          tmpdir=$(mktemp -d)
+          echo -e "$NOS_INFO Building the test configuration to \"$tmpdir\"... \n"
+          
+          pushd "${cfg.configDir}" > /dev/null
+          sudo -u "$ORIG_USER" git add .
+          popd > /dev/null
+
+          pushd "$tmpdir" > /dev/null
+          nixos-rebuild build --show-trace --impure --flake "${cfg.configDir}#${cfg.machine}"
+          popd > /dev/null
+          ;;
         *)
-          echo -e "$NOS_ERROR Unknown command: $1 \n"
+          echo -e "$NOS_ERROR Unknown command: $1"
           echo "Valid commands are: rebuild, upgrade, options, garbage-collect, rollback, update, test"
           exit 1
           ;;
@@ -160,6 +145,12 @@ in {
       type = types.path;
       default = "/etc/nixos";
       description = "Path to the nixos configuration.";
+    };
+
+    stateDir = mkOption {
+      type = types.path;
+      default = "/etc/nixos";
+      description = "Path to the NOS statedir.";
     };
 
     pure = mkOption {

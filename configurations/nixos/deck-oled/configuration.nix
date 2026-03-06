@@ -4,23 +4,33 @@
 
 { config, pkgs, lib, inputs, ... }:
 
-{
+let
+  dataDir = "/data";
+  configDir = "${dataDir}/.system-configuration";
+  stateDir = "${dataDir}/.state";
+  secretDir = "${dataDir}/.secret";
+in {
   imports = [ ./hardware-configuration.nix ];
+
   kirk.nixosScripts = {
     enable = true;
-    configDir = "/data";
+    configDir = configDir;
+    stateDir = stateDir;
     machine = "deck-oled";
   };
 
-  # Bootloader.
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
-
-  boot.initrd.luks.devices."luks-e5917c4f-0f75-40e7-bce3-55328c2c5cea".device = "/dev/disk/by-uuid/e5917c4f-0f75-40e7-bce3-55328c2c5cea";
-  networking.hostName = "deck-oled"; # Define your hostname.
+  age = {
+    identityPaths = ["${secretDir}/ssh/age_ed25519"];
+    secrets = {
+      # user.file = ./age/user.age;
+      hosts.file = ./age/hosts.age;
+    };
+  };
 
   # Enable networking
+  networking.hostName = "deck-oled"; # Define your hostname.
   networking.networkmanager.enable = true;
+  networking.extraHosts = builtins.readFile config.age.secrets.hosts.path;
 
   # Set your time zone.
   time.timeZone = "Europe/Copenhagen";
@@ -58,17 +68,13 @@
   };
 
   # Enable the X11 windowing system.
+  # TODO: Why???
   services.xserver.enable = true;
 
-  # Enable the Cinnamon Desktop Environment.
-  # services.displayManager.cosmic-greeter.enable = true;
+  # Enable the Cosmic Desktop Environment.
   services.desktopManager.cosmic.enable = true;
   services.gnome.gnome-keyring.enable = false;
   services.gnome.gcr-ssh-agent.enable = false;
-  # services.displayManager.autoLogin = {
-  #   enable = true;
-  #   user = "user";
-  # };
 
   jovian = {
     devices.steamdeck.enable = true;
@@ -84,6 +90,10 @@
   hardware.enableRedistributableFirmware = true;
 
   programs.ssh.startAgent = true;
+  environment.variables.SSH_ASKPASS = "";
+
+  programs.ssh.askPassword = "";
+  programs.firefox.enable = true;
 
   services.xserver.xkb = {
     layout = "rk";
@@ -95,8 +105,7 @@
     };
   };
 
-  # services.xserver.exportConfiguration = true;
-
+  # Lord have mercy
   environment.sessionVariables.XKB_CONFIG_ROOT = lib.mkForce (let
     klfcPatcher = pkgs.writeShellApplication {
       name = "klfc-patcher";
@@ -150,19 +159,17 @@
         add_type "$out_dir/rules/evdev" "$layout_name"
       '';
     };
-
-    # Grab the generated XKB directory directly from the NixOS option
-    nixosXkbDir = config.services.xserver.xkb.dir;
-    
   in pkgs.runCommand "xkb-rk-patched" {} ''
-    cp -rL ${nixosXkbDir} $out
+    cp -rL ${config.services.xserver.xkb.dir} $out
     chmod -R u+w $out
 
     ${pkgs.lib.getExe klfcPatcher} $out "rk"
   '');
 
-  # Enable CUPS to print documents.
-  services.printing.enable = true;
+  security.pam.services = {
+    login.u2fAuth = true;
+    sudo.u2fAuth = true;
+  };
 
   # Enable sound with pipewire.
   services.pulseaudio.enable = false;
@@ -180,21 +187,12 @@
     #media-session.enable = true;
   };
 
-  # Enable touchpad support (enabled default in most desktopManager).
-  # services.xserver.libinput.enable = true;
-
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.user = {
     isNormalUser = true;
     description = "Rasmus Kirk";
     extraGroups = [ "networkmanager" "wheel" ];
-    packages = with pkgs; [
-    #  thunderbird
-    ];
   };
-
-  # Install firefox.
-  programs.firefox.enable = true;
 
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
@@ -204,11 +202,17 @@
   environment.systemPackages = with pkgs; [
   #  vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
   #  wget
+    inputs.agenix.packages."${system}".default
   ];
 
-  security.sudo.extraConfig = ''
-    Defaults timestamp_timeout=60
-  '';
+  security.sudo = {
+    execWheelOnly = true; # For security
+    package = pkgs.sudo.override {withInsults = true;}; # For insults lol
+    extraConfig = ''
+      Defaults insults
+      Defaults timestamp_timeout=60
+    '';
+  };
 
   # Some programs need SUID wrappers, can be configured further or are
   # started in user sessions.
