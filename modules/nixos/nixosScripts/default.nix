@@ -25,10 +25,10 @@ with lib; let
       NOS_ERROR="''${BWHITE}[''${BRED}NOS-ERROR''${BWHITE}]:''${NC}"
 
       # Must run as root
-      if [ "$EUID" -ne 0 ]; then
-        echo "Please run as root"
-        exit
-      fi
+      # if [ "$EUID" -ne 0 ]; then
+      #   echo "Please run as root"
+      #   exit
+      # fi
 
       # Check if a parameter is provided
       if [ -z "$command" ]; then
@@ -74,7 +74,7 @@ with lib; let
         pushd "${cfg.configDir}" > /dev/null
         ls
         git add .
-        nixos-rebuild switch --show-trace --impure --flake ${cfg.configDir}#${cfg.machine}
+        sudo nixos-rebuild switch --show-trace ${if cfg.pure then "--impure" else ""} --flake ${cfg.configDir}#${cfg.machine}
         popd > /dev/null
       }
 
@@ -116,7 +116,7 @@ with lib; let
           date -u '+%Y-%m-%d' > "$NOS_DIR/last-update"
           ;;
         options)
-          man home-configuration.nix
+          man configuration.nix
           ;;
         garbage-collect)
           garbage_collect

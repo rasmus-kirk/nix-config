@@ -37,6 +37,7 @@ in {
     };
     ssh = {
       enable = true;
+      addKeysToAgent = true;
       identityPath = "${secretDir}/ssh/id_ed25519";
     };
     userDirs = {
