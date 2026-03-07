@@ -58,7 +58,10 @@ with lib; let
 
         pushd "${cfg.configDir}" > /dev/null
         sudo -u "$ORIG_USER" git add .
-        nixos-rebuild switch --show-trace --impure --flake "${cfg.configDir}#${cfg.machine}"
+        nixos-rebuild switch \
+          --show-trace ${if !cfg.pure then "--impure" else ""} \
+          --option warn-dirty false \
+          --flake .#${cfg.machine}
         popd > /dev/null
       }
 
@@ -95,7 +98,7 @@ with lib; let
           sudo -u "$ORIG_USER" bash -c "date -u '+%Y-%m-%d' > '$NOS_DIR/last-update'"
           ;;
         options)
-          sudo -u "$ORIG_USER" man configuration.nix
+          man configuration.nix
           ;;
         garbage-collect)
           garbage_collect
@@ -109,7 +112,7 @@ with lib; let
         test)
           tmpdir=$(mktemp -d)
           echo -e "$NOS_INFO Building the test configuration to \"$tmpdir\"... \n"
-          
+
           pushd "${cfg.configDir}" > /dev/null
           sudo -u "$ORIG_USER" git add .
           popd > /dev/null
@@ -150,7 +153,7 @@ in {
     stateDir = mkOption {
       type = types.path;
       default = "/etc/nixos";
-      description = "Path to the nixos configuration.";
+      description = "Path to the NOS statedir.";
     };
 
     pure = mkOption {

@@ -209,6 +209,26 @@ in {
     proxyPass = "http://127.0.0.1:18081";
   };
 
+  # -------------------- Power Saving -------------------- #
+
+  powerManagement.enable = true;
+  powerManagement.powertop.enable = true;
+  powerManagement.cpuFreqGovernor = "powersave";
+
+  services.tlp = {
+    enable = true;
+    settings = {
+      CPU_SCALING_GOVERNOR_ON_AC = "powersave";
+      CPU_ENERGY_PERF_POLICY_ON_AC = "power";
+      # Disable wake-on-lan and bluetooth to save power
+      WOL_DISABLE = "Y";
+      DEVICES_TO_DISABLE_ON_STARTUP = "bluetooth wifi wwan"; 
+    };
+  };
+
+  hardware.bluetooth.enable = false;
+  hardware.bluetooth.powerOnBoot = false;
+
   # -------------------- Server Defaults -------------------- #
 
   # If the system runs out of ram, then journald crashes and the server will be down.
@@ -253,9 +273,11 @@ in {
       ports = [6000];
     };
   };
+
   users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
-    ../../../pubkeys/work.pub
+    # ../../../pubkeys/work.pub
     ../../../pubkeys/naja-deck.pub
+    ../../../pubkeys/deck-oled.pub
   ];
 
   # -------------------- Boilerplate -------------------- #
@@ -329,6 +351,18 @@ in {
 
   programs.zsh.enable = true;
 
+  # security.pam.services.sudo.u2fAuth = true;
+
+  # 1. Enable the module globally
+  security.pam.rssh.enable = true;
+
+  # 2. Tell it to use standard SSH keys for validation
+  security.pam.rssh.settings.auth_key_file = "/etc/ssh/authorized_keys.d/user";
+
+  # 3. Apply it specifically to sudo
+  security.pam.services.sudo.rssh = true;
+
+
   security.sudo = {
     execWheelOnly = true; # For security
     package = pkgs.sudo.override {withInsults = true;}; # For insults lol
@@ -360,6 +394,19 @@ in {
   nixpkgs.config.allowUnfree = true;
 
   environment.systemPackages = with pkgs; [
+    (writeShellApplication {
+      name = "monero";
+      runtimeInputs = [ monero-cli ];
+      text = ''
+        wallet_dir="/data/monero"
+        mkdir -p "$wallet_dir"
+        monero-wallet-cli \
+          --wallet-file "$wallet_dir"/user.keys \
+          --log-file "$wallet_dir"/log.log
+      '';
+    })
+
+
     # Compression
     zip
     unar
