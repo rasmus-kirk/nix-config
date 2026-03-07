@@ -394,8 +394,9 @@ in {
   nixpkgs.config.allowUnfree = true;
 
   environment.systemPackages = with pkgs; [
-    pkgs.writeShellApplication {
+    (writeShellApplication {
       name = "monero";
+      runtimeInputs = [ monero-cli ];
       text = ''
         wallet_dir="/data/monero"
         mkdir -p "$wallet_dir"
@@ -403,7 +404,7 @@ in {
           --wallet-file "$wallet_dir"/user.keys \
           --log-file "$wallet_dir"/log.log
       '';
-    }
+    })
 
 
     # Compression

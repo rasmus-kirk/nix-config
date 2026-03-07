@@ -22,6 +22,7 @@ in {
 
     signKey = mkOption {
       type = with types; nullOr (either path str);
+      default = null;
       description = "Path to the public key used to sign. All commits will be signed (must be SSH).";
     };
   };

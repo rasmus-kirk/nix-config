@@ -58,7 +58,10 @@ with lib; let
 
         pushd "${cfg.configDir}" > /dev/null
         sudo -u "$ORIG_USER" git add .
-        sudo nixos-rebuild switch --show-trace ${if cfg.pure then "--impure" else ""} --flake ${cfg.configDir}#${cfg.machine}
+        nixos-rebuild switch \
+          --show-trace ${if !cfg.pure then "--impure" else ""} \
+          --option warn-dirty false \
+          --flake .#${cfg.machine}
         popd > /dev/null
       }
 
@@ -109,7 +112,7 @@ with lib; let
         test)
           tmpdir=$(mktemp -d)
           echo -e "$NOS_INFO Building the test configuration to \"$tmpdir\"... \n"
-          
+
           pushd "${cfg.configDir}" > /dev/null
           sudo -u "$ORIG_USER" git add .
           popd > /dev/null
