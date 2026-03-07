@@ -132,7 +132,7 @@ in {
     chromium
 
     # Chat
-    signal-desktop-bin
+    signal-desktop
 
     # Misc Terminal Tools
     wl-clipboard

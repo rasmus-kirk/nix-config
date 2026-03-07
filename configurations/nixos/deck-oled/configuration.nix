@@ -27,6 +27,8 @@ in {
     };
   };
 
+  services.udev.packages = [ pkgs.ledger-udev-rules ];
+
   # Enable networking
   networking.hostName = "deck-oled"; # Define your hostname.
   networking.networkmanager.enable = true;
@@ -169,6 +171,7 @@ in {
   security.pam.services = {
     login.u2fAuth = true;
     sudo.u2fAuth = true;
+    cosmic-greeter.u2fAuth = true;
   };
 
   # Enable sound with pipewire.
@@ -197,11 +200,8 @@ in {
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
 
-  # List packages installed in system profile. To search, run:
-  # $ nix search wget
   environment.systemPackages = with pkgs; [
-  #  vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
-  #  wget
+    monero-gui
     inputs.agenix.packages."${system}".default
   ];
 
