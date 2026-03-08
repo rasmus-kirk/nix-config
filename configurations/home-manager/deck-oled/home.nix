@@ -70,9 +70,6 @@ in {
 
   home.stateVersion = "22.11";
 
-  # Let Home Manager install and manage itself.
-  # programs.home-manager.enable = true;
-
   systemd.user.tmpfiles.rules = [
     "d  ${stateDir}/thunderbird     0755 user users - -"
     "d  ${stateDir}/cosmic          0755 user users - -"
@@ -130,23 +127,5 @@ in {
     silent = true;
   };
 
-  home.packages = with pkgs; [
-    # Misc
-    keepassxc
-    thunderbird
-    feishin
-    yubioath-flutter
-    claude-code
-
-    # Browsers
-    librewolf
-    chromium
-
-    # Chat
-    signal-desktop
-
-    # Misc Terminal Tools
-    wl-clipboard
-    yt-dlp
-  ];
+  home.packages = with pkgs; [ ];
 }
