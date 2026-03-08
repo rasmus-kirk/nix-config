@@ -59,7 +59,8 @@ in {
       enable = true;
       stateDir = stateDir;
       launchers = {
-        t3 = "https://t3.chat/";
+        gemini = "https://gemini.google.com/";
+        youtube = "https://youtube.com/";
       };
     };
   };
@@ -82,6 +83,7 @@ in {
     "d  ${stateDir}/firefox/config  0755 user users - -"
     "d  ${stateDir}/firefox/home    0755 user users - -"
     "d  ${stateDir}/chromium        0755 user users - -"
+    "d  ${stateDir}/yubico          0755 user users - -"
     "d  ${stateDir}/syncthing       0755 user users - -"
     "d  ${stateDir}/syncthing/state 0755 user users - -"
     "d  ${stateDir}/syncthing/sync  0755 user users - -"
@@ -91,11 +93,14 @@ in {
     "L+ ${config.home.homeDirectory}/.config/mozilla            - - - - ${stateDir}/firefox/config"
     "L+ ${config.home.homeDirectory}/.config/chromium           - - - - ${stateDir}/chromium"
     "L+ ${config.home.homeDirectory}/.local/state/syncthing     - - - - ${stateDir}/syncthing/state"
+    "L+ ${config.home.homeDirectory}/.config/Yubico             - - - - ${stateDir}/yubico"
 
     "L+ ${config.home.homeDirectory}/.config/cosmic             - - - - ${stateDir}/cosmic/config"
     "L+ ${config.home.homeDirectory}/.local/state/cosmic        - - - - ${stateDir}/cosmic/local"
     "L+ ${config.home.homeDirectory}/.local/state/cosmic-comp   - - - - ${stateDir}/cosmic/comp"
   ];
+
+  services.syncthing.enable = true;
 
   programs.bash = {
     enable = true;

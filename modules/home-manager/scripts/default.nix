@@ -5,7 +5,7 @@
   ...
 }:
 with lib; let
-  cfg = config.kirk.homeManagerScripts;
+  cfg = config.kirk.scripts;
 
   ff-cut = pkgs.writeShellApplication {
     name = "ff-cut";

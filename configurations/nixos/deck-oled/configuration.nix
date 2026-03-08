@@ -202,6 +202,20 @@ in {
 
   environment.systemPackages = with pkgs; [
     monero-gui
+
+    (writeShellApplication {
+      name = "monero";
+      runtimeInputs = [ monero-cli ];
+      text = ''
+        wallet_dir="/data/media/documents/wallets/monero/ledger"
+        mkdir -p "$wallet_dir"
+        cd "$wallet_dir"
+        monero-wallet-cli \
+          --wallet-file ./wallet.keys \
+          --log-file ./wallet.log
+      '';
+    })
+
     inputs.agenix.packages."${system}".default
   ];
 
@@ -210,7 +224,7 @@ in {
     package = pkgs.sudo.override {withInsults = true;}; # For insults lol
     extraConfig = ''
       Defaults insults
-      Defaults timestamp_timeout=60
+      Defaults timestamp_timeout=15
     '';
   };
 
