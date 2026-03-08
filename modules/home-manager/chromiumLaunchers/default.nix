@@ -14,6 +14,7 @@ with lib; let
   fetcherScript = pkgs.writeShellApplication {
     name = "fetch-webapp-icons";
     runtimeInputs = with pkgs; [ wget imagemagick coreutils ];
+    inheritPath = false;
     text = ''
       mkdir -p "${iconStorage}"
       ${concatStringsSep "\n" (mapAttrsToList (name: url: 
@@ -32,7 +33,8 @@ with lib; let
   };
   mkLauncher = name: url: pkgs.writeShellApplication {
     name = name;
-    runtimeInputs = [ pkgs.chromium ];
+    runtimeInputs = with pkgs; [ chromium coreutils ];
+    inheritPath = false;
     text = ''
       STATE_DIR="${stateRoot}/${name}"
 

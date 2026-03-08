@@ -10,7 +10,8 @@ with lib; let
   word-of-the-day = pkgs.writeShellApplication {
     name = "word-of-the-day";
 
-    runtimeInputs = with pkgs; [jiten];
+    runtimeInputs = with pkgs; [jiten coreutils];
+    inheritPath = false;
 
     text = ''
       path=${config.xdg.stateHome}/word-of-the-day

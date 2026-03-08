@@ -14,7 +14,8 @@ with lib; let
 
   hm = pkgs.writeShellApplication {
     name = "hm";
-    runtimeInputs = with pkgs; [fzf git dateutils];
+    runtimeInputs = with pkgs; [fzf git dateutils nix home-manager trash-cli coreutils gnugrep man];
+    inheritPath = false;
     text = ''
       command="''${1:-}"
 

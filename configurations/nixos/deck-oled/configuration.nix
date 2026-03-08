@@ -112,6 +112,7 @@ in {
     klfcPatcher = pkgs.writeShellApplication {
       name = "klfc-patcher";
       runtimeInputs = with pkgs; [ gnugrep gawk coreutils ];
+      inheritPath = false;
       text = ''
         add_line_under_header () {
           file=$1
@@ -201,11 +202,10 @@ in {
   nixpkgs.config.allowUnfree = true;
 
   environment.systemPackages = with pkgs; [
-    monero-gui
-
     (writeShellApplication {
       name = "monero";
-      runtimeInputs = [ monero-cli ];
+      runtimeInputs = [ monero-cli coreutils ];
+      inheritPath = false;
       text = ''
         wallet_dir="/data/media/documents/wallets/monero/ledger"
         mkdir -p "$wallet_dir"

@@ -87,6 +87,8 @@ in {
     "d  ${stateDir}/syncthing       0755 user users - -"
     "d  ${stateDir}/syncthing/state 0755 user users - -"
     "d  ${stateDir}/syncthing/sync  0755 user users - -"
+    "d  ${stateDir}/claude          0755 user users - -"
+    "d  ${stateDir}/claude/state    0755 user users - -"
 
     "L+ ${config.home.homeDirectory}/.thunderbird               - - - - ${stateDir}/thunderbird"
     "L+ ${config.home.homeDirectory}/.mozilla                   - - - - ${stateDir}/firefox/home"
@@ -98,6 +100,9 @@ in {
     "L+ ${config.home.homeDirectory}/.config/cosmic             - - - - ${stateDir}/cosmic/config"
     "L+ ${config.home.homeDirectory}/.local/state/cosmic        - - - - ${stateDir}/cosmic/local"
     "L+ ${config.home.homeDirectory}/.local/state/cosmic-comp   - - - - ${stateDir}/cosmic/comp"
+
+    "L+ ${config.home.homeDirectory}/.claude                    - - - - ${stateDir}/claude/state"
+    "L+ ${config.home.homeDirectory}/.claude.json               - - - - ${stateDir}/claude/claude.json"
   ];
 
   services.syncthing.enable = true;
@@ -131,6 +136,7 @@ in {
     thunderbird
     feishin
     yubioath-flutter
+    claude-code
 
     # Browsers
     librewolf

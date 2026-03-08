@@ -396,7 +396,8 @@ in {
   environment.systemPackages = with pkgs; [
     (writeShellApplication {
       name = "monero";
-      runtimeInputs = [ monero-cli ];
+      runtimeInputs = [ monero-cli coreutils ];
+      inheritPath = false;
       text = ''
         wallet_dir="/data/monero"
         mkdir -p "$wallet_dir"

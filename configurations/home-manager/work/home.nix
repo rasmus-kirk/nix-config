@@ -153,6 +153,7 @@ in {
 
     (pkgs.writeShellApplication {
       name = "pm";
+      inheritPath = false;
       runtimeInputs = [
         age
         csvkit

@@ -10,6 +10,7 @@ with lib; let
   ff-cut = pkgs.writeShellApplication {
     name = "ff-cut";
     runtimeInputs = with pkgs; [ffmpeg];
+    inheritPath = false;
     text = ''
       if [[ $# -eq 5 ]]; then
         ffmpeg -ss "$3" -to "$4" -i "$1" -c:v libx264 -crf "$5" -map_metadata -1 -map_chapters -1 "$2"
@@ -28,6 +29,7 @@ with lib; let
   ff-compress = pkgs.writeShellApplication {
     name = "ff-compress";
     runtimeInputs = with pkgs; [ffmpeg];
+    inheritPath = false;
     text = ''
       if [[ $# -eq 3 ]]; then
         ffmpeg -i "$1" -vcodec libx264 -crf "$3" "$2"
@@ -44,6 +46,7 @@ with lib; let
   conv = pkgs.writeShellApplication {
     name = "conv";
     runtimeInputs = with pkgs; [python3 curl];
+    inheritPath = false;
     text = ''
       if [ $# -eq 3 ]; then
         rate=$(curl -s "https://$3.rate.sx/1$2")
@@ -56,7 +59,8 @@ with lib; let
 
   price = pkgs.writeShellApplication {
     name = "price";
-    runtimeInputs = with pkgs; [curl];
+    runtimeInputs = with pkgs; [curl coreutils];
+    inheritPath = false;
     text = ''
       if [ $# -eq 0 ]; then
         curl -s rate.sx | head -n -1
@@ -72,7 +76,8 @@ with lib; let
 
   updap = pkgs.writeShellApplication {
     name = "updap";
-    runtimeInputs = with pkgs; [rsync];
+    runtimeInputs = with pkgs; [rsync util-linux gnugrep sudo coreutils];
+    inheritPath = false;
     text = ''
       set +e
 
@@ -131,7 +136,8 @@ with lib; let
 
   upkob = pkgs.writeShellApplication {
     name = "upkob";
-    runtimeInputs = with pkgs; [coreutils rsync];
+    runtimeInputs = with pkgs; [coreutils rsync util-linux gnugrep sudo];
+    inheritPath = false;
     text = ''
       set +e
 
@@ -191,7 +197,8 @@ with lib; let
 
   weather = pkgs.writeShellApplication {
     name = "weather";
-    runtimeInputs = with pkgs; [curl];
+    runtimeInputs = with pkgs; [curl coreutils gnused];
+    inheritPath = false;
     text = ''
       if [ -z "$1" ]; then
         curl -s "wttr.in/Aarhus?lang=ja" | head -n -3 | sed '2d'
