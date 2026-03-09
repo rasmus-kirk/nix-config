@@ -17,10 +17,6 @@ in {
     mpv.enable = true;
     mvi.enable = true;
     xdgMime.enable = true;
-    monero = {
-      enable = false;
-      walletDir = "${dataDir}/media/documents/wallets/monero";
-    };
     git = {
       enable = true;
       userEmail = "mail@rasmuskirk.com";
@@ -61,6 +57,7 @@ in {
       enable = true;
       stateDir = stateDir;
       launchers = {
+        gemini = "https://gemini.google.com/";
         t3 = "https://t3.chat/";
         claude-website = "https://claude.ai/";
         mattermost = "https://mattermost.cs.au.dk/";
