@@ -8,14 +8,15 @@
 with lib; let
   cfg = config.kirk.chromiumLaunchers;
   stateRoot = if cfg.stateDir == null 
-      then "${config.home.homeDirectory}/.local/state/chromium-launchers"
-      else "${toString cfg.stateDir}/chromium-launchers";
+    then "${config.home.homeDirectory}/.local/state/chromium-launchers"
+    else "${cfg.stateDir}/chromium-launchers";
   iconStorage = "${stateRoot}/icons";
   fetcherScript = pkgs.writeShellApplication {
     name = "fetch-webapp-icons";
     runtimeInputs = with pkgs; [ wget imagemagick coreutils ];
     inheritPath = false;
     text = ''
+      set +e
       mkdir -p "${iconStorage}"
       ${concatStringsSep "\n" (mapAttrsToList (name: url: 
         let 
@@ -23,9 +24,8 @@ with lib; let
           domain = lib.last (lib.splitString "://" url);
         in ''
           if [ ! -f "${iconStorage}/${name}.png" ]; then
-            echo "Fetching icon for ${name} into ${iconStorage}..."
-            wget -qO "${iconStorage}/${name}.tmp" "https://www.google.com/s2/favicons?domain=${domain}&sz=128"
-            convert "${iconStorage}/${name}.tmp" "${iconStorage}/${name}.png"
+            wget -qO "${iconStorage}/${name}.tmp" "https://www.google.com/s2/favicons?domain=${domain}&sz=128" &&
+            convert "${iconStorage}/${name}.tmp" "${iconStorage}/${name}.png" &&
             rm "${iconStorage}/${name}.tmp"
           fi
         '') cfg.launchers)}
@@ -67,7 +67,6 @@ in {
     };
   };
   config = mkIf cfg.enable {
-    # Only the launchers go into your profile
     home.packages = attrValues launchers;
 
     # Desktop entries for Pop!_OS launcher
@@ -81,7 +80,7 @@ in {
 
     # Run the fetcher impurely during activation
     home.activation.fetchWebappIcons = lib.hm.dag.entryAfter ["writeBoundary"] ''
-      ${fetcherScript}/bin/fetch-webapp-icons
+      $DRY_RUN_CMD ${lib.getExe fetcherScript} || echo "Warning: Failed to fetch some webapp icons."
     '';
   };
 }
