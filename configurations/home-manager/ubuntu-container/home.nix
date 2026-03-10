@@ -8,7 +8,7 @@
   secretDir = "${dataDir}/.secret";
   configDir = "${dataDir}/.system-configuration";
   stateDir = "${dataDir}/.state";
-  username = "user";
+  username = "ubuntu";
   machine = "ubuntu-container";
 in {
   kirk = {
