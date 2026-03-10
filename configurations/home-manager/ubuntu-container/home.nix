@@ -60,13 +60,13 @@ in {
 
   programs.bash = {
     enable = true;
-    # initExtra = ''
-    #   if [[ "$PWD" == "$HOME" ]]; then
-    #     cd /data
-    #   fi
+    initExtra = ''
+      # if [[ "$PWD" == "$HOME" ]]; then
+      #   cd /data
+      # fi
 
-    #   exec zsh
-    # '';
+      # exec zsh
+    '';
   };
 
   programs.zsh.profileExtra = ''

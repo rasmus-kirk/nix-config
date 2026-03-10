@@ -193,7 +193,7 @@
         extraSpecialArgs = {inherit inputs;};
 
         modules = [
-          ./configurations/home-manager/work/home.nix
+          ./configurations/home-manager/ubuntu-container/home.nix
           # nix-index-database.homeModules.nix-index
           self.homeManagerModules.default
         ];
