@@ -17,6 +17,7 @@ in {
     mpv.enable = true;
     mvi.enable = true;
     xdgMime.enable = true;
+    stateBackup.enable = true;
     git = {
       enable = true;
       signKey = "${secretDir}/ssh/id_ed25519_yubi.pub";
@@ -61,6 +62,7 @@ in {
       launchers = {
         gemini = "https://gemini.google.com/";
         youtube = "https://youtube.com/";
+        discord = "https://discord.com/";
       };
     };
   };

@@ -9,8 +9,8 @@ with lib; let
   nosDir = if cfg.stateDir != null then cfg.stateDir else "${cfg.configDir}/.nos-dir";
   nos = pkgs.writeShellApplication {
     name = "nos";
-    runtimeInputs = with pkgs; [ fzf git dateutils coreutils gnugrep sudo nix nixos-rebuild man ];
-    inheritPath = false;
+    runtimeInputs = with pkgs; [ fzf git dateutils coreutils gnugrep ];
+    inheritPath = true;
     text = ''
       command="''${1:-}"
 

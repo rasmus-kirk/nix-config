@@ -7,6 +7,7 @@
     ./gruvboxTheme
     ./helix
     ./homeManagerScripts
+    ./stateBackup
     ./jiten
     ./monero
     ./mpv
