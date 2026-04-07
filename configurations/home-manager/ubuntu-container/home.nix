@@ -1,6 +1,7 @@
 # My home manager config
 {
   pkgs,
+  lib,
   config,
   ...
 }: let
@@ -27,7 +28,7 @@ in {
       configDir = configDir;
       machine = machine;
     };
-    jiten.enable = true;
+    jiten.enable = false;
     scripts.enable = true;
     yazi = {
       enable = true;
@@ -48,6 +49,8 @@ in {
     };
   };
 
+  systemd.user.startServices = false;
+
   home.username = username;
   home.homeDirectory = "/home/${username}";
 
@@ -65,7 +68,7 @@ in {
       #   cd /data
       # fi
 
-      # exec zsh
+      exec ${lib.getExe pkgs.zsh}
     '';
   };
 
@@ -85,6 +88,7 @@ in {
   home.packages = with pkgs; [
     # Misc
     claude-code
+    curl
 
     # Misc Terminal Tools
     wl-clipboard

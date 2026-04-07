@@ -9,6 +9,7 @@
     ./homeManagerScripts
     ./jiten
     ./monero
+    ./ubuntuContainer
     ./mpv
     ./mvi
     ./rustle

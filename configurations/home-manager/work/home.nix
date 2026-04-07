@@ -31,6 +31,7 @@ in {
       machine = machine;
     };
     jiten.enable = true;
+    ubuntuContainer.enable = true;
     scripts.enable = true;
     yazi = {
       enable = true;
@@ -59,6 +60,8 @@ in {
       stateDir = stateDir;
       launchers = {
         gemini = "https://gemini.google.com/";
+        calendar = "https://calendar.google.com/";
+        github = "https://github.com/";
         claude-website = "https://claude.ai/";
         slack = "https://concordium.slack.com/";
       };
@@ -205,9 +208,9 @@ in {
               age --decrypt -j fido2-hmac -o "$TEMP_FILE" "$SECRET_FILE" || exit 1
               csvgrep -c name -m "$SEARCH_TERM" "$TEMP_FILE" |
                 csvcut -c pass |
-                tail -n 1 |
+                tail -n +2 |
                 tr -d '\n' |
-                wl-copy --paste-once
+                wl-copy #--paste-once
 
               echo "Password for '$SEARCH_TERM' copied."
       
@@ -229,9 +232,9 @@ in {
               age --decrypt -j fido2-hmac -o "$TEMP_FILE" "$SECRET_FILE" || exit 1
               csvgrep -c name -m "$SEARCH_TERM" "$TEMP_FILE" |
                 csvcut -c user |
-                tail -n 1 |
+                tail -n +2 |
                 tr -d '\n' |
-                wl-copy --paste-once
+                wl-copy #--paste-once
 
               echo "Username/Email for '$SEARCH_TERM' copied."
       
