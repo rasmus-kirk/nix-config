@@ -85,6 +85,26 @@
         "type": "github"
       }
     },
+    "hosts": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1775050614,
+        "narHash": "sha256-Ld/HY1KeTTH00EU7176X7nlbR9IFMpefthpIVi37hlg=",
+        "owner": "StevenBlack",
+        "repo": "hosts",
+        "rev": "c003c4577c8e46221328eaf4374b6e5083632a77",
+        "type": "github"
+      },
+      "original": {
+        "owner": "StevenBlack",
+        "repo": "hosts",
+        "type": "github"
+      }
+    },
     "jovian": {
       "inputs": {
         "nix-github-actions": "nix-github-actions",
@@ -194,7 +214,9 @@
           "nixpkgs"
         ],
         "treefmt-nix": "treefmt-nix",
-        "vpnconfinement": "vpnconfinement",
+        "vpnconfinement": [
+          "nixpkgs"
+        ],
         "website-builder": "website-builder"
       },
       "locked": {
@@ -263,6 +285,7 @@
       "inputs": {
         "agenix": "agenix",
         "home-manager": "home-manager",
+        "hosts": "hosts",
         "jovian": "jovian",
         "keyboard-layout": "keyboard-layout",
         "nix-index-database": "nix-index-database",
@@ -271,6 +294,7 @@
         "nixpkgs-2405": "nixpkgs-2405",
         "rustle": "rustle",
         "submerger": "submerger",
+        "vpnconfinement": "vpnconfinement",
         "website-builder": "website-builder_2"
       }
     },
@@ -367,11 +391,11 @@
     },
     "vpnconfinement": {
       "locked": {
-        "lastModified": 1765634578,
-        "narHash": "sha256-Fujb9sn1cj+u/bzfo2RbQkcAvJ7Ch1pimJzFie4ptb4=",
+        "lastModified": 1767604552,
+        "narHash": "sha256-FddhMxnc99KYOZ/S3YNqtDSoxisIhVtJ7L4s8XD2u0A=",
         "owner": "Maroka-chan",
         "repo": "VPN-Confinement",
-        "rev": "f2989e1e3cb06c7185939e9ddc368f88b998616a",
+        "rev": "a6b2da727853886876fd1081d6bb2880752937f3",
         "type": "github"
       },
       "original": {

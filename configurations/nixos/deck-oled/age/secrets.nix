@@ -3,4 +3,5 @@ let
 in {
   # "user.age".publicKeys = [key];
   "hosts.age".publicKeys = [key];
+  "wg.conf.age".publicKeys = [key];
 }

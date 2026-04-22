@@ -7,6 +7,13 @@
 
     nixarr.url = "github:nix-media-server/nixarr/kirk/fix-ddns";
     nixarr.inputs.nixpkgs.follows = "nixpkgs";
+    nixarr.inputs.vpnconfinement.follows = "nixpkgs";
+
+    vpnconfinement.url = "github:Maroka-chan/VPN-Confinement";
+    vpnconfinement.inputs.nixpkgs.follows = "nixpkgs";
+
+    hosts.url = "github:StevenBlack/hosts";
+    hosts.inputs.nixpkgs.follows = "nixpkgs";
 
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
@@ -40,9 +47,10 @@
     agenix,
     nixarr,
     jovian,
-    # keyboard-layout,
     home-manager,
     website-builder,
+    vpnconfinement,
+    hosts,
     nix-index-database,
     ...
   }: let
@@ -150,7 +158,18 @@
           agenix.nixosModules.default
           self.nixosModules.default
           jovian.nixosModules.default
+          vpnconfinement.nixosModules.default
           home-manager.nixosModules.home-manager
+          hosts.nixosModule {
+            networking.stevenBlackHosts = {
+              enable = true;
+              enableIPv6 = true;
+              blockFakenews = true;
+              blockGambling = true;
+              blockPorn = true;
+              # blockSocial = true;
+            };
+          }
           {
             home-manager.users.user = {
               imports = [

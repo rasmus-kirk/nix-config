@@ -12,6 +12,46 @@ let
 in {
   imports = [ ./hardware-configuration.nix ];
 
+  age = {
+    identityPaths = ["${secretDir}/ssh/age_ed25519"];
+    secrets = {
+      # user.file = ./age/user.age;
+      hosts.file = ./age/hosts.age;
+      "wg.conf".file = ./age/wg.conf.age;
+    };
+  };
+
+  vpnNamespaces.wg = {
+    enable = true;
+    wireguardConfigFile = config.age.secrets."wg.conf".path;
+    accessibleFrom = [
+      "192.168.1.0/24"
+      # "192.168.0.0/24"
+      "127.0.0.1"
+    ];
+    portMappings = [ { from = 9091; to = 9091; } ];
+    openVPNPorts = [ { port = 24745; protocol = "both"; } ];
+  };
+
+  # Add systemd service to VPN network namespace
+  systemd.services.transmission.vpnConfinement = {
+    enable = true;
+    vpnNamespace = "wg";
+  };
+
+  services.transmission = {
+    enable = true;
+    package = inputs.nixpkgs-2405.legacyPackages.${pkgs.system}.transmission_4;
+    openPeerPorts = true;
+    user = "user";
+    settings = {
+      peer-port = 24745;
+      download-dir = "/data/downloads/torrents";
+      rpc-bind-address = "192.168.15.1";
+      rpc-whitelist-enabled = false;
+    };
+  };
+
   kirk.nixosScripts = {
     enable = true;
     configDir = configDir;
@@ -19,15 +59,14 @@ in {
     machine = "deck-oled";
   };
 
-  age = {
-    identityPaths = ["${secretDir}/ssh/age_ed25519"];
-    secrets = {
-      # user.file = ./age/user.age;
-      hosts.file = ./age/hosts.age;
-    };
+  services.udev = {
+    packages = [ pkgs.ledger-udev-rules ];
+    # ACTION=="remove", SUBSYSTEM=="usb", ENV{PRODUCT}=="1050/*", RUN+="${pkgs.systemd}/bin/loginctl lock-sessions"
+    extraRules = ''
+      ACTION=="remove", SUBSYSTEM=="usb", ENV{PRODUCT}=="1050/*", RUN+="${pkgs.systemd}/bin/systemctl sleep"
+      ACTION=="add", SUBSYSTEM=="usb", ENV{PRODUCT}=="1050/*", ATTR{power/wakeup}="enabled"
+    '';
   };
-
-  services.udev.packages = [ pkgs.ledger-udev-rules ];
 
   # Enable networking
   networking.hostName = "deck-oled"; # Define your hostname.
@@ -173,6 +212,7 @@ in {
     login.u2fAuth = true;
     sudo.u2fAuth = true;
     cosmic-greeter.u2fAuth = true;
+    cosmic-greeter.unixAuth = false;
   };
 
   # Enable sound with pipewire.

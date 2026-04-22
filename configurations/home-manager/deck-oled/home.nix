@@ -62,7 +62,8 @@ in {
       launchers = {
         gemini = "https://gemini.google.com/";
         youtube = "https://youtube.com/";
-        discord = "https://discord.com/";
+        discord = "https://discord.com/channels/@me";
+        proton = "https://mail.proton.me/";
       };
     };
   };
@@ -105,6 +106,7 @@ in {
   ];
 
   services.syncthing.enable = true;
+  services.protonmail-bridge.enable = true;
 
   programs.bash = {
     enable = true;
