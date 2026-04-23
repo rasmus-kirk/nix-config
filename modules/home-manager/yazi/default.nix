@@ -77,6 +77,7 @@ in {
       fzf
       imagemagick
       libsixel
+      dragon-drop
     ];
 
     programs.yazi = {
