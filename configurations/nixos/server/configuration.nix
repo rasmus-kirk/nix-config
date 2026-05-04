@@ -2,6 +2,7 @@
   inputs,
   config,
   pkgs,
+  lib,
   ...
 }: let
   username = "user";
@@ -21,11 +22,10 @@ in {
     secrets = {
       "airvpn-wg.conf".file = ./age/airvpn-wg.conf.age;
       mam.file = ./age/mam.age;
-      monero.file = ./age/monero.age;
       mam-vpn.file = ./age/mam-vpn.age;
       user.file = ./age/user.age;
       domain.file = ./age/domain.age;
-      njalla.file = ./age/njalla.age;
+      nineteenEightyFour.file = ./age/1984.age;
     };
   };
 
@@ -36,18 +36,6 @@ in {
       enable = true;
       configDir = configDir;
       machine = machine;
-    };
-    youtubeDownloader = {
-      enable = false;
-      group = "media";
-      outputDir = "/data/media/library/youtube";
-      channels = [
-        "https://www.youtube.com/@PBoyle"
-        "https://www.youtube.com/@HistoriaCivilis"
-        "https://www.youtube.com/@emperorlemon"
-        "https://www.youtube.com/@Qxir"
-        "https://www.youtube.com/@veritasium"
-      ];
     };
   };
 
@@ -63,31 +51,31 @@ in {
       vpnTestService.enable = false;
     };
 
-    ddns.njalla = {
+    ddns.nineteenEightyFour = {
       enable = true;
-      keysFile = config.age.secrets.njalla.path;
+      keysFile = config.age.secrets.nineteenEightyFour.path;
     };
 
     jellyfin = {
       enable = true;
-      expose.https = {
-        enable = true;
-        domainName = "glowiefin.${builtins.readFile config.age.secrets.domain.path}";
-        acmeMail = "slimness_bullish683@simplelogin.com";
-      };
+      openFirewall = true;
+      expose.https.enable = true;
+      expose.https.acmeMail = "slimness_bullish683@simplelogin.com";
+      expose.https.domainName = "jellyfin." + (lib.removeSuffix "\n" (builtins.readFile config.age.secrets.domain.path));
     };
 
     audiobookshelf = {
       enable = true;
-      expose.https = {
-        enable = true;
-        domainName = "audiobookshelf.${builtins.readFile config.age.secrets.domain.path}";
-        acmeMail = "slimness_bullish683@simplelogin.com";
-      };
+      host = "0.0.0.0";
+      openFirewall = true;
+      expose.https.enable = true;
+      expose.https.acmeMail = "slimness_bullish683@simplelogin.com";
+      expose.https.domainName = "audiobookshelf." + (lib.removeSuffix "\n" (builtins.readFile config.age.secrets.domain.path));
     };
 
     transmission = {
       enable = true;
+      openFirewall = true;
       privateTrackers.cross-seed.enable = false;
       extraSettings = {
         incomplete-dir-enabled = false;
@@ -100,30 +88,36 @@ in {
     };
 
     sonarr.enable = true;
+    sonarr.openFirewall = true;
     bazarr.enable = true;
+    bazarr.openFirewall = true;
     radarr.enable = true;
+    radarr.openFirewall = true;
+    shelfmark.enable = true;
+    shelfmark.openFirewall = true;
+    shelfmark.host = "0.0.0.0";
     lidarr.enable = true;
+    lidarr.openFirewall = true;
     prowlarr.enable = true;
-    # readarr.enable = true;
-    # readarr-audiobook.enable = true;
+    prowlarr.openFirewall = true;
   };
 
   # MAM
   systemd = {
-    timers.mam = {
-      timerConfig = {
-        OnBootSec = "120"; # Run 30 seconds after system boot
-        OnCalendar = "hourly";
-        Persistent = true; # Run service immediately if last window was missed
-        RandomizedDelaySec = "15min"; # Run service OnCalendar +- 5min
-      };
-      wantedBy = ["multi-user.target"];
-    };
-    services.mam.serviceConfig = {
-      Environment = "PATH=${pkgs.curl}/bin:$PATH";
-      ExecStart = "${pkgs.lib.getExe pkgs.bash} ${config.age.secrets.mam.path}";
-      Type = "oneshot";
-    };
+    # timers.mam = {
+    #   timerConfig = {
+    #     OnBootSec = "120"; # Run 30 seconds after system boot
+    #     OnCalendar = "hourly";
+    #     Persistent = true; # Run service immediately if last window was missed
+    #     RandomizedDelaySec = "15min"; # Run service OnCalendar +- 5min
+    #   };
+    #   wantedBy = ["multi-user.target"];
+    # };
+    # services.mam.serviceConfig = {
+    #   Environment = "PATH=${pkgs.curl}/bin:$PATH";
+    #   ExecStart = "${pkgs.lib.getExe pkgs.bash} ${config.age.secrets.mam.path}";
+    #   Type = "oneshot";
+    # };
 
     timers.mam-vpn = {
       timerConfig = {
@@ -145,68 +139,6 @@ in {
         vpnNamespace = "wg";
       };
     };
-  };
-
-  services.minecraft-server = {
-    enable = true;
-    declarative = true;
-    eula = true;
-    openFirewall = true;
-    dataDir = "${stateDir}/minecraft";
-    whitelist = {
-      Augustenborg = "97389804-1e10-48f6-8a72-fdd854a37feb";
-      migmedstort = "6993065e-1c24-475a-9388-6578d9002e4e";
-      Jakob290a = "b9150a18-d471-4952-b3d3-c824cfdfdd26";
-      mtface = "ae39f9e6-dd5a-4f70-baff-f8ff725886c5";
-    };
-    serverProperties = {
-      motd = "Kirk's NixOS minecraft server";
-      server-port = 25565;
-      difficulty = "normal";
-      max-players = 20;
-      white-list = true;
-    };
-  };
-
-  services.home-assistant = {
-    enable = true;
-    configDir = "${stateDir}/home-assistant";
-    extraComponents = [
-      # Components required to complete the onboarding
-      "analytics"
-      "google_translate"
-      "met"
-      "radio_browser"
-      "shopping_list"
-      "zha"
-      "usb"
-      # "default_config"
-      # Recommended for fast zlib compression
-      # https://www.home-assistant.io/integrations/isal
-      "isal"
-    ];
-    # config = null;
-    # lovelaceConfig = null;
-    configWritable = true;
-    config = {
-      # Includes dependencies for a basic setup
-      # https://www.home-assistant.io/integrations/default_config/
-      default_config = {
-      };
-      automation = "!include automations.yaml";
-    };
-  };
-
-  services.monero = {
-    enable = true;
-    environmentFile = config.age.secrets.monero.path;
-    rpc.password = "$RPC_PASSWORD";
-    rpc.port = 18081;
-  };
-  services.nginx.virtualHosts."monero.${builtins.readFile config.age.secrets.domain.path}".locations."/" = {
-    recommendedProxySettings = true;
-    proxyWebsockets = true;
-    proxyPass = "http://127.0.0.1:18081";
   };
 
   # -------------------- Power Saving -------------------- #
@@ -262,9 +194,59 @@ in {
       enable = true;
       configDir = "${stateDir}/syncthing";
       dataDir = "${dataDir}/sync";
-      guiAddress = "127.0.0.1:7000";
+      guiAddress = "0.0.0.0:8384";
       overrideDevices = false;
       overrideFolders = false;
+    };
+    tuptime.enable = true;
+    btrfs.autoScrub = {
+      enable = true;
+      fileSystems = [ "/data" ];
+    };
+    fstrim = {
+      enable = true;
+      interval = "weekly";
+    };
+    monero.enable = true;
+    minecraft-server = {
+      enable = true;
+      openFirewall = true;
+      declarative = true;
+      eula = true;
+      dataDir = "${stateDir}/minecraft";
+      whitelist = {
+        Augustenborg = "97389804-1e10-48f6-8a72-fdd854a37feb";
+        migmedstort = "6993065e-1c24-475a-9388-6578d9002e4e";
+        Jakob290a = "b9150a18-d471-4952-b3d3-c824cfdfdd26";
+        mtface = "ae39f9e6-dd5a-4f70-baff-f8ff725886c5";
+      };
+      serverProperties = {
+        motd = "Kirk's NixOS minecraft server";
+        server-port = 25565;
+        difficulty = "normal";
+        max-players = 20;
+        white-list = true;
+      };
+    };
+    home-assistant = {
+      enable = true;
+      openFirewall = true;
+      configDir = "${stateDir}/home-assistant";
+      extraComponents = [
+        "analytics"
+        "google_translate"
+        "met"
+        "radio_browser"
+        "shopping_list"
+        "zha"
+        "usb"
+        "isal"
+      ];
+      configWritable = true;
+      config = {
+        default_config = {};
+        automation = "!include automations.yaml";
+      };
     };
     openssh = {
       enable = true;
@@ -274,9 +256,9 @@ in {
     };
   };
 
+  networking.firewall.allowedTCPPorts = [ 8384 ];
+
   users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
-    # ../../../pubkeys/work.pub
-    ../../../pubkeys/naja-deck.pub
     ../../../pubkeys/deck-oled.pub
   ];
 
@@ -319,16 +301,6 @@ in {
     };
   };
 
-  # Enable sound with pipewire.
-  # services.pulseaudio.enable = false;
-  # security.rtkit.enable = true;
-  # services.pipewire = {
-  #   enable = true;
-  #   alsa.enable = true;
-  #   alsa.support32Bit = true;
-  #   pulse.enable = true;
-  # };
-
   boot.loader.systemd-boot.enable = true;
 
   # -------------------- Machine Specific -------------------- #
@@ -342,11 +314,9 @@ in {
   };
 
   hardware.graphics.enable = true; # Needed for sway to boot
-
   networking = {
     hostName = machine;
     networkmanager.enable = true;
-    # nameservers = [ "1.1.1.1" "1.1.1.2" ];
   };
 
   programs.zsh.enable = true;
@@ -386,7 +356,9 @@ in {
     options = [ 
       "defaults" 
       "noatime"
+      "nodiratime"
       "compress=zstd"
+      "discard=async"
     ];
   };
 
@@ -406,7 +378,6 @@ in {
       '';
     })
 
-
     # Compression
     zip
     unar
@@ -416,6 +387,7 @@ in {
     # Terminal programs
     iotop
     tuptime # Uptime doesn't work lol
+    yt-dlp
     git
     smartmontools
     fzf

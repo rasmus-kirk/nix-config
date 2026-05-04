@@ -4,8 +4,7 @@ in {
   "airvpn-wg.conf.age".publicKeys = [key];
   "domain.age".publicKeys = [key];
   "mam.age".publicKeys = [key];
-  "monero.age".publicKeys = [key];
   "mam-vpn.age".publicKeys = [key];
-  "njalla.age".publicKeys = [key];
+  "1984.age".publicKeys = [key];
   "user.age".publicKeys = [key];
 }

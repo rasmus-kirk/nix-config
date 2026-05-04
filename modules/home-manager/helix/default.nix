@@ -15,15 +15,15 @@ with lib; let
   cfg = config.kirk.helix;
   mostLsps = with pkgs; [
     # JSON, HTML, CSS, SCSS
-    nodePackages_latest.vscode-langservers-extracted
+    vscode-langservers-extracted
     # Bash
-    nodePackages_latest.bash-language-server
+    bash-language-server
     # C-sharp
     omnisharp-roslyn
     # Docker files
     dockerfile-language-server
     # Typescript
-    nodePackages_latest.typescript-language-server
+    typescript-language-server
     # Nix
     nil
     # Scala

@@ -17,13 +17,14 @@ in {
     };
     git = {
       enable = true;
+      signKey = "${secretDir}/ssh/id_ed25519_yubi.pub";
       userEmail = "mail@rasmuskirk.com";
       userName = "rasmus-kirk";
     };
     helix = {
       enable = true;
       installMostLsps = false;
-      extraPackages = with pkgs; [nil marksman nodePackages_latest.bash-language-server];
+      extraPackages = with pkgs; [nil marksman bash-language-server];
     };
     homeManagerScripts = {
       enable = true;
