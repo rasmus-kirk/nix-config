@@ -150,6 +150,7 @@
 
         specialArgs = {inherit inputs;};
       };
+
       deck-oled = nixpkgs.lib.nixosSystem rec {
         system = "x86_64-linux";
 
@@ -167,7 +168,7 @@
               blockFakenews = true;
               blockGambling = true;
               blockPorn = true;
-              # blockSocial = true;
+              blockSocial = true;
             };
           }
           {
@@ -185,24 +186,45 @@
 
         specialArgs = {inherit inputs;};
       };
+
+      work = nixpkgs.lib.nixosSystem rec {
+        system = "x86_64-linux";
+
+        modules = [
+          ./configurations/nixos/work/configuration.nix
+          agenix.nixosModules.default
+          self.nixosModules.default
+          # nix-index-database.nixosModules.default
+          home-manager.nixosModules.home-manager
+          {
+            home-manager.users.user = {
+              imports = [
+                ./configurations/home-manager/work/home.nix
+                self.homeManagerModules.default
+                nix-index-database.homeModules.nix-index
+              ];
+              config.home.packages = [home-manager.packages."${system}".default];
+            };
+            home-manager.useGlobalPkgs = true;
+            home-manager.useUserPackages = true;
+          }
+          hosts.nixosModule {
+            networking.stevenBlackHosts = {
+              enable = true;
+              enableIPv6 = true;
+              blockFakenews = true;
+              blockGambling = true;
+              blockPorn = true;
+              blockSocial = true;
+            };
+          }
+        ];
+
+        specialArgs = {inherit inputs;};
+      };
     };
 
     homeConfigurations = {
-      work = home-manager.lib.homeManagerConfiguration {
-        pkgs = import nixpkgs {
-          system = "x86_64-linux";
-          config.allowUnfree = true;
-        };
-
-        extraSpecialArgs = {inherit inputs;};
-
-        modules = [
-          ./configurations/home-manager/work/home.nix
-          nix-index-database.homeModules.nix-index
-          self.homeManagerModules.default
-        ];
-      };
-
       ubuntu-container = home-manager.lib.homeManagerConfiguration {
         pkgs = import nixpkgs {
           system = "x86_64-linux";

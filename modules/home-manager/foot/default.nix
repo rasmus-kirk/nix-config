@@ -42,7 +42,7 @@ in {
           term = "xterm-256color";
           font = "monospace:pixelsize=" + toString (cfg.fontSize);
         };
-        colors = mkMerge [
+        colors-dark = mkMerge [
           {
             alpha = cfg.alpha;
           }

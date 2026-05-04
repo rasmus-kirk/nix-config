@@ -31,18 +31,15 @@ with lib; let
         '') cfg.launchers)}
     '';
   };
-  mkLauncher = name: url: pkgs.writeShellApplication {
+  mkLauncher = name: pkgs.writeShellApplication {
     name = name;
-    runtimeInputs = with pkgs; [ chromium coreutils ];
+    runtimeInputs = with pkgs; [ gtk3 ];
     inheritPath = false;
     text = ''
-      STATE_DIR="${stateRoot}/${name}"
-
-      mkdir -p "$STATE_DIR"
-      exec chromium --user-data-dir="$STATE_DIR" --class="${name}" --no-first-run --app="${url}"
+      gtk-launch ${name}
     '';
   };
-  launchers = mapAttrs (name: url: mkLauncher name url) cfg.launchers;
+  launchers = mapAttrs (name: _: mkLauncher name) cfg.launchers;
 in {
   options.kirk.chromiumLaunchers = {
     enable = mkEnableOption "Chromium web application launchers";
@@ -72,7 +69,7 @@ in {
     # Desktop entries for Pop!_OS launcher
     xdg.desktopEntries = mapAttrs (name: url: {
       name = name;
-      exec = name;
+      exec = "${pkgs.chromium}/bin/chromium --ozone-platform=x11 --user-data-dir=${stateRoot}/${name} --class=${name} --name=${name} --no-first-run --app=${url}";
       icon = "${iconStorage}/${name}.png";
       settings = { StartupWMClass = name; };
       categories = [ "Network" "WebBrowser" ];
@@ -80,6 +77,9 @@ in {
 
     # Run the fetcher impurely during activation
     home.activation.fetchWebappIcons = lib.hm.dag.entryAfter ["writeBoundary"] ''
+      ${concatStringsSep "\n" (mapAttrsToList (name: _: ''
+        $DRY_RUN_CMD mkdir -p "${stateRoot}/${name}"
+      '') cfg.launchers)}
       $DRY_RUN_CMD ${lib.getExe fetcherScript} || echo "Warning: Failed to fetch some webapp icons."
     '';
   };
