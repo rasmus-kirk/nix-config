@@ -10,7 +10,8 @@ with lib; let
   word-of-the-day = pkgs.writeShellApplication {
     name = "word-of-the-day";
 
-    runtimeInputs = with pkgs; [jiten];
+    runtimeInputs = with pkgs; [jiten coreutils];
+    inheritPath = false;
 
     text = ''
       path=${config.xdg.stateHome}/word-of-the-day
@@ -41,12 +42,6 @@ in {
         cat ${config.xdg.stateHome}/word-of-the-day/japanese.txt
       fi
     '';
-    # programs.bash.initExtra = mkIf cfg.dailyWord ''
-    #   if [[ -z "$BASH_WORD_DISPLAYED" ]]; then
-    #     export BASH_WORD_DISPLAYED=true
-    #     cat ${config.xdg.stateHome}/word-of-the-day/japanese.txt
-    #   fi
-    # '';
 
     systemd.user = mkIf cfg.dailyWord {
       timers = {

@@ -17,6 +17,8 @@ with lib; let
 
   monero = pkgs.writeShellApplication {
     name = "monero";
+    runtimeInputs = with pkgs; [monero-cli coreutils];
+    inheritPath = false;
     text = ''
       wallet_dir="${cfg.walletDir}"
       mkdir -p "$wallet_dir"

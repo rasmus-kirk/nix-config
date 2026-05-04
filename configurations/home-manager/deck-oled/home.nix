@@ -17,6 +17,7 @@ in {
     mpv.enable = true;
     mvi.enable = true;
     xdgMime.enable = true;
+    stateBackup.enable = true;
     git = {
       enable = true;
       signKey = "${secretDir}/ssh/id_ed25519_yubi.pub";
@@ -59,7 +60,10 @@ in {
       enable = true;
       stateDir = stateDir;
       launchers = {
-        t3 = "https://t3.chat/";
+        gemini = "https://gemini.google.com/";
+        youtube = "https://youtube.com/";
+        discord = "https://discord.com/channels/@me";
+        proton = "https://mail.proton.me/";
       };
     };
   };
@@ -68,9 +72,6 @@ in {
   home.homeDirectory = "/home/${username}";
 
   home.stateVersion = "22.11";
-
-  # Let Home Manager install and manage itself.
-  # programs.home-manager.enable = true;
 
   systemd.user.tmpfiles.rules = [
     "d  ${stateDir}/thunderbird     0755 user users - -"
@@ -82,20 +83,30 @@ in {
     "d  ${stateDir}/firefox/config  0755 user users - -"
     "d  ${stateDir}/firefox/home    0755 user users - -"
     "d  ${stateDir}/chromium        0755 user users - -"
+    "d  ${stateDir}/yubico          0755 user users - -"
     "d  ${stateDir}/syncthing       0755 user users - -"
     "d  ${stateDir}/syncthing/state 0755 user users - -"
     "d  ${stateDir}/syncthing/sync  0755 user users - -"
+    "d  ${stateDir}/claude          0755 user users - -"
+    "d  ${stateDir}/claude/state    0755 user users - -"
 
     "L+ ${config.home.homeDirectory}/.thunderbird               - - - - ${stateDir}/thunderbird"
     "L+ ${config.home.homeDirectory}/.mozilla                   - - - - ${stateDir}/firefox/home"
     "L+ ${config.home.homeDirectory}/.config/mozilla            - - - - ${stateDir}/firefox/config"
     "L+ ${config.home.homeDirectory}/.config/chromium           - - - - ${stateDir}/chromium"
     "L+ ${config.home.homeDirectory}/.local/state/syncthing     - - - - ${stateDir}/syncthing/state"
+    "L+ ${config.home.homeDirectory}/.config/Yubico             - - - - ${stateDir}/yubico"
 
     "L+ ${config.home.homeDirectory}/.config/cosmic             - - - - ${stateDir}/cosmic/config"
     "L+ ${config.home.homeDirectory}/.local/state/cosmic        - - - - ${stateDir}/cosmic/local"
     "L+ ${config.home.homeDirectory}/.local/state/cosmic-comp   - - - - ${stateDir}/cosmic/comp"
+
+    "L+ ${config.home.homeDirectory}/.claude                    - - - - ${stateDir}/claude/state"
+    "L+ ${config.home.homeDirectory}/.claude.json               - - - - ${stateDir}/claude/claude.json"
   ];
+
+  services.syncthing.enable = true;
+  services.protonmail-bridge.enable = true;
 
   programs.bash = {
     enable = true;
@@ -120,22 +131,5 @@ in {
     silent = true;
   };
 
-  home.packages = with pkgs; [
-    # Misc
-    keepassxc
-    thunderbird
-    feishin
-    yubioath-flutter
-
-    # Browsers
-    librewolf
-    chromium
-
-    # Chat
-    signal-desktop-bin
-
-    # Misc Terminal Tools
-    wl-clipboard
-    yt-dlp
-  ];
+  home.packages = with pkgs; [ ];
 }

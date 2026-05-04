@@ -39,6 +39,8 @@ with lib; let
   toolsDescriptionFile = pkgs.writeText "terminal-tools-help" toolsDescription;
   toolsDescriptionPkg = pkgs.writeShellApplication {
     name = "terminal-tools";
+    runtimeInputs = with pkgs; [coreutils];
+    inheritPath = false;
     text = "cat ${toolsDescriptionFile}";
   };
 in {

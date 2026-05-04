@@ -9,6 +9,7 @@ let
   downloadChannelScript = pkgs.writeShellApplication {
     name = "download-channel-script";
     runtimeInputs = with pkgs; [ yt-dlp ];
+    inheritPath = false;
     text = ''
       # TheFrenchGhosty's Ultimate YouTube-DL Scripts Collection
       # Cleaned and customized to download full channels at 1080p, preferring AV1 > VP9 > AVC1

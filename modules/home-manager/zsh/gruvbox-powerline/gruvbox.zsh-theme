@@ -95,7 +95,7 @@ prompt_context() {
     darwin*)  OS_LOGO="\ue29e" ;; 
     linux*)   OS_LOGO="" ;;
   esac
-  prompt_segment 237 4 $OS_LOGO
+  prompt_segment 237 4 "$OS_LOGO  %F{7}%m%f"
 }
 
 # Git: branch/detached head, dirty status

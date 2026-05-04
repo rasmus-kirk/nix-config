@@ -5,6 +5,7 @@
 { config, pkgs, lib, inputs, ... }:
 
 let
+  machine = "work";
   dataDir = "/data";
   configDir = "${dataDir}/.system-configuration";
   stateDir = "${dataDir}/.state";
@@ -12,64 +13,32 @@ let
 in {
   imports = [ ./hardware-configuration.nix ];
 
-  age = {
-    identityPaths = ["${secretDir}/ssh/age_ed25519"];
-    secrets = {
-      # user.file = ./age/user.age;
-      hosts.file = ./age/hosts.age;
-      "wg.conf".file = ./age/wg.conf.age;
-    };
-  };
-
-  vpnNamespaces.wg = {
-    enable = true;
-    wireguardConfigFile = config.age.secrets."wg.conf".path;
-    accessibleFrom = [
-      "192.168.1.0/24"
-      # "192.168.0.0/24"
-      "127.0.0.1"
-    ];
-    portMappings = [ { from = 9091; to = 9091; } ];
-    openVPNPorts = [ { port = 24745; protocol = "both"; } ];
-  };
-
-  # Add systemd service to VPN network namespace
-  systemd.services.transmission.vpnConfinement = {
-    enable = true;
-    vpnNamespace = "wg";
-  };
-
-  services.transmission = {
-    enable = true;
-    package = inputs.nixpkgs-2405.legacyPackages.${pkgs.system}.transmission_4;
-    openPeerPorts = true;
-    user = "user";
-    settings = {
-      peer-port = 24745;
-      download-dir = "/data/downloads/torrents";
-      rpc-bind-address = "192.168.15.1";
-      rpc-whitelist-enabled = false;
-    };
-  };
-
   kirk.nixosScripts = {
     enable = true;
     configDir = configDir;
     stateDir = stateDir;
-    machine = "deck-oled";
+    machine = machine;
   };
 
-  services.udev = {
-    packages = [ pkgs.ledger-udev-rules ];
-    # ACTION=="remove", SUBSYSTEM=="usb", ENV{PRODUCT}=="1050/*", RUN+="${pkgs.systemd}/bin/loginctl lock-sessions"
-    extraRules = ''
-      ACTION=="remove", SUBSYSTEM=="usb", ENV{PRODUCT}=="1050/*", RUN+="${pkgs.systemd}/bin/systemctl sleep"
-      ACTION=="add", SUBSYSTEM=="usb", ENV{PRODUCT}=="1050/*", ATTR{power/wakeup}="enabled"
-    '';
+  age = {
+    identityPaths = ["${secretDir}/ssh/age_ed25519"];
+    secrets = {
+      hosts.file = ./age/hosts.age;
+    };
   };
+
+  services.udev.extraRules = ''
+    ACTION=="remove", SUBSYSTEM=="usb", ENV{PRODUCT}=="1050/*", RUN+="${pkgs.writeShellScript "check-dock-sleep" ''
+      if ${pkgs.usbutils}/bin/lsusb -d 17ef:6047 > /dev/null; then
+        ${pkgs.systemd}/bin/systemctl suspend
+      fi
+    ''}"
+  '';
+
+  programs.steam.enable = true;
 
   # Enable networking
-  networking.hostName = "deck-oled"; # Define your hostname.
+  networking.hostName = machine;
   networking.networkmanager.enable = true;
   networking.extraHosts = builtins.readFile config.age.secrets.hosts.path;
 
@@ -114,20 +83,18 @@ in {
 
   # Enable the Cosmic Desktop Environment.
   services.desktopManager.cosmic.enable = true;
+  services.displayManager.cosmic-greeter.enable = true;
   services.gnome.gnome-keyring.enable = false;
   services.gnome.gcr-ssh-agent.enable = false;
-
-  jovian = {
-    devices.steamdeck.enable = true;
-    steamos.useSteamOSConfig = true;
-    steam = {
-      enable = true;
-      autoStart = true;
-      desktopSession = "cosmic";
-      user = "user";
-    };
-    hardware.has.amd.gpu = true;
+  services.displayManager.autoLogin = {
+    enable = true;
+    user = "user";
   };
+  services.logind.settings.Login.HandleLidSwitch = "ignore";
+
+  services.hardware.bolt.enable = true;
+  services.fwupd.enable = true;
+
   hardware.enableRedistributableFirmware = true;
 
   programs.ssh.startAgent = true;
@@ -208,12 +175,19 @@ in {
     ${pkgs.lib.getExe klfcPatcher} $out "rk"
   '');
 
+  services.fprintd.enable = true;
+
   security.pam.services = {
     login.u2fAuth = true;
+    login.fprintAuth = true;
     sudo.u2fAuth = true;
+    sudo.fprintAuth = true;
     cosmic-greeter.u2fAuth = true;
+    cosmic-greeter.fprintAuth = false;
     cosmic-greeter.unixAuth = false;
   };
+
+  security.pam.u2f.settings.cue = true;
 
   # Enable sound with pipewire.
   services.pulseaudio.enable = false;
@@ -223,6 +197,7 @@ in {
     alsa.enable = true;
     alsa.support32Bit = true;
     pulse.enable = true;
+    wireplumber.enable = true;
     # If you want to use JACK applications, uncomment this
     #jack.enable = true;
 
@@ -251,20 +226,6 @@ in {
   };
 
   environment.systemPackages = with pkgs; [
-    (writeShellApplication {
-      name = "monero";
-      runtimeInputs = [ monero-cli coreutils ];
-      inheritPath = false;
-      text = ''
-        wallet_dir="/data/media/documents/wallets/monero/ledger"
-        mkdir -p "$wallet_dir"
-        cd "$wallet_dir"
-        monero-wallet-cli \
-          --wallet-file ./wallet.keys \
-          --log-file ./wallet.log
-      '';
-    })
-
     # Misc
     keepassxc
     thunderbird
@@ -272,6 +233,13 @@ in {
     yubioath-flutter
     ledger-live-desktop
     claude-code
+    poppler-utils
+    usbutils
+    pciutils
+    sshfs
+    python3
+    gptfdisk
+    dig
 
     # Browsers
     chromium
@@ -285,6 +253,16 @@ in {
 
     inputs.agenix.packages."${system}".default
   ];
+
+  environment.etc."systemd/system-sleep/unlock-after-hibernate" = {
+    mode = "0755";
+    text = ''
+      #!/bin/sh
+      if [ "$1" = "post" ] && [ "$2" = "hibernate" ]; then
+        ${pkgs.systemd}/bin/loginctl unlock-sessions
+      fi
+    '';
+  };
 
   system.stateVersion = "25.11"; # Did you read the comment?
 }

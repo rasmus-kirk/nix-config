@@ -7,6 +7,39 @@
 }:
 with lib; let
   cfg = config.kirk.chromiumLaunchers;
+  stateRoot = if cfg.stateDir == null 
+    then "${config.home.homeDirectory}/.local/state/chromium-launchers"
+    else "${cfg.stateDir}/chromium-launchers";
+  iconStorage = "${stateRoot}/icons";
+  fetcherScript = pkgs.writeShellApplication {
+    name = "fetch-webapp-icons";
+    runtimeInputs = with pkgs; [ wget imagemagick coreutils ];
+    inheritPath = false;
+    text = ''
+      set +e
+      mkdir -p "${iconStorage}"
+      ${concatStringsSep "\n" (mapAttrsToList (name: url: 
+        let 
+          # Extract domain for the favicon service
+          domain = lib.last (lib.splitString "://" url);
+        in ''
+          if [ ! -f "${iconStorage}/${name}.png" ]; then
+            wget -qO "${iconStorage}/${name}.tmp" "https://www.google.com/s2/favicons?domain=${domain}&sz=128" &&
+            convert "${iconStorage}/${name}.tmp" "${iconStorage}/${name}.png" &&
+            rm "${iconStorage}/${name}.tmp"
+          fi
+        '') cfg.launchers)}
+    '';
+  };
+  mkLauncher = name: pkgs.writeShellApplication {
+    name = name;
+    runtimeInputs = with pkgs; [ gtk3 ];
+    inheritPath = false;
+    text = ''
+      gtk-launch ${name}
+    '';
+  };
+  launchers = mapAttrs (name: _: mkLauncher name) cfg.launchers;
 in {
   options.kirk.chromiumLaunchers = {
     enable = mkEnableOption "Chromium web application launchers";
@@ -30,30 +63,24 @@ in {
       };
     };
   };
+  config = mkIf cfg.enable {
+    home.packages = attrValues launchers;
 
-  config = let
-    mkLauncher = x:
-      pkgs.writeShellApplication {
-        name = x.name;
-        runtimeInputs = with pkgs; [chromium];
-        text = ''
-          NAME=$(echo "${x.url}" | sed -E 's|https?://||g' | sed -E 's|[/.]||g')
-          ${
-            if cfg.stateDir == null then ''
-              STATE_ROOT="''${XDG_DATA_HOME:-$HOME/.local/state}/chromium-launchers"
-            ''
-            else ''
-              STATE_ROOT=${cfg.stateDir}/chromium-launchers
-            ''
-          }
-          STATE_DIR="$STATE_ROOT/$NAME"
+    # Desktop entries for Pop!_OS launcher
+    xdg.desktopEntries = mapAttrs (name: url: {
+      name = name;
+      exec = "${pkgs.chromium}/bin/chromium --ozone-platform=x11 --user-data-dir=${stateRoot}/${name} --class=${name} --name=${name} --no-first-run --app=${url}";
+      icon = "${iconStorage}/${name}.png";
+      settings = { StartupWMClass = name; };
+      categories = [ "Network" "WebBrowser" ];
+    }) cfg.launchers;
 
-          mkdir -p "$STATE_DIR"
-          # nohup chromium --app="${x.url}" --user-data-dir="$STATE_DIR" > /dev/null &
-          chromium --app="${x.url}" --user-data-dir="$STATE_DIR"
-        '';
-      };
-  in mkIf cfg.enable {
-    home.packages = map mkLauncher (builtins.attrValues (builtins.mapAttrs (name: url: {inherit name url;}) cfg.launchers));
+    # Run the fetcher impurely during activation
+    home.activation.fetchWebappIcons = lib.hm.dag.entryAfter ["writeBoundary"] ''
+      ${concatStringsSep "\n" (mapAttrsToList (name: _: ''
+        $DRY_RUN_CMD mkdir -p "${stateRoot}/${name}"
+      '') cfg.launchers)}
+      $DRY_RUN_CMD ${lib.getExe fetcherScript} || echo "Warning: Failed to fetch some webapp icons."
+    '';
   };
 }

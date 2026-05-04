@@ -7,6 +7,13 @@
 
     nixarr.url = "github:nix-media-server/nixarr/kirk/1984";
     nixarr.inputs.nixpkgs.follows = "nixpkgs";
+    nixarr.inputs.vpnconfinement.follows = "nixpkgs";
+
+    vpnconfinement.url = "github:Maroka-chan/VPN-Confinement";
+    vpnconfinement.inputs.nixpkgs.follows = "nixpkgs";
+
+    hosts.url = "github:StevenBlack/hosts";
+    hosts.inputs.nixpkgs.follows = "nixpkgs";
 
     home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
@@ -40,9 +47,10 @@
     agenix,
     nixarr,
     jovian,
-    # keyboard-layout,
     home-manager,
     website-builder,
+    vpnconfinement,
+    hosts,
     nix-index-database,
     ...
   }: let
@@ -142,6 +150,7 @@
 
         specialArgs = {inherit inputs;};
       };
+
       deck-oled = nixpkgs.lib.nixosSystem rec {
         system = "x86_64-linux";
 
@@ -150,7 +159,18 @@
           agenix.nixosModules.default
           self.nixosModules.default
           jovian.nixosModules.default
+          vpnconfinement.nixosModules.default
           home-manager.nixosModules.home-manager
+          hosts.nixosModule {
+            networking.stevenBlackHosts = {
+              enable = true;
+              enableIPv6 = true;
+              blockFakenews = true;
+              blockGambling = true;
+              blockPorn = true;
+              blockSocial = true;
+            };
+          }
           {
             home-manager.users.user = {
               imports = [
@@ -166,10 +186,46 @@
 
         specialArgs = {inherit inputs;};
       };
+
+      work = nixpkgs.lib.nixosSystem rec {
+        system = "x86_64-linux";
+
+        modules = [
+          ./configurations/nixos/work/configuration.nix
+          agenix.nixosModules.default
+          self.nixosModules.default
+          # nix-index-database.nixosModules.default
+          home-manager.nixosModules.home-manager
+          {
+            home-manager.users.user = {
+              imports = [
+                ./configurations/home-manager/work/home.nix
+                self.homeManagerModules.default
+                nix-index-database.homeModules.nix-index
+              ];
+              config.home.packages = [home-manager.packages."${system}".default];
+            };
+            home-manager.useGlobalPkgs = true;
+            home-manager.useUserPackages = true;
+          }
+          hosts.nixosModule {
+            networking.stevenBlackHosts = {
+              enable = true;
+              enableIPv6 = true;
+              blockFakenews = true;
+              blockGambling = true;
+              blockPorn = true;
+              blockSocial = true;
+            };
+          }
+        ];
+
+        specialArgs = {inherit inputs;};
+      };
     };
 
     homeConfigurations = {
-      work = home-manager.lib.homeManagerConfiguration {
+      ubuntu-container = home-manager.lib.homeManagerConfiguration {
         pkgs = import nixpkgs {
           system = "x86_64-linux";
           config.allowUnfree = true;
@@ -178,8 +234,8 @@
         extraSpecialArgs = {inherit inputs;};
 
         modules = [
-          ./configurations/home-manager/work/home.nix
-          nix-index-database.homeModules.nix-index
+          ./configurations/home-manager/ubuntu-container/home.nix
+          # nix-index-database.homeModules.nix-index
           self.homeManagerModules.default
         ];
       };

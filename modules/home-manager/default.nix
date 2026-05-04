@@ -7,8 +7,10 @@
     ./gruvboxTheme
     ./helix
     ./homeManagerScripts
+    ./stateBackup
     ./jiten
     ./monero
+    ./ubuntuContainer
     ./mpv
     ./mvi
     ./rustle
