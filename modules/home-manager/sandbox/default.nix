@@ -26,13 +26,70 @@ with lib; let
     ConnectPort 563
   '';
 
+  # The box runs inside an unshared net ns; slirp4netns NATs out via tap0.
+  # Host's 127.0.0.1 is reachable as 10.0.2.2 (slirp4netns default gateway).
   proxyEnv = optionalString cfg.network.enable ''
-    export HTTP_PROXY=http://127.0.0.1:${toString cfg.network.proxyPort}
-    export HTTPS_PROXY=http://127.0.0.1:${toString cfg.network.proxyPort}
-    export http_proxy=http://127.0.0.1:${toString cfg.network.proxyPort}
-    export https_proxy=http://127.0.0.1:${toString cfg.network.proxyPort}
+    export HTTP_PROXY=http://10.0.2.2:${toString cfg.network.proxyPort}
+    export HTTPS_PROXY=http://10.0.2.2:${toString cfg.network.proxyPort}
+    export http_proxy=http://10.0.2.2:${toString cfg.network.proxyPort}
+    export https_proxy=http://10.0.2.2:${toString cfg.network.proxyPort}
     export NO_PROXY=127.0.0.1,localhost,::1
     export no_proxy=127.0.0.1,localhost,::1
+  '';
+
+  # When network.enable=true, bwrap's runScript points HERE instead of
+  # directly to initScript. We're running inside bwrap's user+net namespaces
+  # with CAP_NET_ADMIN/CAP_SYS_ADMIN (via --cap-add). Spawn slirp4netns to
+  # set up the tap device, then drop caps and exec the real init.
+  # nftables ruleset applied inside the box's netns. Drops all outbound
+  # except to the proxy address; drops all inbound except related/established
+  # (so proxy responses return). Effectively forces ALL outbound traffic —
+  # including raw sockets — through tinyproxy's domain allowlist.
+  nftRuleset = pkgs.writeText "box-nftables.rules" ''
+    table inet filter {
+      chain output {
+        type filter hook output priority 0; policy drop;
+        ct state established,related accept
+        oifname "lo" accept
+        ip daddr 10.0.2.2 tcp dport ${toString cfg.network.proxyPort} accept
+      }
+      chain input {
+        type filter hook input priority 0; policy drop;
+        ct state established,related accept
+        iifname "lo" accept
+      }
+    }
+  '';
+
+  # Runs INSIDE the new netns (via nsenter). Applies nftables filter, drops
+  # caps, then execs init. No marker waiting — slirp4netns is already up.
+  innerChild = pkgs.writeShellScript "box-net-inner" ''
+    ${pkgs.nftables}/bin/nft -f ${nftRuleset} || {
+      echo "WARNING: nftables filter failed; raw-socket bypass not blocked." >&2
+    }
+    exec ${pkgs.util-linux}/bin/setpriv --inh-caps=-all --ambient-caps=-all -- ${initScript} "$@"
+  '';
+
+  # 1. Spawn a backgrounded `sleep` in a new netns to act as a netns holder
+  #    (gives us a stable /proc/PID/ns/net for slirp4netns to attach to).
+  # 2. Start slirp4netns in OUR (parent's) netns, attached to the holder's netns.
+  # 3. exec into nsenter foreground — the user command (zsh) keeps the
+  #    terminal because we're not in a backgrounded process group.
+  slirpWrapper = pkgs.writeShellScript "box-slirp-wrapper" ''
+    ${pkgs.util-linux}/bin/unshare --net ${pkgs.coreutils}/bin/sleep infinity &
+    HOLDER_PID=$!
+
+    for _ in $(seq 1 20); do
+      [ -e "/proc/$HOLDER_PID/ns/net" ] && break
+      sleep 0.05
+    done
+
+    ${pkgs.slirp4netns}/bin/slirp4netns --configure --mtu=65520 "$HOLDER_PID" tap0 2>/dev/null &
+    SLIRP_PID=$!
+    sleep 0.3
+
+    # die-with-parent on bwrap reaps the holder + slirp4netns when zsh exits.
+    exec ${pkgs.util-linux}/bin/nsenter --net=/proc/$HOLDER_PID/ns/net -- ${innerChild} "$@"
   '';
 
   initScript = pkgs.writeShellScript "sandbox-init" ''
@@ -81,9 +138,19 @@ with lib; let
     name = "${cfg.name}-fhs";
     targetPkgs = cfg.targetPkgs;
     multiPkgs = pkgs: cfg.multiPkgs pkgs;
-    runScript = "${initScript}";
-    # Namespace unshares — buildFHSEnv passes these straight to bwrap flags.
-    inherit (cfg) unshareIpc unsharePid unshareUts unshareCgroup unshareNet privateTmp dieWithParent;
+    # When network filtering is on, runScript points at the slirpWrapper.
+    runScript =
+      if cfg.network.enable
+      then "${slirpWrapper}"
+      else "${initScript}";
+    # Namespace unshares passed straight to bwrap flags.
+    # network.enable: we let bwrap unshare USER (so --cap-add can grant caps),
+    # but we unshare NET ourselves inside the wrapper so the new netns is
+    # cleanly owned by our user-ns (avoiding the nested-userns issue that
+    # caused setns EPERM when bwrap did it).
+    inherit (cfg) unshareIpc unsharePid unshareUts unshareCgroup privateTmp dieWithParent;
+    unshareNet = cfg.unshareNet && !cfg.network.enable;
+    unshareUser = cfg.network.enable;
     # Compute the caller's cwd top-level dir so we can mask it (hiding cwd's
     # siblings) before re-binding just $PWD itself. Runs in the same shell
     # as extraBwrapArgs, which can reference these variables.
@@ -100,8 +167,14 @@ with lib; let
       ''}
     '';
     extraBwrapArgs =
+      # When network filtering is on, grant slirp4netns the caps it needs.
+      # setpriv drops these before running user code.
+      (optionals cfg.network.enable [
+        "--cap-add" "CAP_NET_ADMIN"
+        "--cap-add" "CAP_SYS_ADMIN"
+      ])
       # Hostname inside the UTS namespace (requires unshareUts).
-      (optionals (cfg.hostname != null && cfg.unshareUts) [ "--hostname" cfg.hostname ])
+      ++ (optionals (cfg.hostname != null && cfg.unshareUts) [ "--hostname" cfg.hostname ])
       # tmpfs masks must come FIRST so they hide buildFHSEnv's auto-binds;
       # then our explicit binds re-introduce only the subpaths we want.
       ++ tmpfsMasks
@@ -109,6 +182,10 @@ with lib; let
       ++ [ "--tmpfs" "$BOX_CWD_TOP" ]
       # Replace host /dev with a minimal devtmpfs; hidraw added back below.
       ++ minimalDev
+      # /dev/net/tun must be added AFTER --dev /dev (which would wipe it).
+      ++ (optionals cfg.network.enable [
+        "--dev-bind-try" "/dev/net/tun" "/dev/net/tun"
+      ])
       ++ [
         "--bind" "${cfg.stateDir}/home" "/home/user"
       ]
@@ -122,6 +199,11 @@ with lib; let
       # Writable so active development inside the box works.
       ++ [ "--bind-try" "$PWD" "$PWD" ];
   };
+
+  # Single entry-point — the FHS env wrapper. When network.enable=true the
+  # FHS env's runScript is slirpWrapper (which sets up slirp4netns inside
+  # bwrap's namespaces, drops caps, then execs initScript).
+  runBox = "${fhs}/bin/${cfg.name}-fhs";
 
   box = pkgs.writeShellApplication {
     name = cfg.name;
@@ -137,20 +219,19 @@ with lib; let
 
       if [ "''${1:-}" = "hm-switch" ]; then
         echo "Bootstrapping/refreshing home-manager inside box..."
-        exec ${fhs}/bin/${cfg.name}-fhs bash -lc 'home-manager switch --flake ${cfg.homeManagerFlake} -b backup --impure'
+        exec ${runBox} bash -lc 'home-manager switch --flake ${cfg.homeManagerFlake} -b backup --impure'
       fi
 
-      # Auto-bootstrap on first run: if the box's home has no nix-profile yet,
-      # run home-manager switch to populate dotfiles / packages.
+      # Auto-bootstrap on first run.
       if ${if cfg.homeManagerFlake != null then "true" else "false"} && [ ! -L "${cfg.stateDir}/home/.nix-profile" ]; then
         echo "First run — bootstrapping box home-manager (${cfg.homeManagerFlake})..."
-        ${fhs}/bin/${cfg.name}-fhs bash -lc 'home-manager switch --flake ${cfg.homeManagerFlake} -b backup --impure' || {
+        ${runBox} bash -lc 'home-manager switch --flake ${cfg.homeManagerFlake} -b backup --impure' || {
           echo "Bootstrap failed. Run '${cfg.name} hm-switch' manually."
           exit 1
         }
       fi
 
-      exec ${fhs}/bin/${cfg.name}-fhs "$@"
+      exec ${runBox} "$@"
     '';
   };
 in {
