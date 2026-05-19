@@ -15,6 +15,12 @@ in {
       description = "A colorscheme attribute set.";
     };
 
+    lightColorscheme = mkOption {
+      type = types.attrs;
+      default = config.kirk.gruvbox.lightColorscheme;
+      description = "A light colorscheme attribute set.";
+    };
+
     alpha = mkOption {
       type = types.float;
       default = 0.85;
@@ -42,6 +48,31 @@ in {
           term = "xterm-256color";
           font = "monospace:pixelsize=" + toString (cfg.fontSize);
         };
+        colors-light = mkMerge [
+          {
+            alpha = cfg.alpha;
+          }
+          (mkIf (cfg.lightColorscheme != {}) {
+            background = cfg.lightColorscheme.bg;
+            foreground = cfg.lightColorscheme.fg;
+            regular0 = cfg.lightColorscheme.black;
+            regular1 = cfg.lightColorscheme.red;
+            regular2 = cfg.lightColorscheme.green;
+            regular3 = cfg.lightColorscheme.yellow;
+            regular4 = cfg.lightColorscheme.blue;
+            regular5 = cfg.lightColorscheme.purple;
+            regular6 = cfg.lightColorscheme.teal;
+            regular7 = cfg.lightColorscheme.white;
+            bright0 = cfg.lightColorscheme.bright.black;
+            bright1 = cfg.lightColorscheme.bright.red;
+            bright2 = cfg.lightColorscheme.bright.green;
+            bright3 = cfg.lightColorscheme.bright.yellow;
+            bright4 = cfg.lightColorscheme.bright.blue;
+            bright5 = cfg.lightColorscheme.bright.purple;
+            bright6 = cfg.lightColorscheme.bright.teal;
+            bright7 = cfg.lightColorscheme.bright.white;
+          })
+        ];
         colors-dark = mkMerge [
           {
             alpha = cfg.alpha;
@@ -77,6 +108,7 @@ in {
           "font-increase" = "Mod1+plus Mod1+equal Control+KP_Add";
           "font-decrease" = "Mod1+minus Control+KP_Subtract";
           "search-start" = "Mod1+f";
+          "color-theme-toggle" = "Mod1+Shift+L";
         };
         search-bindings = mkIf cfg.enableKeyBindings {
           "find-next" = "Mod1+n";

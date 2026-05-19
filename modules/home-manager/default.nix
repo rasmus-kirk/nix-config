@@ -10,10 +10,10 @@
     ./stateBackup
     ./jiten
     ./monero
-    ./ubuntuContainer
     ./mpv
     ./mvi
     ./rustle
+    ./sandbox
     ./scripts
     ./ssh
     ./terminalTools

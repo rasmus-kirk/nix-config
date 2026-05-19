@@ -10,7 +10,6 @@
     nixarr.inputs.vpnconfinement.follows = "nixpkgs";
 
     vpnconfinement.url = "github:Maroka-chan/VPN-Confinement";
-    vpnconfinement.inputs.nixpkgs.follows = "nixpkgs";
 
     hosts.url = "github:StevenBlack/hosts";
     hosts.inputs.nixpkgs.follows = "nixpkgs";
@@ -207,6 +206,7 @@
             };
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
+            home-manager.backupFileExtension = "hm-backup";
           }
           hosts.nixosModule {
             networking.stevenBlackHosts = {
@@ -225,7 +225,7 @@
     };
 
     homeConfigurations = {
-      ubuntu-container = home-manager.lib.homeManagerConfiguration {
+      sandbox = home-manager.lib.homeManagerConfiguration {
         pkgs = import nixpkgs {
           system = "x86_64-linux";
           config.allowUnfree = true;
@@ -234,7 +234,7 @@
         extraSpecialArgs = {inherit inputs;};
 
         modules = [
-          ./configurations/home-manager/ubuntu-container/home.nix
+          ./configurations/home-manager/sandbox/home.nix
           # nix-index-database.homeModules.nix-index
           self.homeManagerModules.default
         ];

@@ -28,14 +28,21 @@ in {
   };
 
   services.udev.extraRules = ''
-    ACTION=="remove", SUBSYSTEM=="usb", ENV{PRODUCT}=="1050/*", RUN+="${pkgs.writeShellScript "check-dock-sleep" ''
+    ACTION=="remove", SUBSYSTEM=="usb", ENV{PRODUCT}=="1050/*", RUN+="${pkgs.writeShellScript "yubikey-lock-on-unplug" ''
       if ${pkgs.usbutils}/bin/lsusb -d 17ef:6047 > /dev/null; then
-        ${pkgs.systemd}/bin/systemctl suspend
+        ${pkgs.systemd}/bin/loginctl lock-sessions
       fi
     ''}"
+
+    # Stop the lid switch from waking the laptop. The lid uses a Hall-effect
+    # (magnetic) sensor; magnetic objects placed on the closed laptop (e.g. an
+    # Onyx Boox cover) can flicker the sensor and cause spurious wake-ups.
+    # Trade-off: opening the lid no longer auto-wakes — press a key instead.
+    ACTION=="add", SUBSYSTEM=="platform", KERNEL=="PNP0C0D:00", ATTR{power/wakeup}="disabled"
   '';
 
   programs.steam.enable = true;
+  programs.nh.enable = true;
 
   # Enable networking
   networking.hostName = machine;
@@ -96,6 +103,8 @@ in {
   services.fwupd.enable = true;
 
   hardware.enableRedistributableFirmware = true;
+
+  hardware.graphics.enable = true;
 
   programs.ssh.startAgent = true;
   environment.variables.SSH_ASKPASS = "";

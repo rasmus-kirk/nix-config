@@ -48,17 +48,21 @@ in {
       stateDir = stateDir;
     };
     fonts.enable = true;
+    sandbox.enable = true;
     chromiumLaunchers = {
       enable = true;
       stateDir = stateDir;
       launchers = {
-        Gemini = "https://gemini.google.com/";
         Github = "https://github.com/";
         Calendar = "https://calendar.google.com/";
+        "Family Link" = "https://familylink.google.com/";
+        "Claude Chat" = "https://claude.ai/new";
+        Linear = "https://linear.app/qms-finance/team/QMS";
         Meet = "https://meet.google.com/";
         Gmail = "https://mail.google.com/";
         Slack = "https://app.slack.com/client/T0AGG8JCJNS/C0AGBU9AFNF";
-        Proton = "https://mail.proton.me/";
+        Deel = "https://app.deel.com";
+        "Proton Mail" = "https://mail.proton.me/";
       };
     };
   };
@@ -125,5 +129,5 @@ in {
     silent = true;
   };
 
-  home.packages = with pkgs; [ ];
+  home.packages = with pkgs; [ claude-code bubblewrap socat ];
 }

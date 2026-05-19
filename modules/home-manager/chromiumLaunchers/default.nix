@@ -18,15 +18,40 @@ with lib; let
     text = ''
       set +e
       mkdir -p "${iconStorage}"
-      ${concatStringsSep "\n" (mapAttrsToList (name: url: 
-        let 
-          # Extract domain for the favicon service
-          domain = lib.last (lib.splitString "://" url);
+      ${concatStringsSep "\n" (mapAttrsToList (name: url:
+        let
+          domain = lib.elemAt (lib.splitString "/" (lib.last (lib.splitString "://" url))) 0;
         in ''
           if [ ! -f "${iconStorage}/${name}.png" ]; then
-            wget -qO "${iconStorage}/${name}.tmp" "https://www.google.com/s2/favicons?domain=${domain}&sz=128" &&
-            convert "${iconStorage}/${name}.tmp" "${iconStorage}/${name}.png" &&
-            rm "${iconStorage}/${name}.tmp"
+            wget -qO "${iconStorage}/${name}.ico" "https://icons.duckduckgo.com/ip3/${domain}.ico"
+            if [ -s "${iconStorage}/${name}.ico" ]; then
+              tmpdir=$(mktemp -d)
+              magick "${iconStorage}/${name}.ico" "$tmpdir/frame.png"
+
+              # echo "Workdir: $tmpdir"
+              # ls "$tmpdir"
+
+              largest=""
+              largest_size=0
+              for f in "$tmpdir"/frame*.png; do
+                if [ -f "$f" ]; then
+                  size=$(wc -c < "$f")
+                  if [ "$size" -gt "$largest_size" ]; then
+                    largest_size="$size"
+                    largest="$f"
+                  fi
+                fi
+              done
+              if [ -n "$largest" ]; then
+                mv "$largest" "${iconStorage}/${name}.png"
+              else
+                echo "Warning: failed to convert favicon for ${name}"
+              fi
+              rm -rf "$tmpdir"
+            else
+              echo "Warning: empty or missing favicon for ${name}"
+            fi
+            rm -f "${iconStorage}/${name}.ico"
           fi
         '') cfg.launchers)}
     '';
@@ -36,7 +61,7 @@ with lib; let
     runtimeInputs = with pkgs; [ gtk3 ];
     inheritPath = false;
     text = ''
-      gtk-launch ${name}
+      gtk-launch "${name}"
     '';
   };
   launchers = mapAttrs (name: _: mkLauncher name) cfg.launchers;
@@ -69,18 +94,32 @@ in {
     # Desktop entries for Pop!_OS launcher
     xdg.desktopEntries = mapAttrs (name: url: {
       name = name;
-      exec = "${pkgs.chromium}/bin/chromium --ozone-platform=x11 --user-data-dir=${stateRoot}/${name} --class=${name} --name=${name} --no-first-run --app=${url}";
+      exec = ''${pkgs.chromium}/bin/chromium --ozone-platform=x11 --user-data-dir="${stateRoot}/${name}" --class="${name}" --name="${name}" --no-first-run --app=${url}'';
       icon = "${iconStorage}/${name}.png";
       settings = { StartupWMClass = name; };
       categories = [ "Network" "WebBrowser" ];
     }) cfg.launchers;
 
-    # Run the fetcher impurely during activation
-    home.activation.fetchWebappIcons = lib.hm.dag.entryAfter ["writeBoundary"] ''
-      ${concatStringsSep "\n" (mapAttrsToList (name: _: ''
-        $DRY_RUN_CMD mkdir -p "${stateRoot}/${name}"
-      '') cfg.launchers)}
-      $DRY_RUN_CMD ${lib.getExe fetcherScript} || echo "Warning: Failed to fetch some webapp icons."
-    '';
+    systemd.user.services.fetch-webapp-icons = {
+      Unit = {
+        Description = "Fetch chromium webapp icons";
+        After = [ "network-online.target" ];
+        Wants = [ "network-online.target" ];
+      };
+      Service = {
+        Type = "oneshot";
+        ExecStart = lib.getExe fetcherScript;
+      };
+    };
+
+    systemd.user.timers.fetch-webapp-icons = {
+      Unit.Description = "Daily timer for fetching chromium webapp icons";
+      Timer = {
+        OnCalendar = "daily";
+        RandomizedDelaySec = "5m";
+        Persistent = true;
+      };
+      Install.WantedBy = [ "timers.target" ];
+    };
   };
 }

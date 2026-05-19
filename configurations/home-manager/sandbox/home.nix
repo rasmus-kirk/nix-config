@@ -9,8 +9,8 @@
   secretDir = "${dataDir}/.secret";
   configDir = "${dataDir}/.system-configuration";
   stateDir = "${dataDir}/.state";
-  username = "ubuntu";
-  machine = "ubuntu-container";
+  username = "user";
+  machine = "sandbox";
 in {
   kirk = {
     terminalTools.enable = true;
@@ -45,7 +45,8 @@ in {
     };
     zsh = {
       enable = true;
-      stateDir = stateDir;
+      # Don't override stateDir — history goes to $HOME/.zsh_history,
+      # which lives inside the box's writable state-dir home.
     };
   };
 

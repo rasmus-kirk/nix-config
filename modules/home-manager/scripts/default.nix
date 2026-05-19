@@ -195,6 +195,39 @@ with lib; let
     '';
   };
 
+  git-sign-range = pkgs.writeShellApplication {
+    name = "git-sign-range";
+    runtimeInputs = with pkgs; [ git ];
+    inheritPath = false;
+    text = ''
+      set -euo pipefail
+
+      base="''${1:-}"
+      if [ -z "$base" ]; then
+        if git rev-parse --verify --quiet '@{u}' >/dev/null; then
+          base='@{u}'
+        elif git rev-parse --verify --quiet main >/dev/null; then
+          base='main'
+        else
+          echo "Error: no upstream and no 'main' branch found. Pass a base ref explicitly." >&2
+          echo "Usage: git-sign-range [<base-ref>]" >&2
+          exit 1
+        fi
+      fi
+
+      count=$(git rev-list --count "$base..HEAD")
+      if [ "$count" -eq 0 ]; then
+        echo "No commits between $base and HEAD."
+        exit 0
+      fi
+
+      echo "Signing unsigned commits from $base to HEAD ($count commits to inspect)..."
+      echo "Each unsigned commit will prompt for a YubiKey touch."
+      # shellcheck disable=SC2016
+      git rebase --exec '[ "$(git log -1 --format=%G? HEAD)" != N ] || git commit --amend --no-edit -S' "$base"
+    '';
+  };
+
   weather = pkgs.writeShellApplication {
     name = "weather";
     runtimeInputs = with pkgs; [curl coreutils gnused];
@@ -214,6 +247,7 @@ in {
     home.packages = [
       ff-cut
       ff-compress
+      git-sign-range
       upkob
       updap
       conv
