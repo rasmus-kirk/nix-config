@@ -39,6 +39,13 @@ in {
     # Onyx Boox cover) can flicker the sensor and cause spurious wake-ups.
     # Trade-off: opening the lid no longer auto-wakes — press a key instead.
     ACTION=="add", SUBSYSTEM=="platform", KERNEL=="PNP0C0D:00", ATTR{power/wakeup}="disabled"
+
+    # Yubico FIDO HID: persistent group-based access (mode 0660, group yubikey).
+    # The default systemd-logind uaccess mechanism uses ACLs whose mask doesn't
+    # carry correctly into bwrap's user namespace (open() fails with EACCES
+    # inside the box). Group-based perms bypass ACLs and work everywhere.
+    # Security: still gated by physical YubiKey touch for any signing op.
+    KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1050", MODE="0660", GROUP="yubikey"
   '';
 
   programs.steam.enable = true;
@@ -215,11 +222,14 @@ in {
     #media-session.enable = true;
   };
 
+  # Dedicated group for YubiKey hidraw access (see services.udev.extraRules).
+  users.groups.yubikey = {};
+
   # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.user = {
     isNormalUser = true;
     description = "Rasmus Kirk";
-    extraGroups = [ "networkmanager" "wheel" ];
+    extraGroups = [ "networkmanager" "wheel" "yubikey" ];
   };
 
   # Allow unfree packages

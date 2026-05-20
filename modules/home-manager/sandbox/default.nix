@@ -120,7 +120,7 @@ with lib; let
   hidrawBinds = optionals cfg.exposeFidoDevices (
     concatMap
       (n: [ "--dev-bind-try" "/dev/hidraw${toString n}" "/dev/hidraw${toString n}" ])
-      (range 0 9)
+      (range 0 31)
   );
 
   claudeStateBind = optionals cfg.exposeClaudeState [
@@ -389,6 +389,10 @@ in {
           ''^.*\.cachix\.org$''
           # npm
           ''^registry\.npmjs\.org$''
+          # cargo
+          ''^crates\.io$''
+          ''^index\.crates\.io$''
+          ''^static\.crates\.io$''
         ];
         description = ''
           Regex patterns (extended POSIX) matching allowed destination hostnames.
@@ -434,7 +438,7 @@ in {
     exposeFidoDevices = mkOption {
       type = types.bool;
       default = true;
-      description = "Expose /dev/hidraw0..9 so libfido2 can talk to the YubiKey (needed for SSH SK signing).";
+      description = "Expose /dev/hidraw0..31 so libfido2 can talk to the YubiKey (needed for SSH SK signing).";
     };
 
     hostname = mkOption {
