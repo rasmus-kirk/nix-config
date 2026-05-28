@@ -51,6 +51,9 @@ with lib; let
         type filter hook output priority 0; policy drop;
         ct state established,related accept
         oifname "lo" accept
+        # The ONLY permitted destination is tinyproxy on host loopback. Every
+        # outbound flow — HTTPS, SSH tunneled through CONNECT, DNS done on the
+        # host side — must go through here, where the domain allowlist applies.
         ip daddr 10.0.2.2 tcp dport ${toString cfg.network.proxyPort} accept
       }
       chain input {
@@ -100,8 +103,21 @@ with lib; let
     export NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
     export SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
     ${proxyEnv}
+    ${optionalString (cfg.githubTokenFile != null) ''
+      if [ -r ${cfg.githubTokenFile} ]; then
+        GITHUB_PERSONAL_ACCESS_TOKEN=$(${pkgs.coreutils}/bin/tr -d '[:space:]' < ${cfg.githubTokenFile})
+        export GITHUB_PERSONAL_ACCESS_TOKEN
+      fi
+    ''}
     # Stay at caller's cwd (auto-bound). Fall back to /home/user if it's gone.
     [ -d "$PWD" ] || cd /home/user
+    # Apply direnv for the cwd before exec'ing the user command, so non-shell
+    # invocations like `box claude --resume` still inherit the project's
+    # .envrc / flake devshell env vars. zsh users get this automatically via
+    # the direnv hook; this branch covers the direct-exec case.
+    if [ -x /home/user/.nix-profile/bin/direnv ]; then
+      eval "$(/home/user/.nix-profile/bin/direnv export bash 2>/dev/null)" || true
+    fi
     if [ $# -eq 0 ]; then
       exec zsh
     else
@@ -190,7 +206,16 @@ with lib; let
         "--bind" "${cfg.stateDir}/home" "/home/user"
       ]
       ++ claudeStateBind
+      ++ (optionals (cfg.githubTokenFile != null) [
+        "--ro-bind" cfg.githubTokenFile cfg.githubTokenFile
+      ])
       ++ hidrawBinds
+      # /tmp/screenshots: read-only window into host's screenshot drop.
+      # Lives on box's /tmp tmpfs (privateTmp). Silently skipped if absent.
+      ++ [ "--ro-bind-try" "/tmp/screenshots" "/tmp/screenshots" ]
+      # /tmp/box-notify: read-write outbox for the `notify` script. A host-side
+      # systemd path unit watches this dir and dispatches each file via notify-send.
+      ++ [ "--bind-try" "/tmp/box-notify" "/tmp/box-notify" ]
       ++ roBinds
       ++ rwBinds
       ++ cfg.extraBwrapArgs
@@ -216,11 +241,10 @@ with lib; let
         exit 0
       fi
       mkdir -p "${cfg.stateDir}/home"
-
-      if [ "''${1:-}" = "hm-switch" ]; then
-        echo "Bootstrapping/refreshing home-manager inside box..."
-        exec ${runBox} bash -lc 'home-manager switch --flake ${cfg.homeManagerFlake} -b backup --impure'
-      fi
+      # Ensure /tmp/box-notify exists on host BEFORE bwrap, otherwise the
+      # --bind-try silently skips and the box's `notify` writes land in the
+      # box's private /tmp where the host watcher never sees them.
+      mkdir -p /tmp/box-notify
 
       # Auto-bootstrap on first run.
       if ${if cfg.homeManagerFlake != null then "true" else "false"} && [ ! -L "${cfg.stateDir}/home/.nix-profile" ]; then
@@ -279,6 +303,7 @@ in {
         nix
         home-manager
         claude-code
+        socat
       ];
       description = "Function returning the packages exposed inside the FHS (available in /usr/bin etc.).";
     };
@@ -383,6 +408,11 @@ in {
           ''^api\.github\.com$''
           ''^codeload\.github\.com$''
           ''^.*\.githubusercontent\.com$''
+          # GitHub MCP server (hosted on GitHub Copilot infra by Microsoft)
+          ''^api\.githubcopilot\.com$''
+          # GitHub SSH-over-HTTPS endpoint (port 443) — tunneled via tinyproxy
+          # CONNECT so `git push` works without opening port 22 in the box.
+          ''^ssh\.github\.com$''
           # Nix
           ''^cache\.nixos\.org$''
           ''^channels\.nixos\.org$''
@@ -393,6 +423,9 @@ in {
           ''^crates\.io$''
           ''^index\.crates\.io$''
           ''^static\.crates\.io$''
+          # Linear (MCP server + OAuth)
+          ''^linear\.app$''
+          ''^.*\.linear\.app$''
         ];
         description = ''
           Regex patterns (extended POSIX) matching allowed destination hostnames.
@@ -439,6 +472,18 @@ in {
       type = types.bool;
       default = true;
       description = "Expose /dev/hidraw0..31 so libfido2 can talk to the YubiKey (needed for SSH SK signing).";
+    };
+
+    githubTokenFile = mkOption {
+      type = with types; nullOr str;
+      default = null;
+      example = "/data/.secret/github/pat";
+      description = ''
+        Host path to a file containing a GitHub PAT. When set, the file is
+        bind-mounted read-only into the box and its contents (with surrounding
+        whitespace stripped) are exported as GITHUB_PERSONAL_ACCESS_TOKEN.
+        The official github MCP plugin reads this env var for its Bearer header.
+      '';
     };
 
     hostname = mkOption {

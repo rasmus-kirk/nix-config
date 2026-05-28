@@ -48,7 +48,10 @@ in {
       stateDir = stateDir;
     };
     fonts.enable = true;
-    sandbox.enable = true;
+    sandbox = {
+      enable = true;
+      githubTokenFile = "${secretDir}/github/pat";
+    };
     chromiumLaunchers = {
       enable = true;
       stateDir = stateDir;
@@ -129,5 +132,34 @@ in {
     silent = true;
   };
 
-  home.packages = with pkgs; [ claude-code bubblewrap socat ];
+  home.packages = with pkgs; [ claude-code bubblewrap socat finamp ];
+
+  # Watch /tmp/box-notify and dispatch any file dropped there as a desktop
+  # notification. Lets processes inside the `box` sandbox notify the host
+  # without giving them DBUS access.
+  systemd.user.paths.box-notify = {
+    Unit.Description = "Watch /tmp/box-notify for notification drops";
+    Path = {
+      PathExistsGlob = "/tmp/box-notify/[!.]*";
+      MakeDirectory = true;
+      DirectoryMode = "0755";
+    };
+    Install.WantedBy = [ "default.target" ];
+  };
+  systemd.user.services.box-notify = {
+    Unit.Description = "Dispatch /tmp/box-notify drops via notify-send";
+    Service = {
+      Type = "oneshot";
+      ExecStart = "${pkgs.writeShellScript "box-notify-dispatch" ''
+        set -u
+        for f in /tmp/box-notify/[!.]*; do
+          [ -f "$f" ] || continue
+          TITLE=$(${pkgs.coreutils}/bin/head -n1 "$f")
+          BODY=$(${pkgs.coreutils}/bin/tail -n+2 "$f")
+          ${pkgs.libnotify}/bin/notify-send -- "$TITLE" "$BODY" || true
+          ${pkgs.coreutils}/bin/rm -f "$f"
+        done
+      ''}";
+    };
+  };
 }

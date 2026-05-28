@@ -150,6 +150,8 @@ in {
           "A-s" = ":w";
           # Alt-w to close buffer
           "A-w" = ":buffer-close";
+          # Ctrl-r to reload all buffers from disk
+          "C-r" = ":reload-all";
 
           "A-l" = "goto_next_buffer";
           "A-h" = "goto_previous_buffer";
@@ -165,6 +167,8 @@ in {
           "A-s" = ":w";
           # Alt-w to close buffer
           "A-w" = ":buffer-close";
+          # Ctrl-r to reload all buffers from disk
+          "C-r" = ":reload-all";
 
           W = "extend_next_word_end";
           B = "extend_prev_word_start";

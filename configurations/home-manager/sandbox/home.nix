@@ -94,4 +94,17 @@ in {
     # Misc Terminal Tools
     wl-clipboard
   ];
+
+  # Box has no direct egress except tinyproxy. To make `git push` (over SSH)
+  # work, route github.com through GitHub's HTTPS-port SSH listener
+  # (ssh.github.com:443) and tunnel it through tinyproxy via socat+CONNECT.
+  # Transparent: stock `git@github.com:owner/repo` URLs just work.
+  programs.ssh.matchBlocks."github.com" = {
+    hostname = "ssh.github.com";
+    port = 443;
+    user = "git";
+    extraOptions = {
+      ProxyCommand = "${pkgs.socat}/bin/socat - PROXY:10.0.2.2:%h:%p,proxyport=8888";
+    };
+  };
 }

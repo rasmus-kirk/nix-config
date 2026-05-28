@@ -228,6 +228,53 @@ with lib; let
     '';
   };
 
+  notify = pkgs.writeShellApplication {
+    name = "notify";
+    runtimeInputs = with pkgs; [ coreutils ];
+    inheritPath = false;
+    text = ''
+      DIR=/tmp/box-notify
+      mkdir -p "$DIR"
+      # Atomic write: stage in a temp file, rename into place so the watcher
+      # doesn't observe a half-written notification.
+      STAGE=$(mktemp "$DIR/.staging.XXXXXX")
+      {
+        printf '%s\n' "''${1:-Notification}"
+        printf '%s\n' "''${2:-}"
+      } > "$STAGE"
+      mv "$STAGE" "$DIR/$(date +%s%N).$$"
+    '';
+  };
+
+  screenshot = pkgs.writeShellApplication {
+    name = "screenshot";
+    runtimeInputs = with pkgs; [ systemd coreutils ];
+    inheritPath = false;
+    text = ''
+      OUTDIR=/tmp/screenshots
+      ${pkgs.coreutils}/bin/mkdir -p "$OUTDIR"
+      DEST="$OUTDIR/$(${pkgs.coreutils}/bin/date +%F-%H-%M-%S).png"
+      # Phase 1: slurp + grim inside a transient user unit. cosmic's keybinding
+      # launcher context doesn't let slurp acquire input grabs, but systemd-run's
+      # session does.
+      # shellcheck disable=SC2016
+      if ! systemd-run --user --collect --quiet --wait -- ${pkgs.bash}/bin/bash -c '
+        set -e
+        SEL=$(${pkgs.slurp}/bin/slurp)
+        ${pkgs.grim}/bin/grim -g "$SEL" "'"$DEST"'"
+      ' || [ ! -s "$DEST" ]; then
+        ${pkgs.libnotify}/bin/notify-send "Screenshot failed" "slurp/grim error"
+        ${pkgs.coreutils}/bin/rm -f "$DEST"
+        exit 1
+      fi
+      # Phase 2: wl-copy outside systemd-run so its clipboard daemon isn't
+      # reaped when the transient unit cleans up. setsid detaches it from
+      # the script's session.
+      ${pkgs.util-linux}/bin/setsid -f ${pkgs.wl-clipboard}/bin/wl-copy --type image/png < "$DEST"
+      ${pkgs.libnotify}/bin/notify-send "Screenshot" "$DEST"
+    '';
+  };
+
   weather = pkgs.writeShellApplication {
     name = "weather";
     runtimeInputs = with pkgs; [curl coreutils gnused];
@@ -248,6 +295,8 @@ in {
       ff-cut
       ff-compress
       git-sign-range
+      notify
+      screenshot
       upkob
       updap
       conv

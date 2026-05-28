@@ -77,7 +77,7 @@ with lib; let
 
         pushd "${configDir}" > /dev/null
         git add .
-        home-manager switch -b backup --flake .#${cfg.machine} --option warn-dirty false
+        home-manager switch -b backup --flake .#${cfg.machine} --option warn-dirty false --impure
         popd > /dev/null
       }
 

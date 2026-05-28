@@ -49,6 +49,8 @@ in {
   '';
 
   programs.steam.enable = true;
+  programs.steam.extraPackages = [ pkgs.hidapi ];
+  hardware.steam-hardware.enable = true;
   programs.nh.enable = true;
 
   # Enable networking
@@ -240,7 +242,7 @@ in {
     package = pkgs.sudo.override {withInsults = true;}; # For insults lol
     extraConfig = ''
       Defaults insults
-      Defaults timestamp_timeout=15
+      Defaults timestamp_timeout=0
     '';
   };
 
@@ -248,7 +250,6 @@ in {
     # Misc
     keepassxc
     thunderbird
-    feishin
     yubioath-flutter
     ledger-live-desktop
     claude-code
@@ -259,6 +260,7 @@ in {
     python3
     gptfdisk
     dig
+    finamp
 
     # Browsers
     chromium
