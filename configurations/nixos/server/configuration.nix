@@ -13,7 +13,10 @@
   stateDir = "${dataDir}/.state";
   transmissionPort = 33915;
 in {
-  imports = [./hardware-configuration.nix];
+  imports = [
+    ./hardware-configuration.nix
+    inputs.ballbrawl.nixosModules.default
+  ];
 
   # -------------------- Secrets -------------------- #
 
@@ -100,6 +103,17 @@ in {
     lidarr.openFirewall = true;
     prowlarr.enable = true;
     prowlarr.openFirewall = true;
+  };
+
+  # -------------------- Ballbrawl -------------------- #
+  # game.<bare-domain> served by the ballbrawl flake module. The DDNS
+  # entry (nixarr.ddns.nineteenEightyFour) already keeps subdomains of
+  # the bare domain pointing at this host, same path jellyfin and
+  # audiobookshelf use.
+  services.ballbrawl = {
+    enable = true;
+    domain = "game." + (lib.removeSuffix "\n" (builtins.readFile config.age.secrets.domain.path));
+    acmeMail = "slimness_bullish683@simplelogin.com";
   };
 
   # MAM
