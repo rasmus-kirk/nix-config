@@ -262,6 +262,25 @@ in {
     ../../../pubkeys/deck-oled.pub
   ];
 
+  # Bare-git-over-SSH server. `git` user has git-shell only — no shell
+  # access, only `git-upload-pack`/`git-receive-pack`/`git-upload-archive`.
+  # Authorized keys mirror the user's, so anyone who can ssh in as `user`
+  # can also push/pull as `git`.
+  users.groups.git = {};
+  users.users.git = {
+    isSystemUser = true;
+    group = "git";
+    home = "/var/lib/git";
+    createHome = true;
+    shell = "${pkgs.git}/bin/git-shell";
+    description = "Git repositories over SSH";
+    openssh.authorizedKeys.keyFiles =
+      config.users.extraUsers.${username}.openssh.authorizedKeys.keyFiles;
+  };
+  systemd.tmpfiles.rules = [
+    "d /var/lib/git/repos 0755 git git -"
+  ];
+
   # -------------------- Boilerplate -------------------- #
 
   # Set your time zone.
