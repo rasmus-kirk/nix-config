@@ -50,7 +50,11 @@ in {
     fonts.enable = true;
     sandbox = {
       enable = true;
-      githubTokenFile = "${secretDir}/github/pat";
+      githubTokenFile = "${secretDir}/github/qms-pat-global-ro";
+      githubPrBroker = {
+        enable = true;
+        writeTokenFile = "${secretDir}/github/qms-pat-pr-rw";
+      };
     };
     chromiumLaunchers = {
       enable = true;
@@ -122,6 +126,12 @@ in {
 
   programs.zsh.profileExtra = ''
     export TERM=foot
+    # GitHub PAT for the github MCP plugin when Claude Code runs on host.
+    # In the box, ~/.secret/github/pat is exported via the sandbox initScript;
+    # this mirrors that behaviour for host shells.
+    if [ -r ${secretDir}/github/qms-pat-global-ro ]; then
+      export GITHUB_PERSONAL_ACCESS_TOKEN="$(tr -d '[:space:]' < ${secretDir}/github/qms-pat-global-ro)"
+    fi
   '';
 
   programs.direnv = {
@@ -156,7 +166,13 @@ in {
           [ -f "$f" ] || continue
           TITLE=$(${pkgs.coreutils}/bin/head -n1 "$f")
           BODY=$(${pkgs.coreutils}/bin/tail -n+2 "$f")
+          # Play attention sound in parallel with the popup. Backgrounded so
+          # the popup fires immediately; `wait` keeps the systemd oneshot
+          # alive until pw-cat finishes, otherwise KillMode=control-group
+          # reaps the sound mid-playback.
+          ${pkgs.pipewire}/bin/pw-cat --playback ${pkgs.sound-theme-freedesktop}/share/sounds/freedesktop/stereo/message.oga >/dev/null 2>&1 &
           ${pkgs.libnotify}/bin/notify-send -- "$TITLE" "$BODY" || true
+          wait
           ${pkgs.coreutils}/bin/rm -f "$f"
         done
       ''}";

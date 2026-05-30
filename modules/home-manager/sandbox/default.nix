@@ -9,6 +9,365 @@ with lib; let
 
   proxyFilterFile = pkgs.writeText "sandbox-proxy-filter" (concatStringsSep "\n" cfg.network.allowedHosts);
 
+  # ─── GitHub PR-creation broker (file-drop pattern, like box-notify) ─────
+  # Inside the box, gh-pr-create drops a JSON request at /tmp/box-pr-request/.
+  # Outside (host), a systemd user path unit watches that dir and dispatches
+  # each file via prBrokerDispatch, which holds the write-PAT (NOT visible to
+  # the box) and calls GitHub's create-PR endpoint. The PR URL is written back
+  # to /tmp/box-pr-response/ for the in-box client to read.
+  #
+  # Security: box only knows how to drop a file. It cannot enumerate or invoke
+  # other GitHub endpoints; the broker only exposes create-PR. Write-PAT lives
+  # at githubPrBroker.writeTokenFile on the host, outside any bind-mount.
+
+  # Shared helper used by both gh-pr-create and gh-pr-edit to drop a request
+  # and wait for the response. Source-included via concatenation to avoid an
+  # extra script-in-PATH for an internal helper.
+  prBrokerClientPoll = ''
+    # Args: $1 = request JSON, $2 = response field to print on success ("url" or "number")
+    if [ ! -d /tmp/box-pr-request ]; then
+      echo "PR broker not enabled on host (no /tmp/box-pr-request). See kirk.sandbox.githubPrBroker.enable" >&2
+      exit 1
+    fi
+    ID="$(date +%s%N).$$"
+    REQ_TMP="/tmp/box-pr-request/.staging.$ID"
+    REQ_FINAL="/tmp/box-pr-request/$ID.json"
+    RESP_FILE="/tmp/box-pr-response/$ID.json"
+    printf '%s' "$1" > "$REQ_TMP"
+    mv "$REQ_TMP" "$REQ_FINAL"
+    for _ in $(seq 1 60); do
+      if [ -f "$RESP_FILE" ]; then
+        if jq -e '.error' "$RESP_FILE" >/dev/null 2>&1; then
+          jq -r '"PR broker error: \(.error)\n\(.detail // "")"' "$RESP_FILE" >&2
+          exit 2
+        fi
+        jq -r ".$2" "$RESP_FILE"
+        exit 0
+      fi
+      sleep 0.5
+    done
+    echo "Timed out waiting for PR broker response (30s). Check 'journalctl --user -u box-pr-broker'." >&2
+    exit 3
+  '';
+
+  ghPrCreateScript = pkgs.writeShellApplication {
+    name = "gh-pr-create";
+    runtimeInputs = with pkgs; [ coreutils jq ];
+    inheritPath = false;
+    text = ''
+      set -euo pipefail
+
+      usage() {
+        cat >&2 <<EOF
+      Usage: gh-pr-create --repo OWNER/REPO --head BRANCH --base BRANCH \\
+                         --title TITLE [--body BODY | --body-file FILE] \\
+                         [--draft]
+
+      Drops a request file at /tmp/box-pr-request/ for the host-side broker
+      to create the PR via the GitHub API. Waits up to 30s for the response
+      and prints the resulting PR URL on stdout.
+      EOF
+        exit 1
+      }
+
+      REPO="" HEAD="" BASE="" TITLE="" BODY="" DRAFT=false
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --repo) REPO="$2"; shift 2 ;;
+          --head) HEAD="$2"; shift 2 ;;
+          --base) BASE="$2"; shift 2 ;;
+          --title) TITLE="$2"; shift 2 ;;
+          --body) BODY="$2"; shift 2 ;;
+          --body-file) BODY=$(cat "$2"); shift 2 ;;
+          --draft) DRAFT=true; shift ;;
+          -h|--help) usage ;;
+          *) echo "Unknown arg: $1" >&2; usage ;;
+        esac
+      done
+
+      if [ -z "$REPO" ] || [ -z "$HEAD" ] || [ -z "$BASE" ] || [ -z "$TITLE" ]; then
+        usage
+      fi
+
+      REQ=$(jq -n \
+        --arg op create \
+        --arg repo "$REPO" \
+        --arg head "$HEAD" \
+        --arg base "$BASE" \
+        --arg title "$TITLE" \
+        --arg body "$BODY" \
+        --argjson draft "$DRAFT" \
+        '{op:$op, repo:$repo, head:$head, base:$base, title:$title, body:$body, draft:$draft}')
+
+      set -- "$REQ" url
+      ${prBrokerClientPoll}
+    '';
+  };
+
+  ghPrEditScript = pkgs.writeShellApplication {
+    name = "gh-pr-edit";
+    runtimeInputs = with pkgs; [ coreutils jq ];
+    inheritPath = false;
+    text = ''
+      set -euo pipefail
+
+      usage() {
+        cat >&2 <<EOF
+      Usage: gh-pr-edit --repo OWNER/REPO --number N \\
+                       [--title TITLE] \\
+                       [--body BODY | --body-file FILE] \\
+                       [--base BRANCH] \\
+                       [--state open|closed] \\
+                       [--draft | --ready]
+
+      Drops an edit request at /tmp/box-pr-request/ for the host-side broker
+      to PATCH the PR via the GitHub API. Only fields passed are updated;
+      others are left untouched. --draft and --ready toggle draft state via
+      GraphQL (REST doesn't support that field on update). Prints the updated
+      PR URL on stdout.
+      EOF
+        exit 1
+      }
+
+      REPO="" NUMBER="" TITLE="" BODY="" BASE="" STATE="" DRAFT_TARGET=""
+      TITLE_SET=0 BODY_SET=0 BASE_SET=0 STATE_SET=0
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --repo) REPO="$2"; shift 2 ;;
+          --number) NUMBER="$2"; shift 2 ;;
+          --title) TITLE="$2"; TITLE_SET=1; shift 2 ;;
+          --body) BODY="$2"; BODY_SET=1; shift 2 ;;
+          --body-file) BODY=$(cat "$2"); BODY_SET=1; shift 2 ;;
+          --base) BASE="$2"; BASE_SET=1; shift 2 ;;
+          --state) STATE="$2"; STATE_SET=1; shift 2 ;;
+          --draft) DRAFT_TARGET="draft"; shift ;;
+          --ready) DRAFT_TARGET="ready"; shift ;;
+          -h|--help) usage ;;
+          *) echo "Unknown arg: $1" >&2; usage ;;
+        esac
+      done
+
+      if [ -z "$REPO" ] || [ -z "$NUMBER" ]; then
+        usage
+      fi
+      if [ "$TITLE_SET" = 0 ] && [ "$BODY_SET" = 0 ] && [ "$BASE_SET" = 0 ] \
+         && [ "$STATE_SET" = 0 ] && [ -z "$DRAFT_TARGET" ]; then
+        echo "Nothing to update (pass at least one of --title/--body/--base/--state/--draft/--ready)" >&2
+        exit 1
+      fi
+      if [ "$STATE_SET" = 1 ] && [ "$STATE" != "open" ] && [ "$STATE" != "closed" ]; then
+        echo "--state must be 'open' or 'closed', got: $STATE" >&2
+        exit 1
+      fi
+
+      REQ=$(jq -n \
+        --arg op edit \
+        --arg repo "$REPO" \
+        --argjson pr_number "$NUMBER" \
+        --arg title "$TITLE" --argjson title_set "$TITLE_SET" \
+        --arg body "$BODY" --argjson body_set "$BODY_SET" \
+        --arg base "$BASE" --argjson base_set "$BASE_SET" \
+        --arg state "$STATE" --argjson state_set "$STATE_SET" \
+        --arg draft_target "$DRAFT_TARGET" \
+        '{op:$op, repo:$repo, pr_number:$pr_number}
+         + (if $title_set == 1 then {title:$title} else {} end)
+         + (if $body_set  == 1 then {body:$body}   else {} end)
+         + (if $base_set  == 1 then {base:$base}   else {} end)
+         + (if $state_set == 1 then {state:$state} else {} end)
+         + (if $draft_target != "" then {draft_target:$draft_target} else {} end)')
+
+      set -- "$REQ" url
+      ${prBrokerClientPoll}
+    '';
+  };
+
+  prBrokerDispatch = pkgs.writeShellScript "box-pr-broker-dispatch" ''
+    set -u
+    REQ_DIR=/tmp/box-pr-request
+    RESP_DIR=/tmp/box-pr-response
+    ${pkgs.coreutils}/bin/mkdir -p "$RESP_DIR"
+
+    TOKEN_FILE='${if cfg.githubPrBroker.writeTokenFile != null
+                  then cfg.githubPrBroker.writeTokenFile
+                  else ""}'
+
+    for f in "$REQ_DIR"/[!.]*; do
+      [ -f "$f" ] || continue
+      id=$(${pkgs.coreutils}/bin/basename "$f" .json)
+      resp="$RESP_DIR/$id.json"
+
+      write_resp() {
+        ${pkgs.coreutils}/bin/printf '%s\n' "$1" > "$resp"
+        ${pkgs.coreutils}/bin/chmod 0444 "$resp"
+      }
+
+      if [ -z "$TOKEN_FILE" ] || [ ! -r "$TOKEN_FILE" ]; then
+        write_resp '{"error":"config","detail":"writeTokenFile not set or unreadable"}'
+        ${pkgs.libnotify}/bin/notify-send -- "PR broker" "Write-PAT not configured" || true
+        ${pkgs.coreutils}/bin/rm -f "$f"
+        continue
+      fi
+
+      OP=$(${pkgs.jq}/bin/jq -r '.op // "create"' "$f")
+      REPO=$(${pkgs.jq}/bin/jq -r '.repo // empty' "$f")
+      if [ -z "$REPO" ]; then
+        write_resp '{"error":"bad_request","detail":"missing repo"}'
+        ${pkgs.libnotify}/bin/notify-send -- "PR broker" "Bad request — missing repo" || true
+        ${pkgs.coreutils}/bin/rm -f "$f"
+        continue
+      fi
+
+      TOKEN=$(${pkgs.coreutils}/bin/tr -d '[:space:]' < "$TOKEN_FILE")
+      TMP_BODY=$(${pkgs.coreutils}/bin/mktemp)
+      CODE=000
+      RESPONSE_BODY=""
+      SUMMARY=""
+
+      case "$OP" in
+        create)
+          HEAD_REF=$(${pkgs.jq}/bin/jq -r '.head // empty' "$f")
+          BASE_REF=$(${pkgs.jq}/bin/jq -r '.base // empty' "$f")
+          TITLE=$(${pkgs.jq}/bin/jq -r '.title // empty' "$f")
+          BODY=$(${pkgs.jq}/bin/jq -r '.body // empty' "$f")
+          DRAFT=$(${pkgs.jq}/bin/jq -r '.draft // false' "$f")
+          if [ -z "$HEAD_REF" ] || [ -z "$BASE_REF" ] || [ -z "$TITLE" ]; then
+            write_resp '{"error":"bad_request","detail":"create needs head/base/title"}'
+            ${pkgs.libnotify}/bin/notify-send -- "PR broker" "Bad create request" || true
+            ${pkgs.coreutils}/bin/rm -f "$f" "$TMP_BODY"
+            continue
+          fi
+          PAYLOAD=$(${pkgs.jq}/bin/jq -n \
+            --arg title "$TITLE" --arg body "$BODY" \
+            --arg head "$HEAD_REF" --arg base "$BASE_REF" \
+            --argjson draft "$DRAFT" \
+            '{title:$title, body:$body, head:$head, base:$base, draft:$draft}')
+          CODE=$(${pkgs.curl}/bin/curl -sS -o "$TMP_BODY" -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -d "$PAYLOAD" \
+            "https://api.github.com/repos/$REPO/pulls" 2>/dev/null || echo 000)
+          SUMMARY="$TITLE"
+          SUCCESS_CODE=201
+          ;;
+        edit)
+          PR_NUMBER=$(${pkgs.jq}/bin/jq -r '.pr_number // empty' "$f")
+          if [ -z "$PR_NUMBER" ]; then
+            write_resp '{"error":"bad_request","detail":"edit needs pr_number"}'
+            ${pkgs.libnotify}/bin/notify-send -- "PR broker" "Bad edit request" || true
+            ${pkgs.coreutils}/bin/rm -f "$f" "$TMP_BODY"
+            continue
+          fi
+
+          # Field updates (forward only fields actually present in the request)
+          PAYLOAD=$(${pkgs.jq}/bin/jq '{title, body, base, state} | with_entries(select(.value != null))' "$f")
+          HAS_FIELDS=$(${pkgs.coreutils}/bin/printf '%s' "$PAYLOAD" | ${pkgs.jq}/bin/jq 'length > 0')
+          DRAFT_TARGET=$(${pkgs.jq}/bin/jq -r '.draft_target // empty' "$f")
+
+          if [ "$HAS_FIELDS" != "true" ] && [ -z "$DRAFT_TARGET" ]; then
+            write_resp '{"error":"bad_request","detail":"edit has no fields to update"}'
+            ${pkgs.libnotify}/bin/notify-send -- "PR broker" "Empty edit request" || true
+            ${pkgs.coreutils}/bin/rm -f "$f" "$TMP_BODY"
+            continue
+          fi
+
+          CODE=200
+          NODE_ID=""
+          NEEDS_REFRESH=false
+          GH_API="https://api.github.com/repos/$REPO/pulls/$PR_NUMBER"
+
+          # Step 1: REST PATCH for field updates (title/body/base/state)
+          if [ "$HAS_FIELDS" = "true" ]; then
+            CODE=$(${pkgs.curl}/bin/curl -sS -o "$TMP_BODY" -w '%{http_code}' \
+              -X PATCH \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              -d "$PAYLOAD" \
+              "$GH_API" 2>/dev/null || echo 000)
+            if [ "$CODE" = "200" ]; then
+              NODE_ID=$(${pkgs.jq}/bin/jq -r '.node_id' "$TMP_BODY")
+            fi
+          fi
+
+          # Step 2: GraphQL mutation for draft toggle (REST has no draft field on PATCH)
+          if [ -n "$DRAFT_TARGET" ] && [ "$CODE" = "200" ]; then
+            if [ -z "$NODE_ID" ]; then
+              # Need to fetch node_id since we didn't PATCH
+              CODE=$(${pkgs.curl}/bin/curl -sS -o "$TMP_BODY" -w '%{http_code}' \
+                -H "Authorization: Bearer $TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "$GH_API" 2>/dev/null || echo 000)
+              if [ "$CODE" = "200" ]; then
+                NODE_ID=$(${pkgs.jq}/bin/jq -r '.node_id' "$TMP_BODY")
+              fi
+            fi
+            if [ "$CODE" = "200" ] && [ -n "$NODE_ID" ]; then
+              case "$DRAFT_TARGET" in
+                draft) MUTATION='convertPullRequestToDraft' ;;
+                ready) MUTATION='markPullRequestReadyForReview' ;;
+                *) MUTATION="" ;;
+              esac
+              GQL_QUERY="mutation { $MUTATION(input: {pullRequestId: \"$NODE_ID\"}) { pullRequest { id url number isDraft } } }"
+              GQL_PAYLOAD=$(${pkgs.jq}/bin/jq -n --arg q "$GQL_QUERY" '{query:$q}')
+              CODE=$(${pkgs.curl}/bin/curl -sS -o "$TMP_BODY" -w '%{http_code}' \
+                -X POST \
+                -H "Authorization: Bearer $TOKEN" \
+                -H "Accept: application/json" \
+                -d "$GQL_PAYLOAD" \
+                "https://api.github.com/graphql" 2>/dev/null || echo 000)
+              if [ "$CODE" = "200" ] && ${pkgs.jq}/bin/jq -e '.errors' "$TMP_BODY" > /dev/null; then
+                CODE=422
+              fi
+              NEEDS_REFRESH=true
+            fi
+          fi
+
+          # Step 3: refresh TMP_BODY to REST format if GraphQL was the last call
+          # (the common success handler below extracts .html_url / .number from REST JSON)
+          if [ "$NEEDS_REFRESH" = "true" ] && [ "$CODE" = "200" ]; then
+            CODE=$(${pkgs.curl}/bin/curl -sS -o "$TMP_BODY" -w '%{http_code}' \
+              -H "Authorization: Bearer $TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "$GH_API" 2>/dev/null || echo 000)
+          fi
+
+          SUMMARY="edit #$PR_NUMBER"
+          SUCCESS_CODE=200
+          ;;
+        *)
+          write_resp "$(${pkgs.jq}/bin/jq -n --arg op "$OP" '{error:"bad_request", detail:("unknown op: " + $op)}')"
+          ${pkgs.libnotify}/bin/notify-send -- "PR broker" "Unknown op: $OP" || true
+          ${pkgs.coreutils}/bin/rm -f "$f" "$TMP_BODY"
+          continue
+          ;;
+      esac
+
+      RESPONSE_BODY=$(${pkgs.coreutils}/bin/cat "$TMP_BODY" 2>/dev/null || echo "")
+      ${pkgs.coreutils}/bin/rm -f "$TMP_BODY"
+
+      if [ "$CODE" = "$SUCCESS_CODE" ]; then
+        url=$(${pkgs.coreutils}/bin/printf '%s' "$RESPONSE_BODY" | ${pkgs.jq}/bin/jq -r '.html_url')
+        number=$(${pkgs.coreutils}/bin/printf '%s' "$RESPONSE_BODY" | ${pkgs.jq}/bin/jq -r '.number')
+        write_resp "$(${pkgs.jq}/bin/jq -n --arg url "$url" --argjson number "$number" --arg op "$OP" '{url:$url, number:$number, op:$op}')"
+        if [ "$OP" = "create" ]; then
+          ${pkgs.libnotify}/bin/notify-send -- "PR opened — #$number" "$SUMMARY — $url" || true
+        else
+          ${pkgs.libnotify}/bin/notify-send -- "PR updated — #$number" "$url" || true
+        fi
+      else
+        write_resp "$(${pkgs.jq}/bin/jq -n --arg code "$CODE" --arg detail "$RESPONSE_BODY" '{error:("HTTP " + $code), detail:$detail}')"
+        ${pkgs.libnotify}/bin/notify-send -- "PR broker FAILED (HTTP $CODE)" "$SUMMARY" || true
+      fi
+
+      ${pkgs.coreutils}/bin/rm -f "$f"
+    done
+  '';
+
+
   proxyConfigFile = pkgs.writeText "sandbox-proxy.conf" ''
     Port ${toString cfg.network.proxyPort}
     Listen 127.0.0.1
@@ -216,6 +575,13 @@ with lib; let
       # /tmp/box-notify: read-write outbox for the `notify` script. A host-side
       # systemd path unit watches this dir and dispatches each file via notify-send.
       ++ [ "--bind-try" "/tmp/box-notify" "/tmp/box-notify" ]
+      # PR broker: box drops request files in /tmp/box-pr-request (RW), reads
+      # response files from /tmp/box-pr-response (RO). Host dispatcher holds
+      # the write-PAT and only invokes GitHub's create-PR endpoint.
+      ++ (optionals cfg.githubPrBroker.enable [
+        "--bind-try" "/tmp/box-pr-request" "/tmp/box-pr-request"
+        "--ro-bind-try" "/tmp/box-pr-response" "/tmp/box-pr-response"
+      ])
       ++ roBinds
       ++ rwBinds
       ++ cfg.extraBwrapArgs
@@ -245,6 +611,11 @@ with lib; let
       # --bind-try silently skips and the box's `notify` writes land in the
       # box's private /tmp where the host watcher never sees them.
       mkdir -p /tmp/box-notify
+      ${optionalString cfg.githubPrBroker.enable ''
+        # Same reasoning for the PR broker: directories must exist on host
+        # before bwrap so bind-try'd mounts actually attach.
+        mkdir -p /tmp/box-pr-request /tmp/box-pr-response
+      ''}
 
       # Auto-bootstrap on first run.
       if ${if cfg.homeManagerFlake != null then "true" else "false"} && [ ! -L "${cfg.stateDir}/home/.nix-profile" ]; then
@@ -413,6 +784,11 @@ in {
           # GitHub SSH-over-HTTPS endpoint (port 443) — tunneled via tinyproxy
           # CONNECT so `git push` works without opening port 22 in the box.
           ''^ssh\.github\.com$''
+          # Azure storage / Microsoft cloud: GitHub Actions log/artifact
+          # downloads redirect here (productionresultssa5.blob.core.windows.net
+          # and similar). Broad on purpose so future Azure-hosted GitHub
+          # endpoints don't need allowlist updates.
+          ''^.*\.windows\.net$''
           # Nix
           ''^cache\.nixos\.org$''
           ''^channels\.nixos\.org$''
@@ -486,6 +862,52 @@ in {
       '';
     };
 
+    brokerClient = {
+      enable = mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          Install the in-box client scripts (`gh-pr-create`, `gh-pr-edit`)
+          into this profile's `home.packages` so they end up in
+          `~/.nix-profile/bin/` — which is reliably on PATH including
+          through direnv/devenv shells. Enable this in the BOX's
+          home-manager config (not the host's); the host doesn't need them.
+        '';
+      };
+    };
+
+    githubPrBroker = {
+      enable = mkOption {
+        type = types.bool;
+        default = false;
+        description = ''
+          Host-side capability broker for opening GitHub pull requests from
+          inside the box. Mirrors the box-notify file-drop pattern:
+          `gh-pr-create` (in the box) drops a JSON request at
+          /tmp/box-pr-request, a host systemd path unit dispatches it via
+          the GitHub API, and the response (PR URL) lands in
+          /tmp/box-pr-response for the in-box client to read.
+
+          The write-scoped PAT lives at `writeTokenFile` on the host and is
+          never bind-mounted into the box. The broker only ever invokes
+          GitHub's create-PR endpoint — approve/close/comment/merge are not
+          reachable from inside the box.
+        '';
+      };
+
+      writeTokenFile = mkOption {
+        type = with types; nullOr str;
+        default = null;
+        example = "/data/.secret/github/pat-write";
+        description = ''
+          Host path to a file containing a GitHub PAT with
+          `Pull requests: Read and Write` permission. Read by the dispatcher
+          at request time. MUST NOT be inside any path that's bind-mounted
+          into the box (don't put it under `mountsRO`/`mountsRW`).
+        '';
+      };
+    };
+
     hostname = mkOption {
       type = with types; nullOr str;
       default = "box";
@@ -519,8 +941,33 @@ in {
     };
   };
 
-  config = mkIf cfg.enable {
+  config = mkMerge [
+    # Box's in-box client scripts. Independent of cfg.enable so the BOX's
+    # home-manager (which never sets sandbox.enable) can still install them.
+    (mkIf cfg.brokerClient.enable {
+      home.packages = [ ghPrCreateScript ghPrEditScript ];
+    })
+    (mkIf cfg.enable {
     home.packages = [ box ];
+
+    # PR broker: host-side path watcher + dispatcher. Same shape as the
+    # box-notify pair (defined in work/home.nix).
+    systemd.user.paths.box-pr-broker = mkIf cfg.githubPrBroker.enable {
+      Unit.Description = "Watch /tmp/box-pr-request for GitHub PR-creation drops";
+      Path = {
+        PathExistsGlob = "/tmp/box-pr-request/[!.]*";
+        MakeDirectory = true;
+        DirectoryMode = "0755";
+      };
+      Install.WantedBy = [ "default.target" ];
+    };
+    systemd.user.services.box-pr-broker = mkIf cfg.githubPrBroker.enable {
+      Unit.Description = "Dispatch /tmp/box-pr-request drops via GitHub's create-PR endpoint";
+      Service = {
+        Type = "oneshot";
+        ExecStart = "${prBrokerDispatch}";
+      };
+    };
 
     systemd.user.services.sandbox-proxy = mkIf cfg.network.enable {
       Unit = {
@@ -536,5 +983,6 @@ in {
       };
       Install.WantedBy = [ "default.target" ];
     };
-  };
+    })
+  ];
 }

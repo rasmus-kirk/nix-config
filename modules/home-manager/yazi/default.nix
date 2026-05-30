@@ -16,9 +16,9 @@ with lib; let
         cp -vr ${name}.yazi/* "$out"
       '';
       src = pkgs.fetchgit {
-        rev = "63f9650e522336e0010261dcd0ffb0bf114cf912";
+        rev = "c2c16c83dd6c754c38893030848a162bb2422ca2";
         url = "https://github.com/yazi-rs/plugins.git";
-        hash = "sha256-ZCLJ6BjMAj64/zM606qxnmzl2la4dvO/F5QFicBEYfU=";
+        hash = "sha256-BdisAHsLHNqtuDu8rtBZZaqiTeL60pQOWKsRct35VZM=";
       };
     };
   mkYaziPluginGithub = x:
@@ -275,13 +275,15 @@ in {
           prepend_fetchers = [
             {
               id = "git";
-              name = "*/";
+              url = "*/";
               run = "git";
+              group = "git";
             }
             {
               id = "git";
-              name = "*";
+              url = "*";
               run = "git";
+              group = "git";
             }
           ];
         };

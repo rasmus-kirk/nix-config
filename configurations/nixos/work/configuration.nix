@@ -115,6 +115,27 @@ in {
 
   hardware.graphics.enable = true;
 
+  hardware.bluetooth = {
+    enable = true;
+    powerOnBoot = true;
+  };
+
+  # Lenovo + MediaTek MT7925: the BT half of the chip enters a state during
+  # suspend that no runtime reset (USB authorized cycle, PCIe remove+rescan,
+  # module reload) can clear — only a full reboot recovers it. Workaround:
+  # detach the btusb driver before the chip sleeps so it isn't stuck in
+  # mid-transaction at resume time, then reload on wake.
+  # If BT is still broken after this (rare boot-time failure), only reboot
+  # helps — no userland recovery script exists for that case.
+  powerManagement = {
+    powerDownCommands = ''
+      ${pkgs.kmod}/bin/modprobe -r btusb || true
+    '';
+    resumeCommands = ''
+      ${pkgs.kmod}/bin/modprobe btusb || true
+    '';
+  };
+
   programs.ssh.startAgent = true;
   environment.variables.SSH_ASKPASS = "";
 
@@ -249,6 +270,7 @@ in {
   environment.systemPackages = with pkgs; [
     # Misc
     keepassxc
+    bitwarden-desktop
     thunderbird
     yubioath-flutter
     ledger-live-desktop
@@ -270,6 +292,7 @@ in {
 
     # Misc Terminal Tools
     wl-clipboard
+    wtype
     yt-dlp
 
     inputs.agenix.packages."${system}".default

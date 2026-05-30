@@ -38,6 +38,7 @@ in {
       enable = true;
       identityPath = "${secretDir}/ssh/id_ed25519_yubi";
     };
+    sandbox.brokerClient.enable = true;
     userDirs = {
       enable = true;
       rootDir = dataDir;
@@ -107,4 +108,30 @@ in {
       ProxyCommand = "${pkgs.socat}/bin/socat - PROXY:10.0.2.2:%h:%p,proxyport=8888";
     };
   };
+
+  # OpenSSH refuses configs not owned by the current user or root. Inside the
+  # box's user-namespace, host root (which owns everything in /nix/store) maps
+  # to "nobody" — so home-manager's standard symlink ~/.ssh/config →
+  # /nix/store/.../config fails SSH's strict ownership check.
+  #
+  # Fix: materialize the config as a real, user-owned file. linkGeneration
+  # creates the symlink as usual; the entryBefore hook clears any stale
+  # materialized file so the next switch can re-link cleanly; the entryAfter
+  # hook copies the freshly-linked target's content into a real file.
+  home.activation.materializeSshConfigPre = lib.hm.dag.entryBefore [ "linkGeneration" ] ''
+    if [ -e "$HOME/.ssh/config" ] && [ ! -L "$HOME/.ssh/config" ]; then
+      $DRY_RUN_CMD rm -f "$HOME/.ssh/config"
+    fi
+  '';
+  home.activation.materializeSshConfigPost = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    link="$HOME/.ssh/config"
+    if [ -L "$link" ]; then
+      target=$(readlink -f "$link" 2>/dev/null || true)
+      if [ -n "$target" ] && [ -f "$target" ]; then
+        $DRY_RUN_CMD rm -f "$link"
+        $DRY_RUN_CMD cp --no-preserve=mode,ownership "$target" "$link"
+        $DRY_RUN_CMD chmod 0600 "$link"
+      fi
+    fi
+  '';
 }
