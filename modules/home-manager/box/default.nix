@@ -254,49 +254,6 @@ with lib; let
     '';
   };
 
-  ghPrReviewDismissScript = pkgs.writeShellApplication {
-    name = "gh-pr-review-dismiss";
-    runtimeInputs = with pkgs; [ coreutils jq ];
-    inheritPath = false;
-    text = ''
-      set -euo pipefail
-      usage() {
-        cat >&2 <<EOF
-      Usage: gh-pr-review-dismiss --repo OWNER/REPO --number N
-
-      Deletes the broker's pending review on the given PR (if any). Useful
-      when a previous session created a pending review that was never
-      submitted and is now blocking further reviews on the same PR.
-      Prints the PR URL on success.
-      EOF
-        exit 1
-      }
-
-      REPO="" NUMBER=""
-      while [ $# -gt 0 ]; do
-        case "$1" in
-          --repo) REPO="$2"; shift 2 ;;
-          --number) NUMBER="$2"; shift 2 ;;
-          -h|--help) usage ;;
-          *) echo "Unknown arg: $1" >&2; usage ;;
-        esac
-      done
-
-      if [ -z "$REPO" ] || [ -z "$NUMBER" ]; then
-        usage
-      fi
-
-      REQ=$(jq -n \
-        --arg op review_dismiss \
-        --arg repo "$REPO" \
-        --argjson pr_number "$NUMBER" \
-        '{op:$op, repo:$repo, pr_number:$pr_number}')
-
-      set -- "$REQ" url
-      ${prBrokerClientPoll}
-    '';
-  };
-
   prBrokerDispatch = pkgs.writeShellScript "box-pr-broker-dispatch" ''
     set -u
     REQ_DIR=${cfg.brokerRoot}/request
