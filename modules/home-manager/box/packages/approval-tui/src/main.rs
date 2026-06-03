@@ -3,7 +3,6 @@ mod broker;
 mod config;
 mod queue;
 mod response;
-mod signing;
 mod types;
 mod ui;
 mod watcher;
@@ -15,8 +14,8 @@ use crate::broker::Registry;
 use crate::config::Config;
 use crate::queue::Queue;
 use crate::response::{
-    abandoned_response, dispatch_failed_response, ok_response, rejected_response,
-    sign_failed_response, write_ack, write_response,
+    abandoned_response, dispatch_failed_response, ok_response, rejected_response, write_ack,
+    write_response,
 };
 use crate::types::{RequestEnvelope, RequestState, ResponseStatus};
 use crate::ui::UiState;
@@ -35,17 +34,15 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 use tokio::time::Duration;
 
-/// Outcome of an approval pipeline task (signing + dispatch). Sent back to
-/// the UI loop so it can update state.
+/// Outcome of an approval pipeline task (dispatch only — TUI approval no
+/// longer signs; the downstream op (git push / git-sign-range / SSH)
+/// triggers its own YubiKey touch when relevant). Sent back to the UI loop
+/// so it can update state.
 #[derive(Debug)]
 enum PipelineOutcome {
     Ok {
         request_id: String,
         result: serde_json::Value,
-    },
-    SignFailed {
-        request_id: String,
-        detail: String,
     },
     DispatchFailed {
         request_id: String,
@@ -224,59 +221,42 @@ async fn approve_request(
     pipeline_tx: &mpsc::UnboundedSender<PipelineOutcome>,
 ) -> Result<()> {
     let Some(req) = queue.get_mut(id) else { return Ok(()) };
-    if matches!(req.state, RequestState::Signing | RequestState::Dispatching) {
+    if matches!(req.state, RequestState::Dispatching) {
         state.message = Some(format!("{id} already in-flight"));
         return Ok(());
     }
-    req.state = RequestState::Signing;
+    req.state = RequestState::Dispatching;
     req.last_error = None;
     let envelope = req.envelope.clone();
-    state.message = Some(format!("signing {id} — touch YubiKey"));
+    state.message = Some(format!("dispatching {id}"));
 
     let tx = pipeline_tx.clone();
     let registry = registry.clone();
     let audit = audit.clone();
-    let cfg = cfg.clone();
+    let _ = cfg; // kept in signature for symmetry; unused now that there's no signing step
     let id_owned = id.to_string();
 
     tokio::spawn(async move {
-        run_pipeline(envelope, cfg, audit, registry, id_owned, tx).await;
+        run_pipeline(envelope, audit, registry, id_owned, tx).await;
     });
     Ok(())
 }
 
+/// Stable SHA-256 hash of the request payload, recorded in the audit log so
+/// each approval is anchored to the exact payload bytes the user saw.
+fn payload_sha256(envelope: &RequestEnvelope) -> String {
+    let bytes = serde_json::to_vec(&envelope.payload).unwrap_or_default();
+    sha256_hex(&bytes)
+}
+
 async fn run_pipeline(
     envelope: RequestEnvelope,
-    cfg: Config,
     audit: AuditLog,
     registry: Arc<Registry>,
     id: String,
     tx: mpsc::UnboundedSender<PipelineOutcome>,
 ) {
-    let signed = match signing::sign_envelope(&envelope, &cfg.signing_key).await {
-        Ok(s) => s,
-        Err(e) => {
-            let detail = format!("{e:#}");
-            let _ = audit
-                .append(&AuditEntry {
-                    recorded_at: Utc::now().to_rfc3339(),
-                    request_id: &id,
-                    op: &envelope.op,
-                    status: ResponseStatus::SignFailed,
-                    signature: None,
-                    canonical_sha256: None,
-                    result: None,
-                    error: Some(&detail),
-                })
-                .await;
-            let _ = tx.send(PipelineOutcome::SignFailed {
-                request_id: id,
-                detail,
-            });
-            return;
-        }
-    };
-    let canonical_sha = sha256_hex(&signed.canonical_bytes);
+    let payload_sha = payload_sha256(&envelope);
 
     match registry.dispatch(&envelope).await {
         Ok(result) => {
@@ -286,8 +266,8 @@ async fn run_pipeline(
                     request_id: &id,
                     op: &envelope.op,
                     status: ResponseStatus::Ok,
-                    signature: Some(&signed.signature),
-                    canonical_sha256: Some(&canonical_sha),
+                    signature: None,
+                    canonical_sha256: Some(&payload_sha),
                     result: Some(&result),
                     error: None,
                 })
@@ -305,8 +285,8 @@ async fn run_pipeline(
                     request_id: &id,
                     op: &envelope.op,
                     status: ResponseStatus::DispatchFailed,
-                    signature: Some(&signed.signature),
-                    canonical_sha256: Some(&canonical_sha),
+                    signature: None,
+                    canonical_sha256: Some(&payload_sha),
                     result: None,
                     error: Some(&detail),
                 })
@@ -360,23 +340,12 @@ async fn handle_outcome(
             cleanup_request_file(removed).await;
             state.message = Some(format!("ok {request_id}"));
         }
-        PipelineOutcome::SignFailed { request_id, detail } => {
-            if let Some(req) = queue.get_mut(&request_id) {
-                req.state = RequestState::SignFailed;
-                req.last_error = Some(detail.clone());
-            }
-            // Don't write the response yet — let the user retry. We only
-            // emit the response file when the user gives up (closes via
-            // reject, or when we exit / abandon).
-            state.message = Some(format!("sign failed: {detail}"));
-        }
         PipelineOutcome::DispatchFailed {
             request_id,
             detail,
         } => {
-            // Dispatch failed but signature is recorded; write response so
-            // the box client unblocks. User can also re-trigger via retry
-            // if appropriate.
+            // Dispatch failed — write response so the box client unblocks.
+            // The user can also re-trigger via retry if appropriate.
             write_response(cfg, &request_id, &dispatch_failed_response(detail.clone())).await?;
             let removed = queue.remove(&request_id);
             cleanup_request_file(removed).await;

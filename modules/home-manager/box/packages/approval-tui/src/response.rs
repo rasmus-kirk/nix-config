@@ -57,14 +57,6 @@ pub fn rejected_response() -> Response {
     }
 }
 
-pub fn sign_failed_response(detail: String) -> Response {
-    Response {
-        status: ResponseStatus::SignFailed,
-        result: None,
-        detail: Some(detail),
-    }
-}
-
 pub fn dispatch_failed_response(detail: String) -> Response {
     Response {
         status: ResponseStatus::DispatchFailed,

@@ -51,9 +51,7 @@ fn draw_queue(frame: &mut Frame, area: Rect, queue: &Queue) {
         .map(|(_id, r)| {
             let state_style = match r.state {
                 crate::types::RequestState::Pending => Style::default().fg(Color::Yellow),
-                crate::types::RequestState::Signing => Style::default().fg(Color::Cyan),
                 crate::types::RequestState::Dispatching => Style::default().fg(Color::Cyan),
-                crate::types::RequestState::SignFailed => Style::default().fg(Color::Red),
                 crate::types::RequestState::DispatchFailed => Style::default().fg(Color::Red),
             };
             let line = Line::from(vec![

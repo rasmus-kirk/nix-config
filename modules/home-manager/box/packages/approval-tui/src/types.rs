@@ -59,9 +59,7 @@ pub struct PendingRequest {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RequestState {
     Pending,
-    Signing,
     Dispatching,
-    SignFailed,
     DispatchFailed,
 }
 
@@ -69,9 +67,7 @@ impl RequestState {
     pub fn label(&self) -> &'static str {
         match self {
             Self::Pending => "pending",
-            Self::Signing => "signing",
             Self::Dispatching => "dispatching",
-            Self::SignFailed => "sign failed",
             Self::DispatchFailed => "dispatch failed",
         }
     }
