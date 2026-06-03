@@ -181,6 +181,78 @@ with lib; let
     '';
   };
 
+  ghPrReviewScript = pkgs.writeShellApplication {
+    name = "gh-pr-review";
+    runtimeInputs = with pkgs; [ coreutils jq ];
+    inheritPath = false;
+    text = ''
+      set -euo pipefail
+      usage() {
+        cat >&2 <<EOF
+      Usage: gh-pr-review --repo OWNER/REPO --number N \\
+                         [--body BODY | --body-file FILE] \\
+                         [--event COMMENT|REQUEST_CHANGES] \\
+                         [--comments-file FILE]
+
+      Submits a PR review via the host-side broker. Default event is COMMENT.
+      APPROVE is intentionally not reachable from inside the box.
+
+      --comments-file: JSON array of inline review comments, e.g.:
+        [
+          {"path": "src/foo.rs", "line": 42, "body": "issue"},
+          {"path": "src/bar.rs", "start_line": 5, "line": 10, "body": "block"}
+        ]
+      Each entry needs path + line + body. Optional: side (LEFT|RIGHT,
+      default RIGHT), start_side, start_line for multi-line.
+      EOF
+        exit 1
+      }
+
+      REPO="" NUMBER="" BODY="" EVENT="COMMENT" COMMENTS_JSON="[]"
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --repo) REPO="$2"; shift 2 ;;
+          --number) NUMBER="$2"; shift 2 ;;
+          --body) BODY="$2"; shift 2 ;;
+          --body-file) BODY=$(cat "$2"); shift 2 ;;
+          --event) EVENT="$2"; shift 2 ;;
+          --comments-file) COMMENTS_JSON=$(cat "$2"); shift 2 ;;
+          -h|--help) usage ;;
+          *) echo "Unknown arg: $1" >&2; usage ;;
+        esac
+      done
+
+      if [ -z "$REPO" ] || [ -z "$NUMBER" ]; then
+        usage
+      fi
+      case "$EVENT" in
+        COMMENT|REQUEST_CHANGES) ;;
+        APPROVE)
+          echo "APPROVE is not allowed from inside the box (intentional)." >&2
+          exit 1 ;;
+        *)
+          echo "--event must be COMMENT or REQUEST_CHANGES, got: $EVENT" >&2
+          exit 1 ;;
+      esac
+      if ! printf '%s' "$COMMENTS_JSON" | jq -e 'type == "array"' >/dev/null 2>&1; then
+        echo "--comments-file must contain a JSON array" >&2
+        exit 1
+      fi
+
+      REQ=$(jq -n \
+        --arg op review \
+        --arg repo "$REPO" \
+        --argjson pr_number "$NUMBER" \
+        --arg body "$BODY" \
+        --arg event "$EVENT" \
+        --argjson comments "$COMMENTS_JSON" \
+        '{op:$op, repo:$repo, pr_number:$pr_number, body:$body, event:$event, comments:$comments}')
+
+      set -- "$REQ" url
+      ${prBrokerClientPoll}
+    '';
+  };
+
   prBrokerDispatch = pkgs.writeShellScript "box-pr-broker-dispatch" ''
     set -u
     REQ_DIR=/tmp/box-pr-request
@@ -338,6 +410,41 @@ with lib; let
           SUMMARY="edit #$PR_NUMBER"
           SUCCESS_CODE=200
           ;;
+        review)
+          PR_NUMBER=$(${pkgs.jq}/bin/jq -r '.pr_number // empty' "$f")
+          EVENT=$(${pkgs.jq}/bin/jq -r '.event // "COMMENT"' "$f")
+          if [ -z "$PR_NUMBER" ]; then
+            write_resp '{"error":"bad_request","detail":"review needs pr_number"}'
+            ${pkgs.libnotify}/bin/notify-send -- "PR broker" "Bad review request" || true
+            ${pkgs.coreutils}/bin/rm -f "$f" "$TMP_BODY"
+            continue
+          fi
+          # Defense-in-depth: dispatcher refuses APPROVE even if the
+          # in-box client script were patched out.
+          if [ "$EVENT" = "APPROVE" ]; then
+            write_resp '{"error":"forbidden","detail":"APPROVE not allowed via broker"}'
+            ${pkgs.libnotify}/bin/notify-send -- "PR broker" "REJECTED: APPROVE attempt on #$PR_NUMBER" || true
+            ${pkgs.coreutils}/bin/rm -f "$f" "$TMP_BODY"
+            continue
+          fi
+          if [ "$EVENT" != "COMMENT" ] && [ "$EVENT" != "REQUEST_CHANGES" ]; then
+            write_resp "$(${pkgs.jq}/bin/jq -n --arg e "$EVENT" '{error:"bad_request", detail:("invalid event: " + $e)}')"
+            ${pkgs.coreutils}/bin/rm -f "$f" "$TMP_BODY"
+            continue
+          fi
+          # Forward only present fields. Empty body / empty comments are
+          # both valid (body-only OR inline-only OR both).
+          PAYLOAD=$(${pkgs.jq}/bin/jq '{body, event, comments} | with_entries(select(.value != null and .value != ""))' "$f")
+          CODE=$(${pkgs.curl}/bin/curl -sS -o "$TMP_BODY" -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -d "$PAYLOAD" \
+            "https://api.github.com/repos/$REPO/pulls/$PR_NUMBER/reviews" 2>/dev/null || echo 000)
+          SUMMARY="$EVENT on #$PR_NUMBER"
+          SUCCESS_CODE=200
+          ;;
         *)
           write_resp "$(${pkgs.jq}/bin/jq -n --arg op "$OP" '{error:"bad_request", detail:("unknown op: " + $op)}')"
           ${pkgs.libnotify}/bin/notify-send -- "PR broker" "Unknown op: $OP" || true
@@ -351,12 +458,19 @@ with lib; let
 
       if [ "$CODE" = "$SUCCESS_CODE" ]; then
         url=$(${pkgs.coreutils}/bin/printf '%s' "$RESPONSE_BODY" | ${pkgs.jq}/bin/jq -r '.html_url')
-        number=$(${pkgs.coreutils}/bin/printf '%s' "$RESPONSE_BODY" | ${pkgs.jq}/bin/jq -r '.number')
-        write_resp "$(${pkgs.jq}/bin/jq -n --arg url "$url" --argjson number "$number" --arg op "$OP" '{url:$url, number:$number, op:$op}')"
-        if [ "$OP" = "create" ]; then
-          ${pkgs.libnotify}/bin/notify-send -- "PR opened — #$number" "$SUMMARY — $url" || true
+        if [ "$OP" = "review" ]; then
+          # Review responses don't have a `.number` field — the PR's number
+          # is implicit from the URL.
+          write_resp "$(${pkgs.jq}/bin/jq -n --arg url "$url" --arg op "$OP" '{url:$url, op:$op}')"
+          ${pkgs.libnotify}/bin/notify-send -- "PR review — $SUMMARY" "$url" || true
         else
-          ${pkgs.libnotify}/bin/notify-send -- "PR updated — #$number" "$url" || true
+          number=$(${pkgs.coreutils}/bin/printf '%s' "$RESPONSE_BODY" | ${pkgs.jq}/bin/jq -r '.number')
+          write_resp "$(${pkgs.jq}/bin/jq -n --arg url "$url" --argjson number "$number" --arg op "$OP" '{url:$url, number:$number, op:$op}')"
+          if [ "$OP" = "create" ]; then
+            ${pkgs.libnotify}/bin/notify-send -- "PR opened — #$number" "$SUMMARY — $url" || true
+          else
+            ${pkgs.libnotify}/bin/notify-send -- "PR updated — #$number" "$url" || true
+          fi
         fi
       else
         write_resp "$(${pkgs.jq}/bin/jq -n --arg code "$CODE" --arg detail "$RESPONSE_BODY" '{error:("HTTP " + $code), detail:$detail}')"
@@ -616,6 +730,16 @@ with lib; let
         # before bwrap so bind-try'd mounts actually attach.
         mkdir -p /tmp/box-pr-request /tmp/box-pr-response
       ''}
+
+      # Auto-allow any .envrc in the launching cwd so direnv loads the
+      # project devshell inside the box (initScript runs `direnv export
+      # bash`, which only emits env when .envrc is trusted). Safe in this
+      # context because the box itself is the sandbox — if someone cd's
+      # into a malicious repo and runs `box`, the .envrc's code runs inside
+      # the bwrap+nft jail, not on the host.
+      if [ -f "$PWD/.envrc" ]; then
+        ${pkgs.direnv}/bin/direnv allow "$PWD" 2>/dev/null || true
+      fi
 
       # Auto-bootstrap on first run.
       if ${if cfg.homeManagerFlake != null then "true" else "false"} && [ ! -L "${cfg.stateDir}/home/.nix-profile" ]; then
@@ -945,7 +1069,7 @@ in {
     # Box's in-box client scripts. Independent of cfg.enable so the BOX's
     # home-manager (which never sets sandbox.enable) can still install them.
     (mkIf cfg.brokerClient.enable {
-      home.packages = [ ghPrCreateScript ghPrEditScript ];
+      home.packages = [ ghPrCreateScript ghPrEditScript ghPrReviewScript ];
     })
     (mkIf cfg.enable {
     home.packages = [ box ];
