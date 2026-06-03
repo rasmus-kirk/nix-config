@@ -10,11 +10,12 @@ with lib; let
   proxyFilterFile = pkgs.writeText "sandbox-proxy-filter" (concatStringsSep "\n" cfg.network.allowedHosts);
 
   # ─── GitHub PR-creation broker (file-drop pattern, like box-notify) ─────
-  # Inside the box, gh-pr-create drops a JSON request at /tmp/box-pr-request/.
-  # Outside (host), a systemd user path unit watches that dir and dispatches
-  # each file via prBrokerDispatch, which holds the write-PAT (NOT visible to
-  # the box) and calls GitHub's create-PR endpoint. The PR URL is written back
-  # to /tmp/box-pr-response/ for the in-box client to read.
+  # Inside the box, gh-pr-create drops a JSON request at
+  # ${cfg.brokerRoot}/request/. Outside (host), a systemd user path unit
+  # watches that dir and dispatches each file via prBrokerDispatch, which
+  # holds the write-PAT (NOT visible to the box) and calls GitHub's create-PR
+  # endpoint. The PR URL is written back to ${cfg.brokerRoot}/response/ for
+  # the in-box client to read.
   #
   # Security: box only knows how to drop a file. It cannot enumerate or invoke
   # other GitHub endpoints; the broker only exposes create-PR. Write-PAT lives
@@ -25,14 +26,14 @@ with lib; let
   # extra script-in-PATH for an internal helper.
   prBrokerClientPoll = ''
     # Args: $1 = request JSON, $2 = response field to print on success ("url" or "number")
-    if [ ! -d /tmp/box-pr-request ]; then
-      echo "PR broker not enabled on host (no /tmp/box-pr-request). See kirk.box.githubPrBroker.enable" >&2
+    if [ ! -d ${cfg.brokerRoot}/request ]; then
+      echo "PR broker not enabled on host (no ${cfg.brokerRoot}/request). See kirk.box.githubPrBroker.enable" >&2
       exit 1
     fi
     ID="$(date +%s%N).$$"
-    REQ_TMP="/tmp/box-pr-request/.staging.$ID"
-    REQ_FINAL="/tmp/box-pr-request/$ID.json"
-    RESP_FILE="/tmp/box-pr-response/$ID.json"
+    REQ_TMP="${cfg.brokerRoot}/request/.staging.$ID"
+    REQ_FINAL="${cfg.brokerRoot}/request/$ID.json"
+    RESP_FILE="${cfg.brokerRoot}/response/$ID.json"
     printf '%s' "$1" > "$REQ_TMP"
     mv "$REQ_TMP" "$REQ_FINAL"
     for _ in $(seq 1 60); do
@@ -63,9 +64,9 @@ with lib; let
                          --title TITLE [--body BODY | --body-file FILE] \\
                          [--draft]
 
-      Drops a request file at /tmp/box-pr-request/ for the host-side broker
-      to create the PR via the GitHub API. Waits up to 30s for the response
-      and prints the resulting PR URL on stdout.
+      Drops a request file at ${cfg.brokerRoot}/request/ for the host-side
+      broker to create the PR via the GitHub API. Waits up to 30s for the
+      response and prints the resulting PR URL on stdout.
       EOF
         exit 1
       }
@@ -120,7 +121,7 @@ with lib; let
                        [--state open|closed] \\
                        [--draft | --ready]
 
-      Drops an edit request at /tmp/box-pr-request/ for the host-side broker
+      Drops an edit request at ${cfg.brokerRoot}/request/ for the host-side broker
       to PATCH the PR via the GitHub API. Only fields passed are updated;
       others are left untouched. --draft and --ready toggle draft state via
       GraphQL (REST doesn't support that field on update). Prints the updated
@@ -298,8 +299,8 @@ with lib; let
 
   prBrokerDispatch = pkgs.writeShellScript "box-pr-broker-dispatch" ''
     set -u
-    REQ_DIR=/tmp/box-pr-request
-    RESP_DIR=/tmp/box-pr-response
+    REQ_DIR=${cfg.brokerRoot}/request
+    RESP_DIR=${cfg.brokerRoot}/response
     ${pkgs.coreutils}/bin/mkdir -p "$RESP_DIR"
 
     TOKEN_FILE='${if cfg.githubPrBroker.writeTokenFile != null
@@ -732,12 +733,13 @@ with lib; let
       # /tmp/box-notify: read-write outbox for the `notify` script. A host-side
       # systemd path unit watches this dir and dispatches each file via notify-send.
       ++ [ "--bind-try" "/tmp/box-notify" "/tmp/box-notify" ]
-      # PR broker: box drops request files in /tmp/box-pr-request (RW), reads
-      # response files from /tmp/box-pr-response (RO). Host dispatcher holds
-      # the write-PAT and only invokes GitHub's create-PR endpoint.
+      # Broker IPC: box drops request files in ${cfg.brokerRoot}/request (RW),
+      # reads response files from ${cfg.brokerRoot}/response (RO). Host
+      # dispatcher (or approval TUI) holds the write-PAT and only invokes
+      # whitelisted endpoints.
       ++ (optionals cfg.githubPrBroker.enable [
-        "--bind-try" "/tmp/box-pr-request" "/tmp/box-pr-request"
-        "--ro-bind-try" "/tmp/box-pr-response" "/tmp/box-pr-response"
+        "--bind-try" "${cfg.brokerRoot}/request" "${cfg.brokerRoot}/request"
+        "--ro-bind-try" "${cfg.brokerRoot}/response" "${cfg.brokerRoot}/response"
       ])
       ++ roBinds
       ++ rwBinds
@@ -771,7 +773,7 @@ with lib; let
       ${optionalString cfg.githubPrBroker.enable ''
         # Same reasoning for the PR broker: directories must exist on host
         # before bwrap so bind-try'd mounts actually attach.
-        mkdir -p /tmp/box-pr-request /tmp/box-pr-response
+        mkdir -p ${cfg.brokerRoot}/request ${cfg.brokerRoot}/response
       ''}
 
       # Auto-allow any .envrc in the launching cwd so direnv loads the
@@ -810,6 +812,19 @@ in {
       type = types.str;
       default = "/data/.state/sandbox";
       description = "Writable state directory (the sandbox's home lives at <stateDir>/home).";
+    };
+
+    brokerRoot = mkOption {
+      type = types.str;
+      default = "/tmp/box-broker";
+      description = ''
+        Root directory for the host↔box broker IPC. Contains `request/`
+        (box→host, RW in box) and `response/` (host→box, RO in box)
+        subdirectories. The host-side approval TUI (or dispatcher,
+        depending on broker) watches `request/` and writes back to
+        `response/`. Must be the SAME path inside and outside the
+        sandbox — the directories are bind-mounted.
+      '';
     };
 
     targetPkgs = mkOption {
@@ -1051,9 +1066,9 @@ in {
           Host-side capability broker for opening GitHub pull requests from
           inside the box. Mirrors the box-notify file-drop pattern:
           `gh-pr-create` (in the box) drops a JSON request at
-          /tmp/box-pr-request, a host systemd path unit dispatches it via
-          the GitHub API, and the response (PR URL) lands in
-          /tmp/box-pr-response for the in-box client to read.
+          `''${brokerRoot}/request/`, a host systemd path unit dispatches
+          it via the GitHub API, and the response (PR URL) lands in
+          `''${brokerRoot}/response/` for the in-box client to read.
 
           The write-scoped PAT lives at `writeTokenFile` on the host and is
           never bind-mounted into the box. The broker only ever invokes
@@ -1120,16 +1135,16 @@ in {
     # PR broker: host-side path watcher + dispatcher. Same shape as the
     # box-notify pair (defined in work/home.nix).
     systemd.user.paths.box-pr-broker = mkIf cfg.githubPrBroker.enable {
-      Unit.Description = "Watch /tmp/box-pr-request for GitHub PR-creation drops";
+      Unit.Description = "Watch ${cfg.brokerRoot}/request for GitHub PR-creation drops";
       Path = {
-        PathExistsGlob = "/tmp/box-pr-request/[!.]*";
+        PathExistsGlob = "${cfg.brokerRoot}/request/[!.]*";
         MakeDirectory = true;
         DirectoryMode = "0755";
       };
       Install.WantedBy = [ "default.target" ];
     };
     systemd.user.services.box-pr-broker = mkIf cfg.githubPrBroker.enable {
-      Unit.Description = "Dispatch /tmp/box-pr-request drops via GitHub's create-PR endpoint";
+      Unit.Description = "Dispatch ${cfg.brokerRoot}/request drops via GitHub's create-PR endpoint";
       Service = {
         Type = "oneshot";
         ExecStart = "${prBrokerDispatch}";
