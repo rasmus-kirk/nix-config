@@ -366,13 +366,19 @@ async fn handle_outcome(
 
 /// Fire a desktop notification via notify-send and (best-effort) play the
 /// message sound. Both invocations are detached: we don't block the event
-/// loop on either, and we ignore exit status so missing tooling / unset
-/// sound path silently no-op.
+/// loop on either.
+///
+/// `BOX_NOTIFY_BIN` / `BOX_PW_CAT_BIN` / `BOX_NOTIFY_SOUND` env vars
+/// provide absolute paths (set by the home-manager module). Falls back
+/// to PATH lookup if a binary path env var is unset; logs to stderr if
+/// the notify-send invocation can't even be spawned, so the user sees
+/// it in the TUI's launching terminal.
 async fn dispatch_notification(title: &str, body: &str) {
+    let pw_cat = std::env::var("BOX_PW_CAT_BIN").unwrap_or_else(|_| "pw-cat".into());
     if let Ok(sound) = std::env::var("BOX_NOTIFY_SOUND") {
         if !sound.is_empty() {
             tokio::spawn(async move {
-                let _ = tokio::process::Command::new("pw-cat")
+                let _ = tokio::process::Command::new(&pw_cat)
                     .args(["--playback", &sound])
                     .stdout(std::process::Stdio::null())
                     .stderr(std::process::Stdio::null())
@@ -381,12 +387,16 @@ async fn dispatch_notification(title: &str, body: &str) {
             });
         }
     }
-    let _ = tokio::process::Command::new("notify-send")
+    let notify_bin = std::env::var("BOX_NOTIFY_BIN").unwrap_or_else(|_| "notify-send".into());
+    let result = tokio::process::Command::new(&notify_bin)
         .args(["--app-name=approval-tui", "--", title, body])
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .status()
         .await;
+    if let Err(e) = result {
+        eprintln!("approval-tui: notify-send failed to spawn ({notify_bin}): {e:#}");
+    }
 }
 
 async fn cleanup_request_file(req: Option<crate::types::PendingRequest>) {

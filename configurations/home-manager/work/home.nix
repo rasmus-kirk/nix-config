@@ -151,12 +151,15 @@ in {
     inputs.self.packages.${pkgs.system}.approval-tui
   ];
 
-  # Tell approval-tui where the write-scoped PAT lives + which sound to
-  # play when a new request lands in its queue. The TUI reads the PAT
-  # fresh on each dispatch and never bind-mounts it into the box. Other
-  # BOX_* env vars default to sane paths matching the box module.
+  # Tell approval-tui where the write-scoped PAT lives + how to fire
+  # desktop notifications (notify-send + sound via pw-cat). The TUI
+  # reads the PAT fresh on each dispatch and never bind-mounts it into
+  # the box. Absolute /nix/store paths for the binaries so the TUI
+  # doesn't need them on PATH.
   home.sessionVariables = {
     BOX_GH_PAT_FILE = "${secretDir}/github/qms-pat-pr-rw";
+    BOX_NOTIFY_BIN = "${pkgs.libnotify}/bin/notify-send";
+    BOX_PW_CAT_BIN = "${pkgs.pipewire}/bin/pw-cat";
     BOX_NOTIFY_SOUND = "${pkgs.sound-theme-freedesktop}/share/sounds/freedesktop/stereo/message.oga";
   };
 }
