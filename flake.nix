@@ -88,6 +88,11 @@
         packages = with pkgs; [
           alejandra
           nixd
+          cargo
+          rustc
+          rustfmt
+          clippy
+          rust-analyzer
         ];
       };
     });
@@ -128,6 +133,12 @@
     in {
       default = website.package;
       debug = website.loop;
+      approval-tui = pkgs.rustPlatform.buildRustPackage {
+        pname = "approval-tui";
+        version = "0.1.0";
+        src = ./modules/home-manager/box/packages/approval-tui;
+        cargoLock.lockFile = ./modules/home-manager/box/packages/approval-tui/Cargo.lock;
+      };
     });
 
     formatter = forAllSystems ({pkgs}: pkgs.alejandra);
