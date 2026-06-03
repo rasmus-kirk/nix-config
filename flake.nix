@@ -218,7 +218,7 @@
           }
           hosts.nixosModule {
             networking.stevenBlackHosts = {
-              enable = true;
+              enable = false;
               enableIPv6 = true;
               blockFakenews = true;
               blockGambling = true;
