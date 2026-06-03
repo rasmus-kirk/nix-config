@@ -379,8 +379,16 @@ with lib; let
       EVENT="''${1:-}"
       case "$EVENT" in
         working|ready) ;;
-        *) echo "agent-event: usage: agent-event {working|ready}" >&2; exit 1 ;;
+        *) echo "agent-event: usage: agent-event {working|ready} [--name NAME]" >&2; exit 1 ;;
       esac
+      shift
+      NAME=""
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --name) NAME="$2"; shift 2 ;;
+          *) echo "agent-event: unknown arg: $1" >&2; exit 1 ;;
+        esac
+      done
       DIR=${cfg.brokerRoot}/agent-events
       [ -d "$DIR" ] || exit 0  # broker not mounted — silent no-op
       ID="$(date +%s%N).$$"
@@ -390,42 +398,56 @@ with lib; let
       FINAL="$DIR/$ID.json"
       jq -n \
         --arg event "$EVENT" --arg session_id "$SESSION_ID" \
-        --arg cwd "$PWD" --arg ts "$NOW" \
-        '{event:$event, session_id:$session_id, cwd:$cwd, ts:$ts}' \
+        --arg name "$NAME" --arg cwd "$PWD" --arg ts "$NOW" \
+        '{event:$event, session_id:$session_id, name:$name, cwd:$cwd, ts:$ts}' \
         > "$STAGE"
       mv "$STAGE" "$FINAL"
     '';
   };
 
-  # Set a display name for this box session in the host approval TUI's
-  # bottom pane. Invoked via the `/rename` slash command in Claude Code.
-  # Same agent-events channel as agent-event, just a different `event`
-  # value plus a `name` field.
-  agentRenameScript = pkgs.writeShellApplication {
-    name = "agent-rename";
-    runtimeInputs = with pkgs; [ coreutils jq ];
+  # Wrapper invoked by Claude Code's UserPromptSubmit / Stop hooks.
+  # Reads the hook context JSON from stdin to find:
+  #   - session_id      Claude's session UUID (different from BOX_SESSION_ID)
+  #   - transcript_path path to ~/.claude/projects/<slug>/<uuid>.jsonl
+  # Tails the transcript for the most recent `agent-name` entry and
+  # forwards both the event type and the name to `agent-event`. If the
+  # transcript hasn't been written yet (early in a fresh session), the
+  # name is empty and the agent shows its cwd basename until the next
+  # hook fires.
+  agentHookScript = pkgs.writeShellApplication {
+    name = "agent-hook";
+    runtimeInputs = with pkgs; [ coreutils jq agentEventScript ];
     inheritPath = false;
     text = ''
       set -euo pipefail
-      NAME="''${1:-}"
-      if [ -z "$NAME" ]; then
-        echo "agent-rename: usage: agent-rename <name>" >&2
-        exit 1
+      EVENT="''${1:-}"
+      case "$EVENT" in
+        working|ready) ;;
+        *) echo "agent-hook: usage: agent-hook {working|ready}" >&2; exit 1 ;;
+      esac
+      # Hook context arrives on stdin as JSON. If stdin has nothing
+      # (someone runs this from a shell), fall back to a name-less event.
+      CONTEXT=""
+      if [ ! -t 0 ]; then
+        CONTEXT=$(cat || true)
       fi
-      DIR=${cfg.brokerRoot}/agent-events
-      [ -d "$DIR" ] || exit 0
-      ID="$(date +%s%N).$$"
-      SESSION_ID="''${BOX_SESSION_ID:-unknown}"
-      NOW="$(date -Iseconds)"
-      STAGE="$DIR/.staging.$ID"
-      FINAL="$DIR/$ID.json"
-      jq -n \
-        --arg event "rename" --arg session_id "$SESSION_ID" \
-        --arg name "$NAME" --arg cwd "$PWD" --arg ts "$NOW" \
-        '{event:$event, session_id:$session_id, name:$name, cwd:$cwd, ts:$ts}' \
-        > "$STAGE"
-      mv "$STAGE" "$FINAL"
-      echo "Renamed agent (session $SESSION_ID) to: $NAME"
+      NAME=""
+      if [ -n "$CONTEXT" ]; then
+        TRANSCRIPT=$(printf '%s' "$CONTEXT" | jq -r '.transcript_path // empty')
+        if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
+          # The transcript is JSONL. agentName lines look like:
+          #   {"type":"agent-name","agentName":"<name>","sessionId":"<uuid>"}
+          # Take the last one (most recent).
+          NAME=$(grep -E '"type":"agent-name"' "$TRANSCRIPT" 2>/dev/null \
+                  | tail -n 1 \
+                  | jq -r '.agentName // empty' 2>/dev/null || true)
+        fi
+      fi
+      if [ -n "$NAME" ]; then
+        agent-event "$EVENT" --name "$NAME"
+      else
+        agent-event "$EVENT"
+      fi
     '';
   };
 
@@ -1139,7 +1161,7 @@ in {
       home.packages = [
         requestApprovalScript
         agentEventScript
-        agentRenameScript
+        agentHookScript
         ghPrCreateScript
         ghPrEditScript
         ghPrReviewScript
