@@ -254,6 +254,124 @@ with lib; let
     '';
   };
 
+  # Generic in-box client for the approval TUI. Wraps a payload in the
+  # request-envelope shape, drops it at ${cfg.brokerRoot}/request/, waits for
+  # the TUI to ack (5s), then polls for the final response. Exit codes:
+  #   0  ok     — stdout is the broker's JSON result
+  #  10  user rejected via TUI
+  #  11  sign_failed or dispatch_failed (stderr has detail)
+  #  12  TUI not running (no ack within 5s)
+  #  13  abandoned (TUI restarted mid-request)
+  #  14  timeout (no decision within --timeout)
+  requestApprovalScript = pkgs.writeShellApplication {
+    name = "request-approval";
+    runtimeInputs = with pkgs; [ coreutils jq ];
+    inheritPath = false;
+    text = ''
+      set -euo pipefail
+      usage() {
+        cat >&2 <<EOF
+      Usage: request-approval --op <dotted.id> --payload-file <path>
+                              [--summary <one-liner>] [--timeout <secs>]
+
+      Examples of --op:  gh.pr.create, gh.pr.edit, gh.pr.review,
+                         git.push, git.pull, git.fetch, git.sign-range.
+
+      On status=ok, the broker's JSON result is printed to stdout.
+      Exit codes: 0 ok / 10 rejected / 11 sign|dispatch failed /
+                  12 TUI not running / 13 abandoned / 14 timeout.
+      EOF
+        exit 1
+      }
+
+      OP="" PAYLOAD_FILE="" SUMMARY="" TIMEOUT=1800
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --op) OP="$2"; shift 2 ;;
+          --payload-file) PAYLOAD_FILE="$2"; shift 2 ;;
+          --summary) SUMMARY="$2"; shift 2 ;;
+          --timeout) TIMEOUT="$2"; shift 2 ;;
+          -h|--help) usage ;;
+          *) echo "Unknown arg: $1" >&2; usage ;;
+        esac
+      done
+      if [ -z "$OP" ] || [ -z "$PAYLOAD_FILE" ]; then usage; fi
+      if [ ! -r "$PAYLOAD_FILE" ]; then
+        echo "request-approval: payload file not readable: $PAYLOAD_FILE" >&2
+        exit 1
+      fi
+      if [ ! -d ${cfg.brokerRoot}/request ]; then
+        echo "request-approval: broker dir not mounted (${cfg.brokerRoot}/request)." >&2
+        echo "Box may not have been launched with the broker bind-mounts." >&2
+        exit 12
+      fi
+
+      ID="$(date +%s%N).$$"
+      NOW="$(date -Iseconds)"
+      ENVELOPE=$(jq -n \
+        --arg id "$ID" --arg requested_at "$NOW" \
+        --arg op "$OP" --arg summary "$SUMMARY" \
+        --arg cwd "$PWD" --arg started_at "$NOW" \
+        --argjson agent_pid "$$" \
+        --slurpfile payload "$PAYLOAD_FILE" \
+        '{v:1, request_id:$id, requested_at:$requested_at, op:$op,
+          payload:$payload[0], summary:$summary,
+          client_context:{cwd:$cwd, agent_pid:$agent_pid, started_at:$started_at}}')
+
+      REQ_TMP="${cfg.brokerRoot}/request/.staging.$ID"
+      REQ_FINAL="${cfg.brokerRoot}/request/$ID.json"
+      ACK_FILE="${cfg.brokerRoot}/response/$ID.ack"
+      RESP_FILE="${cfg.brokerRoot}/response/$ID.json"
+
+      printf '%s' "$ENVELOPE" > "$REQ_TMP"
+      mv "$REQ_TMP" "$REQ_FINAL"
+
+      # Wait up to ~5s for TUI to ack the request. No ack → TUI not running.
+      for _ in $(seq 1 10); do
+        [ -f "$ACK_FILE" ] && break
+        sleep 0.5
+      done
+      if [ ! -f "$ACK_FILE" ]; then
+        echo "request-approval: TUI not running on host (no ack within 5s)." >&2
+        echo "Start 'approval-tui' on the host and retry." >&2
+        exit 12
+      fi
+
+      # Poll for final response until --timeout. Sleep 0.5s between checks.
+      DEADLINE=$(( $(date +%s) + TIMEOUT ))
+      while [ "$(date +%s)" -lt "$DEADLINE" ]; do
+        if [ -f "$RESP_FILE" ]; then
+          STATUS=$(jq -r '.status' "$RESP_FILE")
+          case "$STATUS" in
+            ok)
+              jq -c '.result' "$RESP_FILE"
+              exit 0
+              ;;
+            rejected)
+              jq -r '.detail // "rejected"' "$RESP_FILE" >&2
+              exit 10
+              ;;
+            sign_failed|dispatch_failed)
+              jq -r '.detail // "broker failure"' "$RESP_FILE" >&2
+              exit 11
+              ;;
+            abandoned)
+              jq -r '.detail // "abandoned"' "$RESP_FILE" >&2
+              exit 13
+              ;;
+            *)
+              echo "request-approval: unknown status: $STATUS" >&2
+              exit 11
+              ;;
+          esac
+        fi
+        sleep 0.5
+      done
+      echo "request-approval: timed out after ''${TIMEOUT}s waiting for decision." >&2
+      exit 14
+    '';
+  };
+
   prBrokerDispatch = pkgs.writeShellScript "box-pr-broker-dispatch" ''
     set -u
     REQ_DIR=${cfg.brokerRoot}/request
@@ -1084,7 +1202,12 @@ in {
     # Box's in-box client scripts. Independent of cfg.enable so the BOX's
     # home-manager (which never sets box.enable) can still install them.
     (mkIf cfg.brokerClient.enable {
-      home.packages = [ ghPrCreateScript ghPrEditScript ghPrReviewScript ];
+      home.packages = [
+        requestApprovalScript
+        ghPrCreateScript
+        ghPrEditScript
+        ghPrReviewScript
+      ];
     })
     (mkIf cfg.enable {
     home.packages = [ box ];
