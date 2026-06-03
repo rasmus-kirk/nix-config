@@ -365,6 +365,39 @@ with lib; let
     '';
   };
 
+  # Fire-and-forget signal to the host approval TUI's agent registry.
+  # Invoked from Claude Code's UserPromptSubmit (working) and Stop
+  # (ready) hooks via ~/.claude/settings.json. Drops a small JSON file
+  # at ${cfg.brokerRoot}/agent-events/<nanos>.json that the TUI reads,
+  # uses to update the bottom pane, and (on ready) fires a desktop
+  # notification.
+  agentEventScript = pkgs.writeShellApplication {
+    name = "agent-event";
+    runtimeInputs = with pkgs; [ coreutils jq ];
+    inheritPath = false;
+    text = ''
+      set -euo pipefail
+      EVENT="''${1:-}"
+      case "$EVENT" in
+        working|ready) ;;
+        *) echo "agent-event: usage: agent-event {working|ready}" >&2; exit 1 ;;
+      esac
+      DIR=${cfg.brokerRoot}/agent-events
+      [ -d "$DIR" ] || exit 0  # broker not mounted — silent no-op
+      ID="$(date +%s%N).$$"
+      SESSION_ID="''${BOX_SESSION_ID:-unknown}"
+      NOW="$(date -Iseconds)"
+      STAGE="$DIR/.staging.$ID"
+      FINAL="$DIR/$ID.json"
+      jq -n \
+        --arg event "$EVENT" --arg session_id "$SESSION_ID" \
+        --arg cwd "$PWD" --arg ts "$NOW" \
+        '{event:$event, session_id:$session_id, cwd:$cwd, ts:$ts}' \
+        > "$STAGE"
+      mv "$STAGE" "$FINAL"
+    '';
+  };
+
   # In-box git wrapper. Intercepts push / pull / fetch and routes them
   # through the approval TUI on the host (which runs the actual git op
   # with the host's YubiKey-bound SSH key). Other subcommands — including
@@ -687,10 +720,13 @@ with lib; let
       # Broker IPC: box drops request files in ${cfg.brokerRoot}/request (RW),
       # reads response files from ${cfg.brokerRoot}/response (RO). Host
       # dispatcher (or approval TUI) holds the write-PAT and only invokes
-      # whitelisted endpoints.
+      # whitelisted endpoints. agent-events/ is a separate stream of
+      # fire-and-forget state notifications (working/ready), consumed by
+      # the TUI's bottom pane + ready-notification.
       ++ (optionals cfg.githubPrBroker.enable [
         "--bind-try" "${cfg.brokerRoot}/request" "${cfg.brokerRoot}/request"
         "--ro-bind-try" "${cfg.brokerRoot}/response" "${cfg.brokerRoot}/response"
+        "--bind-try" "${cfg.brokerRoot}/agent-events" "${cfg.brokerRoot}/agent-events"
       ])
       ++ roBinds
       ++ rwBinds
@@ -720,7 +756,8 @@ with lib; let
       ${optionalString cfg.githubPrBroker.enable ''
         # PR broker dirs: must exist on host before bwrap so bind-try'd
         # mounts actually attach.
-        mkdir -p ${cfg.brokerRoot}/request ${cfg.brokerRoot}/response
+        mkdir -p ${cfg.brokerRoot}/request ${cfg.brokerRoot}/response \
+                 ${cfg.brokerRoot}/agent-events
       ''}
 
       # Auto-allow any .envrc in the launching cwd so direnv loads the
@@ -1070,6 +1107,7 @@ in {
     (mkIf cfg.brokerClient.enable {
       home.packages = [
         requestApprovalScript
+        agentEventScript
         ghPrCreateScript
         ghPrEditScript
         ghPrReviewScript

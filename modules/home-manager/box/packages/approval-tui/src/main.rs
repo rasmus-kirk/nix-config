@@ -8,7 +8,7 @@ mod types;
 mod ui;
 mod watcher;
 
-use crate::agents::AgentRegistry;
+use crate::agents::{AgentEventFile, AgentRegistry, AgentState, AgentTransition};
 use crate::audit::{sha256_hex, AuditEntry, AuditLog};
 use crate::broker::gh_pr::{GhClient, GhPrCreate, GhPrEdit, GhPrReview};
 use crate::broker::git::{GitFetch, GitPull, GitPush, GitSignRange};
@@ -21,7 +21,7 @@ use crate::response::{
 };
 use crate::types::{RequestEnvelope, RequestState, ResponseStatus};
 use crate::ui::UiState;
-use crate::watcher::WatchEvent;
+use crate::watcher::{AgentEventNotice, WatchEvent};
 use anyhow::{Context, Result};
 use chrono::Utc;
 use crossterm::event::{Event, EventStream, KeyCode, KeyEventKind, KeyModifiers};
@@ -74,6 +74,8 @@ async fn main() -> Result<()> {
     }
 
     let mut watch_rx = watcher::spawn(&cfg.request_dir()).context("spawning request watcher")?;
+    let mut agent_rx = watcher::spawn_agent_events(&cfg.agent_events_dir())
+        .context("spawning agent-events watcher")?;
     let (pipeline_tx, mut pipeline_rx) = mpsc::unbounded_channel::<PipelineOutcome>();
 
     let mut terminal = init_terminal().context("entering raw mode + alt screen")?;
@@ -85,6 +87,7 @@ async fn main() -> Result<()> {
         &mut queue,
         &mut agents,
         &mut watch_rx,
+        &mut agent_rx,
         &mut pipeline_rx,
         pipeline_tx,
     )
@@ -103,6 +106,7 @@ async fn run_event_loop<B: ratatui::backend::Backend>(
     queue: &mut Queue,
     agents: &mut AgentRegistry,
     watch_rx: &mut mpsc::UnboundedReceiver<WatchEvent>,
+    agent_rx: &mut mpsc::UnboundedReceiver<AgentEventNotice>,
     pipeline_rx: &mut mpsc::UnboundedReceiver<PipelineOutcome>,
     pipeline_tx: mpsc::UnboundedSender<PipelineOutcome>,
 ) -> Result<()> {
@@ -158,6 +162,40 @@ async fn run_event_loop<B: ratatui::backend::Backend>(
 
             Some(outcome) = pipeline_rx.recv() => {
                 handle_outcome(outcome, cfg, &audit, queue, agents, &mut ui_state).await?;
+            }
+
+            Some(agent_ev) = agent_rx.recv() => {
+                match agent_ev {
+                    AgentEventNotice::NewEvent(path) => {
+                        match tokio::fs::read(&path).await {
+                            Ok(bytes) => match serde_json::from_slice::<AgentEventFile>(&bytes) {
+                                Ok(event) => {
+                                    let cwd_display = std::path::Path::new(&event.cwd)
+                                        .file_name()
+                                        .and_then(|n| n.to_str())
+                                        .unwrap_or("?")
+                                        .to_string();
+                                    let transition = agents.apply_event(event);
+                                    if let Some(new_state) = transitioned_to_ready(transition) {
+                                        let _ = new_state;
+                                        tokio::spawn(async move {
+                                            dispatch_notification(
+                                                "Agent ready",
+                                                &format!("{cwd_display} is awaiting input"),
+                                            ).await;
+                                        });
+                                    }
+                                }
+                                Err(e) => ui_state.message = Some(format!("agent-event parse: {e:#}")),
+                            },
+                            Err(e) => ui_state.message = Some(format!("agent-event read: {e:#}")),
+                        }
+                        let _ = tokio::fs::remove_file(&path).await;
+                    }
+                    AgentEventNotice::Error(msg) => {
+                        ui_state.message = Some(format!("agent-events watcher: {msg}"));
+                    }
+                }
             }
 
             _ = tick.tick() => {} // periodic redraw
@@ -421,6 +459,16 @@ async fn dispatch_notification(title: &str, body: &str) {
         .await;
     if let Err(e) = result {
         eprintln!("approval-tui: notify-send failed to spawn ({notify_bin}): {e:#}");
+    }
+}
+
+/// Notify on Working → Ready or Unknown → Ready transitions, and on
+/// brand-new agents that come in already-Ready. Everything else is silent.
+fn transitioned_to_ready(transition: AgentTransition) -> Option<AgentState> {
+    match transition {
+        AgentTransition::Created(AgentState::Ready) => Some(AgentState::Ready),
+        AgentTransition::Changed { to: AgentState::Ready, .. } => Some(AgentState::Ready),
+        _ => None,
     }
 }
 

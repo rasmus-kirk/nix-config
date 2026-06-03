@@ -31,4 +31,8 @@ impl Config {
     pub fn response_dir(&self) -> PathBuf {
         self.broker_root.join("response")
     }
+
+    pub fn agent_events_dir(&self) -> PathBuf {
+        self.broker_root.join("agent-events")
+    }
 }

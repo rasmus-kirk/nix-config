@@ -60,16 +60,25 @@ fn draw_agents(frame: &mut Frame, area: Rect, agents: &AgentRegistry) {
         .recent(5)
         .iter()
         .map(|a| {
-            let status_style = if a.in_flight > 0 {
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            let status_style = match a.state {
+                crate::agents::AgentState::Working => {
+                    Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+                }
+                crate::agents::AgentState::Ready => {
+                    Style::default().fg(Color::Green).add_modifier(Modifier::BOLD)
+                }
+                crate::agents::AgentState::Unknown => Style::default().fg(Color::DarkGray),
+            };
+            let in_flight_extra = if a.in_flight > 0 {
+                format!("  in-flight {}", a.in_flight)
             } else {
-                Style::default().fg(Color::Green)
+                String::new()
             };
             let line = Line::from(vec![
-                Span::styled(format!("{:>8} ", a.status_label()), status_style),
+                Span::styled(format!("{:>8} ", a.state.label()), status_style),
                 Span::raw(format!("{:<24} ", truncate(&a.cwd, 24))),
                 Span::styled(
-                    format!("in-flight {}  seen {}", a.in_flight, a.total_seen),
+                    format!("seen {}{}", a.total_seen, in_flight_extra),
                     Style::default().fg(Color::DarkGray),
                 ),
             ]);
