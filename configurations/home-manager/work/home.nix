@@ -161,11 +161,12 @@ in {
         exec ${inputs.self.packages.${pkgs.system}.approval-tui}/bin/approval-tui "$@"
       '';
     };
-  in with pkgs; [
-    claude-code
-    bubblewrap
-    socat
-    finamp
-    approvalTuiWrapped
-  ];
+  in
+    with pkgs; [
+      claude-code
+      bubblewrap
+      socat
+      finamp
+      approvalTuiWrapped
+    ];
 }

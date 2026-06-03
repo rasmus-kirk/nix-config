@@ -37,10 +37,10 @@ in {
       '';
 
       initContent = let
-        todoPath = if cfg.stateDir != null then
-          "${cfg.stateDir}/todo.md"
-        else
-          "~/.local/share/todo.md";
+        todoPath =
+          if cfg.stateDir != null
+          then "${cfg.stateDir}/todo.md"
+          else "~/.local/share/todo.md";
       in ''
         alias todo="$EDITOR ${todoPath}"
         alias g="git"

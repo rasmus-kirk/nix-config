@@ -7,19 +7,19 @@
 }:
 with lib; let
   cfg = config.kirk.chromiumLaunchers;
-  stateRoot = if cfg.stateDir == null 
+  stateRoot =
+    if cfg.stateDir == null
     then "${config.home.homeDirectory}/.local/state/chromium-launchers"
     else "${cfg.stateDir}/chromium-launchers";
   iconStorage = "${stateRoot}/icons";
   fetcherScript = pkgs.writeShellApplication {
     name = "fetch-webapp-icons";
-    runtimeInputs = with pkgs; [ wget imagemagick coreutils ];
+    runtimeInputs = with pkgs; [wget imagemagick coreutils];
     inheritPath = false;
     text = ''
       set +e
       mkdir -p "${iconStorage}"
-      ${concatStringsSep "\n" (mapAttrsToList (name: url:
-        let
+      ${concatStringsSep "\n" (mapAttrsToList (name: url: let
           domain = lib.elemAt (lib.splitString "/" (lib.last (lib.splitString "://" url))) 0;
         in ''
           if [ ! -f "${iconStorage}/${name}.png" ]; then
@@ -53,17 +53,19 @@ with lib; let
             fi
             rm -f "${iconStorage}/${name}.ico"
           fi
-        '') cfg.launchers)}
+        '')
+        cfg.launchers)}
     '';
   };
-  mkLauncher = name: pkgs.writeShellApplication {
-    name = name;
-    runtimeInputs = with pkgs; [ gtk3 ];
-    inheritPath = false;
-    text = ''
-      gtk-launch "${name}"
-    '';
-  };
+  mkLauncher = name:
+    pkgs.writeShellApplication {
+      name = name;
+      runtimeInputs = with pkgs; [gtk3];
+      inheritPath = false;
+      text = ''
+        gtk-launch "${name}"
+      '';
+    };
   launchers = mapAttrs (name: _: mkLauncher name) cfg.launchers;
 in {
   options.kirk.chromiumLaunchers = {
@@ -92,19 +94,21 @@ in {
     home.packages = attrValues launchers;
 
     # Desktop entries for Pop!_OS launcher
-    xdg.desktopEntries = mapAttrs (name: url: {
-      name = name;
-      exec = ''${pkgs.chromium}/bin/chromium --ozone-platform=x11 --user-data-dir="${stateRoot}/${name}" --class="${name}" --name="${name}" --no-first-run --app=${url}'';
-      icon = "${iconStorage}/${name}.png";
-      settings = { StartupWMClass = name; };
-      categories = [ "Network" "WebBrowser" ];
-    }) cfg.launchers;
+    xdg.desktopEntries =
+      mapAttrs (name: url: {
+        name = name;
+        exec = ''${pkgs.chromium}/bin/chromium --ozone-platform=x11 --user-data-dir="${stateRoot}/${name}" --class="${name}" --name="${name}" --no-first-run --app=${url}'';
+        icon = "${iconStorage}/${name}.png";
+        settings = {StartupWMClass = name;};
+        categories = ["Network" "WebBrowser"];
+      })
+      cfg.launchers;
 
     systemd.user.services.fetch-webapp-icons = {
       Unit = {
         Description = "Fetch chromium webapp icons";
-        After = [ "network-online.target" ];
-        Wants = [ "network-online.target" ];
+        After = ["network-online.target"];
+        Wants = ["network-online.target"];
       };
       Service = {
         Type = "oneshot";
@@ -119,7 +123,7 @@ in {
         RandomizedDelaySec = "5m";
         Persistent = true;
       };
-      Install.WantedBy = [ "timers.target" ];
+      Install.WantedBy = ["timers.target"];
     };
   };
 }

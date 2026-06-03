@@ -14,11 +14,11 @@ with lib; let
     text = ''
       # Ensure directories exist
       mkdir -p "${cfg.destDir}"
-      
+
       echo "Starting state backup to ${cfg.destDir}..."
-      
+
       rsync -av --delete "${cfg.sourceDir}/" "${cfg.destDir}/"
-      
+
       echo "Backup completed successfully at $(date)"
     '';
   };

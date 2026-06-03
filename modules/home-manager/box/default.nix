@@ -23,7 +23,7 @@ with lib; let
 
   ghPrCreateScript = pkgs.writeShellApplication {
     name = "gh-pr-create";
-    runtimeInputs = (with pkgs; [ coreutils jq ]) ++ [ requestApprovalScript ];
+    runtimeInputs = (with pkgs; [coreutils jq]) ++ [requestApprovalScript];
     inheritPath = false;
     text = ''
       set -euo pipefail
@@ -81,7 +81,7 @@ with lib; let
 
   ghPrEditScript = pkgs.writeShellApplication {
     name = "gh-pr-edit";
-    runtimeInputs = (with pkgs; [ coreutils jq ]) ++ [ requestApprovalScript ];
+    runtimeInputs = (with pkgs; [coreutils jq]) ++ [requestApprovalScript];
     inheritPath = false;
     text = ''
       set -euo pipefail
@@ -168,7 +168,7 @@ with lib; let
 
   ghPrReviewScript = pkgs.writeShellApplication {
     name = "gh-pr-review";
-    runtimeInputs = (with pkgs; [ coreutils jq ]) ++ [ requestApprovalScript ];
+    runtimeInputs = (with pkgs; [coreutils jq]) ++ [requestApprovalScript];
     inheritPath = false;
     text = ''
       set -euo pipefail
@@ -246,7 +246,7 @@ with lib; let
 
   ghPrReviewAppendScript = pkgs.writeShellApplication {
     name = "gh-pr-review-append";
-    runtimeInputs = (with pkgs; [ coreutils jq ]) ++ [ requestApprovalScript ];
+    runtimeInputs = (with pkgs; [coreutils jq]) ++ [requestApprovalScript];
     inheritPath = false;
     text = ''
       set -euo pipefail
@@ -330,7 +330,7 @@ with lib; let
   #  14  timeout (no decision within --timeout)
   requestApprovalScript = pkgs.writeShellApplication {
     name = "request-approval";
-    runtimeInputs = with pkgs; [ coreutils jq ];
+    runtimeInputs = with pkgs; [coreutils jq];
     inheritPath = false;
     text = ''
       set -euo pipefail
@@ -447,7 +447,7 @@ with lib; let
   # to update the bottom pane.
   agentEventScript = pkgs.writeShellApplication {
     name = "agent-event";
-    runtimeInputs = with pkgs; [ coreutils jq ];
+    runtimeInputs = with pkgs; [coreutils jq];
     inheritPath = false;
     text = ''
       set -euo pipefail
@@ -491,7 +491,7 @@ with lib; let
   # reflects immediately, not just on the next hook).
   agentHookScript = pkgs.writeShellApplication {
     name = "agent-hook";
-    runtimeInputs = with pkgs; [ coreutils jq agentEventScript ];
+    runtimeInputs = with pkgs; [coreutils jq agentEventScript];
     inheritPath = false;
     text = ''
       set -euo pipefail
@@ -523,7 +523,7 @@ with lib; let
   # — pass through to the real git binary.
   gitWrapperScript = pkgs.writeShellApplication {
     name = "git";
-    runtimeInputs = (with pkgs; [ coreutils jq ]) ++ [ requestApprovalScript ];
+    runtimeInputs = (with pkgs; [coreutils jq]) ++ [requestApprovalScript];
     inheritPath = false;
     text = ''
       set -euo pipefail
@@ -590,7 +590,7 @@ with lib; let
   # YubiKey once per commit.
   gitBatchSignScript = pkgs.writeShellApplication {
     name = "git-batch-sign";
-    runtimeInputs = (with pkgs; [ coreutils jq git ]) ++ [ requestApprovalScript ];
+    runtimeInputs = (with pkgs; [coreutils jq git]) ++ [requestApprovalScript];
     inheritPath = false;
     text = ''
       set -euo pipefail
@@ -758,18 +758,22 @@ with lib; let
   # urandom, tty, ptmx, pts, fd, stdin, stdout, stderr, console).
   # Anything else (cameras, mics, input events, GPU, hidraw etc.) is
   # absent unless the user explicitly adds it via extraBwrapArgs.
-  minimalDev = [ "--dev" "/dev" ];
+  minimalDev = ["--dev" "/dev"];
 
   claudeStateBind = optionals cfg.exposeClaudeState [
-    "--bind" "${config.home.homeDirectory}/.claude" "/home/user/.claude"
+    "--bind"
+    "${config.home.homeDirectory}/.claude"
+    "/home/user/.claude"
     # ~/.claude.json holds auth + "user has been set up" state; without it
     # Claude Code treats every invocation as a first-run (theme picker etc).
-    "--bind" "${config.home.homeDirectory}/.claude.json" "/home/user/.claude.json"
+    "--bind"
+    "${config.home.homeDirectory}/.claude.json"
+    "/home/user/.claude.json"
   ];
 
-  tmpfsMasks = concatMap (p: [ "--tmpfs" p ]) cfg.mountTmpfs;
-  roBinds = concatMap (p: [ "--ro-bind" p p ]) cfg.mountsRO;
-  rwBinds = concatMap (p: [ "--bind" p p ]) cfg.mountsRW;
+  tmpfsMasks = concatMap (p: ["--tmpfs" p]) cfg.mountTmpfs;
+  roBinds = concatMap (p: ["--ro-bind" p p]) cfg.mountsRO;
+  rwBinds = concatMap (p: ["--bind" p p]) cfg.mountsRW;
 
   fhs = pkgs.buildFHSEnv {
     name = "${cfg.name}-fhs";
@@ -807,34 +811,42 @@ with lib; let
       # When network filtering is on, grant slirp4netns the caps it needs.
       # setpriv drops these before running user code.
       (optionals cfg.network.enable [
-        "--cap-add" "CAP_NET_ADMIN"
-        "--cap-add" "CAP_SYS_ADMIN"
+        "--cap-add"
+        "CAP_NET_ADMIN"
+        "--cap-add"
+        "CAP_SYS_ADMIN"
       ])
       # Hostname inside the UTS namespace (requires unshareUts).
-      ++ (optionals (cfg.hostname != null && cfg.unshareUts) [ "--hostname" cfg.hostname ])
+      ++ (optionals (cfg.hostname != null && cfg.unshareUts) ["--hostname" cfg.hostname])
       # tmpfs masks must come FIRST so they hide buildFHSEnv's auto-binds;
       # then our explicit binds re-introduce only the subpaths we want.
       ++ tmpfsMasks
       # Dynamically mask the top-level of $PWD so siblings of cwd aren't visible.
-      ++ [ "--tmpfs" "$BOX_CWD_TOP" ]
+      ++ ["--tmpfs" "$BOX_CWD_TOP"]
       # Replace host /dev with a minimal devtmpfs. No hidraw — YubiKey
       # operations (git push/pull/fetch, commit signing) all flow through
       # the host approval TUI, which owns the YubiKey itself.
       ++ minimalDev
       # /dev/net/tun must be added AFTER --dev /dev (which would wipe it).
       ++ (optionals cfg.network.enable [
-        "--dev-bind-try" "/dev/net/tun" "/dev/net/tun"
+        "--dev-bind-try"
+        "/dev/net/tun"
+        "/dev/net/tun"
       ])
       ++ [
-        "--bind" "${cfg.stateDir}/home" "/home/user"
+        "--bind"
+        "${cfg.stateDir}/home"
+        "/home/user"
       ]
       ++ claudeStateBind
       ++ (optionals (cfg.githubTokenFile != null) [
-        "--ro-bind" cfg.githubTokenFile cfg.githubTokenFile
+        "--ro-bind"
+        cfg.githubTokenFile
+        cfg.githubTokenFile
       ])
       # /tmp/screenshots: read-only window into host's screenshot drop.
       # Lives on box's /tmp tmpfs (privateTmp). Silently skipped if absent.
-      ++ [ "--ro-bind-try" "/tmp/screenshots" "/tmp/screenshots" ]
+      ++ ["--ro-bind-try" "/tmp/screenshots" "/tmp/screenshots"]
       # Broker IPC: box drops request files in ${cfg.brokerRoot}/request (RW),
       # reads response files from ${cfg.brokerRoot}/response (RO). Host
       # dispatcher (or approval TUI) holds the write-PAT and only invokes
@@ -842,17 +854,23 @@ with lib; let
       # fire-and-forget state notifications (working/ready), consumed by
       # the TUI's bottom pane + ready-notification.
       ++ (optionals cfg.githubPrBroker.enable [
-        "--bind-try" "${cfg.brokerRoot}/request" "${cfg.brokerRoot}/request"
-        "--ro-bind-try" "${cfg.brokerRoot}/response" "${cfg.brokerRoot}/response"
-        "--bind-try" "${cfg.brokerRoot}/agent-events" "${cfg.brokerRoot}/agent-events"
+        "--bind-try"
+        "${cfg.brokerRoot}/request"
+        "${cfg.brokerRoot}/request"
+        "--ro-bind-try"
+        "${cfg.brokerRoot}/response"
+        "${cfg.brokerRoot}/response"
+        "--bind-try"
+        "${cfg.brokerRoot}/agent-events"
+        "${cfg.brokerRoot}/agent-events"
       ])
       ++ roBinds
       ++ rwBinds
       ++ cfg.extraBwrapArgs
-      ++ optionals (cfg.seccompFile != null) [ "--seccomp" "9" ]
+      ++ optionals (cfg.seccompFile != null) ["--seccomp" "9"]
       # Auto-bind the caller's cwd LAST so it survives every mask above.
       # Writable so active development inside the box works.
-      ++ [ "--bind-try" "$PWD" "$PWD" ];
+      ++ ["--bind-try" "$PWD" "$PWD"];
   };
 
   # Single entry-point — the FHS env wrapper. When network.enable=true the
@@ -862,7 +880,7 @@ with lib; let
 
   box = pkgs.writeShellApplication {
     name = cfg.name;
-    runtimeInputs = with pkgs; [ coreutils trash-cli ];
+    runtimeInputs = with pkgs; [coreutils trash-cli];
     inheritPath = false;
     text = ''
       if [ "''${1:-}" = "nuke" ]; then
@@ -889,7 +907,11 @@ with lib; let
       fi
 
       # Auto-bootstrap on first run.
-      if ${if cfg.homeManagerFlake != null then "true" else "false"} && [ ! -L "${cfg.stateDir}/home/.nix-profile" ]; then
+      if ${
+        if cfg.homeManagerFlake != null
+        then "true"
+        else "false"
+      } && [ ! -L "${cfg.stateDir}/home/.nix-profile" ]; then
         echo "First run — bootstrapping box home-manager (${cfg.homeManagerFlake})..."
         ${runBox} bash -lc 'home-manager switch --flake ${cfg.homeManagerFlake} -b backup --impure' || {
           echo "Bootstrap failed. Run '${cfg.name} hm-switch' manually."
@@ -931,35 +953,36 @@ in {
 
     targetPkgs = mkOption {
       type = types.functionTo (types.listOf types.package);
-      default = pkgs: with pkgs; [
-        glibc
-        coreutils
-        bashInteractive
-        zsh
-        git
-        openssh
-        curl
-        wget
-        cacert
-        gnumake
-        gcc
-        python3
-        nodejs
-        sudo
-        less
-        vim
-        util-linux
-        file
-        which
-        gnused
-        gnugrep
-        gawk
-        findutils
-        nix
-        home-manager
-        claude-code
-        socat
-      ];
+      default = pkgs:
+        with pkgs; [
+          glibc
+          coreutils
+          bashInteractive
+          zsh
+          git
+          openssh
+          curl
+          wget
+          cacert
+          gnumake
+          gcc
+          python3
+          nodejs
+          sudo
+          less
+          vim
+          util-linux
+          file
+          which
+          gnused
+          gnugrep
+          gawk
+          findutils
+          nix
+          home-manager
+          claude-code
+          socat
+        ];
       description = "Function returning the packages exposed inside the FHS (available in /usr/bin etc.).";
     };
 
@@ -1201,7 +1224,7 @@ in {
     extraBwrapArgs = mkOption {
       type = with types; listOf str;
       default = [];
-      example = [ "--unshare-net" ];
+      example = ["--unshare-net"];
       description = "Additional raw bwrap arguments appended to the invocation.";
     };
 
@@ -1239,28 +1262,28 @@ in {
       ];
     })
     (mkIf cfg.enable {
-    home.packages = [ box ];
+      home.packages = [box];
 
-    # The PR broker dispatcher (bash + systemd path-unit) is retired: all
-    # broker requests now go through the host-side approval-tui binary,
-    # which watches ${cfg.brokerRoot}/request directly. The user launches
-    # approval-tui in a terminal of their choice; bind-mounts + brokerRoot
-    # remain available for it.
+      # The PR broker dispatcher (bash + systemd path-unit) is retired: all
+      # broker requests now go through the host-side approval-tui binary,
+      # which watches ${cfg.brokerRoot}/request directly. The user launches
+      # approval-tui in a terminal of their choice; bind-mounts + brokerRoot
+      # remain available for it.
 
-    systemd.user.services.sandbox-proxy = mkIf cfg.network.enable {
-      Unit = {
-        Description = "Domain-allowlist HTTP proxy for the sandbox";
-        After = [ "network-online.target" ];
-        Wants = [ "network-online.target" ];
+      systemd.user.services.sandbox-proxy = mkIf cfg.network.enable {
+        Unit = {
+          Description = "Domain-allowlist HTTP proxy for the sandbox";
+          After = ["network-online.target"];
+          Wants = ["network-online.target"];
+        };
+        Service = {
+          Type = "simple";
+          ExecStart = "${pkgs.tinyproxy}/bin/tinyproxy -d -c ${proxyConfigFile}";
+          Restart = "on-failure";
+          RestartSec = "2s";
+        };
+        Install.WantedBy = ["default.target"];
       };
-      Service = {
-        Type = "simple";
-        ExecStart = "${pkgs.tinyproxy}/bin/tinyproxy -d -c ${proxyConfigFile}";
-        Restart = "on-failure";
-        RestartSec = "2s";
-      };
-      Install.WantedBy = [ "default.target" ];
-    };
     })
   ];
 }

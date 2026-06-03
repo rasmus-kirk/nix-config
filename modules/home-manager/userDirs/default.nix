@@ -3,13 +3,15 @@
   pkgs,
   lib,
   ...
-}: with lib; {
+}:
+with lib; {
   options.kirk.userDirs = {
     enable = mkEnableOption "userDirs";
 
     rootDir = mkOption {
       type = types.path;
       default = config.home.homeDirectory;
+      defaultText = lib.literalExpression "config.home.homeDirectory";
       example = "/data";
       description = "The root path to put all the XDG user directories.";
     };
@@ -70,47 +72,48 @@
            $downRoot/text ||:
       '';
     };
-  in mkIf cfg.enable {
-    xdg.userDirs = {
-      enable = true;
-      createDirectories = true;
+  in
+    mkIf cfg.enable {
+      xdg.userDirs = {
+        enable = true;
+        createDirectories = true;
 
-      extraConfig.XDG_DOWNLOADS_ROOT = "${cfg.rootDir}/downloads";
-      desktop = "${cfg.rootDir}";
-      documents = "${cfg.rootDir}/media/documents";
-      download = "${config.xdg.userDirs.extraConfig.XDG_DOWNLOADS_ROOT}/unsorted";
-      music = "${cfg.rootDir}/media/audio/music";
-      pictures = "${cfg.rootDir}/media/images";
-      # publicShare = "${cfg.rootDir}/.public";
-      # templates = "${cfg.rootDir}/.templates";
-      videos = "${cfg.rootDir}/media/videos";
-    };
-
-    systemd.user = mkIf cfg.autoSortDownloads {
-      timers = {
-        autoSortDownloads = {
-          Unit.Description = "Auto sorts downloads by download type";
-
-          Timer = {
-            OnCalendar = "daily";
-            Persistent = "true"; # Run service immediately if last window was missed
-            RandomizedDelaySec = "1h"; # Run service OnCalendar +- 1h
-          };
-
-          Install.WantedBy = ["timers.target"];
-        };
+        extraConfig.XDG_DOWNLOADS_ROOT = "${cfg.rootDir}/downloads";
+        desktop = "${cfg.rootDir}";
+        documents = "${cfg.rootDir}/media/documents";
+        download = "${config.xdg.userDirs.extraConfig.XDG_DOWNLOADS_ROOT}/unsorted";
+        music = "${cfg.rootDir}/media/audio/music";
+        pictures = "${cfg.rootDir}/media/images";
+        # publicShare = "${cfg.rootDir}/.public";
+        # templates = "${cfg.rootDir}/.templates";
+        videos = "${cfg.rootDir}/media/videos";
       };
 
-      services = {
-        autoSortDownloads = {
-          Unit.Description = "Auto sorts downloads by download type";
+      systemd.user = mkIf cfg.autoSortDownloads {
+        timers = {
+          autoSortDownloads = {
+            Unit.Description = "Auto sorts downloads by download type";
 
-          Service = {
-            ExecStart = "${sort-downloads}/bin/sort-downloads";
-            Type = "oneshot";
+            Timer = {
+              OnCalendar = "daily";
+              Persistent = "true"; # Run service immediately if last window was missed
+              RandomizedDelaySec = "1h"; # Run service OnCalendar +- 1h
+            };
+
+            Install.WantedBy = ["timers.target"];
+          };
+        };
+
+        services = {
+          autoSortDownloads = {
+            Unit.Description = "Auto sorts downloads by download type";
+
+            Service = {
+              ExecStart = "${sort-downloads}/bin/sort-downloads";
+              Type = "oneshot";
+            };
           };
         };
       };
     };
-  };
 }

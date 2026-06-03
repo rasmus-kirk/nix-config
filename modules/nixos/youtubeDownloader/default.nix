@@ -1,14 +1,17 @@
-{ config, pkgs, lib, ... }:
-with lib;
-
-let
+{
+  config,
+  pkgs,
+  lib,
+  ...
+}:
+with lib; let
   cfg = config.kirk.youtubeDownloader;
 
   channelsFile = pkgs.writeText "channels.txt" (concatStringsSep "\n" cfg.channels);
 
   downloadChannelScript = pkgs.writeShellApplication {
     name = "download-channel-script";
-    runtimeInputs = with pkgs; [ yt-dlp ];
+    runtimeInputs = with pkgs; [yt-dlp];
     inheritPath = false;
     text = ''
       # TheFrenchGhosty's Ultimate YouTube-DL Scripts Collection
@@ -113,8 +116,8 @@ in {
 
     systemd.services.youtubeDownloader = {
       description = "YouTube Channel Downloader Service";
-      wants = [ "network-online.target" ];
-      after = [ "network-online.target" ];
+      wants = ["network-online.target"];
+      after = ["network-online.target"];
 
       serviceConfig = {
         UMask = "002";
@@ -125,11 +128,11 @@ in {
         WorkingDirectory = cfg.outputDir;
       };
 
-      wantedBy = [ "multi-user.target" ];
+      wantedBy = ["multi-user.target"];
     };
     systemd.timers.youtubeDownloader = {
       description = "Timer to run YouTube downloader service";
-      wantedBy = [ "timers.target" ];
+      wantedBy = ["timers.target"];
       timerConfig = {
         OnCalendar = "daily";
         Persistent = true;
@@ -137,4 +140,3 @@ in {
     };
   };
 }
-

@@ -197,7 +197,7 @@ with lib; let
 
   git-sign-range = pkgs.writeShellApplication {
     name = "git-sign-range";
-    runtimeInputs = with pkgs; [ git ];
+    runtimeInputs = with pkgs; [git];
     inheritPath = false;
     text = ''
       set -euo pipefail
@@ -230,7 +230,7 @@ with lib; let
 
   screenshot = pkgs.writeShellApplication {
     name = "screenshot";
-    runtimeInputs = with pkgs; [ systemd coreutils ];
+    runtimeInputs = with pkgs; [systemd coreutils];
     inheritPath = false;
     text = ''
       OUTDIR=/tmp/screenshots

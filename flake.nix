@@ -179,7 +179,8 @@
           jovian.nixosModules.default
           vpnconfinement.nixosModules.default
           home-manager.nixosModules.home-manager
-          hosts.nixosModule {
+          hosts.nixosModule
+          {
             networking.stevenBlackHosts = {
               enable = true;
               enableIPv6 = true;
@@ -227,7 +228,8 @@
             home-manager.useUserPackages = true;
             home-manager.backupFileExtension = "hm-backup";
           }
-          hosts.nixosModule {
+          hosts.nixosModule
+          {
             networking.stevenBlackHosts = {
               enable = false;
               enableIPv6 = true;

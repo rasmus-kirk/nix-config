@@ -168,7 +168,7 @@ in {
       CPU_ENERGY_PERF_POLICY_ON_AC = "power";
       # Disable wake-on-lan and bluetooth to save power
       WOL_DISABLE = "Y";
-      DEVICES_TO_DISABLE_ON_STARTUP = "bluetooth wifi wwan"; 
+      DEVICES_TO_DISABLE_ON_STARTUP = "bluetooth wifi wwan";
     };
   };
 
@@ -215,7 +215,7 @@ in {
     tuptime.enable = true;
     btrfs.autoScrub = {
       enable = true;
-      fileSystems = [ "/data" ];
+      fileSystems = ["/data"];
     };
     fstrim = {
       enable = true;
@@ -270,7 +270,7 @@ in {
     };
   };
 
-  networking.firewall.allowedTCPPorts = [ 8384 ];
+  networking.firewall.allowedTCPPorts = [8384];
 
   users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
     ../../../pubkeys/deck-oled.pub
@@ -365,14 +365,13 @@ in {
   # 3. Apply it specifically to sudo
   security.pam.services.sudo.rssh = true;
 
-
   security.sudo = {
     execWheelOnly = true; # For security
     package = pkgs.sudo.override {withInsults = true;}; # For insults lol
     extraConfig = "Defaults insults";
   };
 
-  boot.initrd.kernelModules = [ "usb_storage" "uas" "sd_mod" ];
+  boot.initrd.kernelModules = ["usb_storage" "uas" "sd_mod"];
   boot.initrd.luks.devices = {
     crypt_ssd1 = {
       device = "/dev/disk/by-id/ata-Samsung_SSD_870_QVO_8TB_S5SSNF0WA10922R";
@@ -386,8 +385,8 @@ in {
     device = "/dev/mapper/crypt_ssd1";
     fsType = "btrfs";
     neededForBoot = true;
-    options = [ 
-      "defaults" 
+    options = [
+      "defaults"
       "noatime"
       "nodiratime"
       "compress=zstd"
@@ -401,7 +400,7 @@ in {
   environment.systemPackages = with pkgs; [
     (writeShellApplication {
       name = "monero";
-      runtimeInputs = [ monero-cli coreutils ];
+      runtimeInputs = [monero-cli coreutils];
       inheritPath = false;
       text = ''
         wallet_dir="/data/monero"

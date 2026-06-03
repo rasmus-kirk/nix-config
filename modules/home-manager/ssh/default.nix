@@ -27,7 +27,10 @@ in {
       enable = true;
       enableDefaultConfig = false;
       matchBlocks."*" = {
-        addKeysToAgent = if cfg.addKeysToAgent then "yes" else "no";
+        addKeysToAgent =
+          if cfg.addKeysToAgent
+          then "yes"
+          else "no";
       };
       extraConfig = mkIf (cfg.identityPath != null) ''
         IdentityFile ${cfg.identityPath}

@@ -6,10 +6,13 @@
 }:
 with lib; let
   cfg = config.kirk.nixosScripts;
-  nosDir = if cfg.stateDir != null then cfg.stateDir else "${cfg.configDir}/.nos-dir";
+  nosDir =
+    if cfg.stateDir != null
+    then cfg.stateDir
+    else "${cfg.configDir}/.nos-dir";
   nos = pkgs.writeShellApplication {
     name = "nos";
-    runtimeInputs = with pkgs; [ fzf git dateutils coreutils gnugrep ];
+    runtimeInputs = with pkgs; [fzf git dateutils coreutils gnugrep];
     inheritPath = true;
     text = ''
       command="''${1:-}"
@@ -60,7 +63,11 @@ with lib; let
         pushd "${cfg.configDir}" > /dev/null
         sudo -u "$ORIG_USER" git add .
         nixos-rebuild switch \
-          --show-trace ${if !cfg.pure then "--impure" else ""} \
+          --show-trace ${
+        if !cfg.pure
+        then "--impure"
+        else ""
+      } \
           --option warn-dirty false \
           --flake .#${cfg.machine}
         popd > /dev/null

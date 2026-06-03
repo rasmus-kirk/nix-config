@@ -191,45 +191,46 @@ in {
     nixpkgsConfig = {
       allowUnfree = true;
     };
-  in mkIf cfg.enable {
-    nixpkgs.config = nixpkgsConfig;
+  in
+    mkIf cfg.enable {
+      nixpkgs.config = nixpkgsConfig;
 
-    xdg.configFile."nixpkgs/config.nix".text = 
-      lib.generators.toPretty {} nixpkgsConfig;
+      xdg.configFile."nixpkgs/config.nix".text =
+        lib.generators.toPretty {} nixpkgsConfig;
 
-    # Disable home manager news
-    news = mkIf cfg.disableNews {
-      display = "silent";
-      json = lib.mkForce {};
-      entries = lib.mkForce [];
-    };
-
-    nix = mkIf cfg.extraNixOptions {
-      # Use latest nix version
-      package = pkgs.nixVersions.latest;
-      # Use the pinned nixpkgs version that is already used, when using `nix-shell package`
-      channels = let nixpkgs = inputs.nixpkgs; in {inherit nixpkgs;};
-      settings = {
-        #download-buffer-size = 500000000; # 500 MB
-        # Force this, even if nix is installed through the official installer
-        experimental-features = ["nix-command" "flakes"];
-        # Faster builds
-        cores = 0;
-        # Return more information when errors happen
-        show-trace = true;
+      # Disable home manager news
+      news = mkIf cfg.disableNews {
+        display = "silent";
+        json = lib.mkForce {};
+        entries = lib.mkForce [];
       };
-      # Use the pinned nixpkgs version that is already used, when using `nix shell nixpkgs#package`
-      registry.nixpkgs = {
-        from = {
-          id = "nixpkgs";
-          type = "indirect";
+
+      nix = mkIf cfg.extraNixOptions {
+        # Use latest nix version
+        package = pkgs.nixVersions.latest;
+        # Use the pinned nixpkgs version that is already used, when using `nix-shell package`
+        channels = let nixpkgs = inputs.nixpkgs; in {inherit nixpkgs;};
+        settings = {
+          #download-buffer-size = 500000000; # 500 MB
+          # Force this, even if nix is installed through the official installer
+          experimental-features = ["nix-command" "flakes"];
+          # Faster builds
+          cores = 0;
+          # Return more information when errors happen
+          show-trace = true;
         };
-        flake = inputs.nixpkgs;
+        # Use the pinned nixpkgs version that is already used, when using `nix shell nixpkgs#package`
+        registry.nixpkgs = {
+          from = {
+            id = "nixpkgs";
+            type = "indirect";
+          };
+          flake = inputs.nixpkgs;
+        };
       };
-    };
 
-    home.packages = [
-      hm
-    ];
-  };
+      home.packages = [
+        hm
+      ];
+    };
 }

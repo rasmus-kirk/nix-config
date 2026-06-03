@@ -63,7 +63,8 @@ in {
         signByDefault = cfg.signByDefault;
       };
       settings = {
-        gpg.ssh.allowedSignersFile = mkIf (cfg.signKey != null) (toString (pkgs.writeText "allowed_signers"
+        gpg.ssh.allowedSignersFile = mkIf (cfg.signKey != null) (toString (
+          pkgs.writeText "allowed_signers"
           "${cfg.userEmail} ${builtins.readFile cfg.signKey}"
         ));
         user.email = cfg.userEmail;
@@ -87,13 +88,14 @@ in {
         push.autoSetupRemote = true;
         include = {
           # Get delta color themes
-            path = pkgs.fetchFromGitHub {
-                owner = "dandavison";
-                repo = "delta";
-                rev = "ac396c3fdc5940c724e1f00a519358c27979b539";
-                sha256 = "sha256-J7g1EMcWFSfcELCn/uDQxzat2zoAw+7PornptEPlNd8=";
-              }
-              + "/themes.gitconfig";
+          path =
+            pkgs.fetchFromGitHub {
+              owner = "dandavison";
+              repo = "delta";
+              rev = "ac396c3fdc5940c724e1f00a519358c27979b539";
+              sha256 = "sha256-J7g1EMcWFSfcELCn/uDQxzat2zoAw+7PornptEPlNd8=";
+            }
+            + "/themes.gitconfig";
         };
         pull.rebase = false;
       };

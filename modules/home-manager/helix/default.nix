@@ -99,7 +99,7 @@ in {
           }
           {
             name = "c-sharp";
-            language-servers = [ "omnisharp" ];
+            language-servers = ["omnisharp"];
           }
         ];
       };
