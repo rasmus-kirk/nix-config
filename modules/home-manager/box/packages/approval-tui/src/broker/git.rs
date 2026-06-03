@@ -65,6 +65,63 @@ async fn run_git(cwd: &PathBuf, argv: &[String]) -> Result<Value> {
     }))
 }
 
+/// Refuse to push if any commit in `@{u}..HEAD` is unsigned. Runs on the
+/// host, where signature verification is authoritative (the host's git
+/// config wires up `gpg.format=ssh` + `allowedSignersFile` via kirk.git).
+/// Skipped if there's no upstream (git log will exit non-zero) — in that
+/// case the underlying `git push` will surface its own error.
+async fn assert_all_pushed_commits_signed(cwd: &PathBuf) -> Result<()> {
+    let out = Command::new("git")
+        .current_dir(cwd)
+        .args(["log", "@{u}..HEAD", "--format=%H %G?"])
+        .output()
+        .await
+        .with_context(|| format!("checking signing status in {}", cwd.display()))?;
+    if !out.status.success() {
+        // No upstream / other config issue — defer to git push for the
+        // real error message rather than guessing.
+        return Ok(());
+    }
+    let s = String::from_utf8_lossy(&out.stdout);
+    let mut unsigned: Vec<String> = Vec::new();
+    for line in s.lines() {
+        let mut parts = line.split_whitespace();
+        let sha = parts.next().unwrap_or("");
+        let status = parts.next().unwrap_or("");
+        if sha.is_empty() {
+            continue;
+        }
+        match status {
+            // Good signature, or signed with a key we don't have keyed in.
+            "G" | "U" | "X" | "Y" => {}
+            "N" => unsigned.push(sha.to_string()),
+            "B" => bail!("refusing push: {sha} has a bad signature"),
+            "E" => bail!("refusing push: {sha} signature can't be verified (missing key)"),
+            other => bail!("refusing push: {sha} has unknown signing status `{other}`"),
+        }
+    }
+    if !unsigned.is_empty() {
+        let preview: Vec<String> = unsigned
+            .iter()
+            .take(5)
+            .map(|s| s.chars().take(8).collect::<String>())
+            .collect();
+        let suffix = if unsigned.len() > preview.len() {
+            format!(" (+ {} more)", unsigned.len() - preview.len())
+        } else {
+            String::new()
+        };
+        bail!(
+            "refusing to push: {} unsigned commit(s) in @{{u}}..HEAD: {}{}. \
+             Run `git-batch-sign` in the box first.",
+            unsigned.len(),
+            preview.join(", "),
+            suffix,
+        );
+    }
+    Ok(())
+}
+
 // ─── push ──────────────────────────────────────────────────────────────────
 
 pub struct GitPush;
@@ -104,6 +161,7 @@ impl Broker for GitPush {
                     bail!("push flag rejected: {arg}");
                 }
             }
+            assert_all_pushed_commits_signed(&p.cwd).await?;
             run_git(&p.cwd, &p.argv).await
         })
     }
