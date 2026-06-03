@@ -594,16 +594,9 @@ with lib; let
   # Whitelist /dev: replace buildFHSEnv's full /dev bind with a minimal
   # devtmpfs containing only standard nodes (null, zero, full, random,
   # urandom, tty, ptmx, pts, fd, stdin, stdout, stderr, console).
-  # /dev/hidraw* gets re-added on top via hidrawBinds when exposeFidoDevices
-  # is true. Anything else (cameras, mics, input events, GPU, etc.) is
+  # Anything else (cameras, mics, input events, GPU, hidraw etc.) is
   # absent unless the user explicitly adds it via extraBwrapArgs.
   minimalDev = [ "--dev" "/dev" ];
-
-  hidrawBinds = optionals cfg.exposeFidoDevices (
-    concatMap
-      (n: [ "--dev-bind-try" "/dev/hidraw${toString n}" "/dev/hidraw${toString n}" ])
-      (range 0 31)
-  );
 
   claudeStateBind = optionals cfg.exposeClaudeState [
     "--bind" "${config.home.homeDirectory}/.claude" "/home/user/.claude"
@@ -662,7 +655,9 @@ with lib; let
       ++ tmpfsMasks
       # Dynamically mask the top-level of $PWD so siblings of cwd aren't visible.
       ++ [ "--tmpfs" "$BOX_CWD_TOP" ]
-      # Replace host /dev with a minimal devtmpfs; hidraw added back below.
+      # Replace host /dev with a minimal devtmpfs. No hidraw — YubiKey
+      # operations (git push/pull/fetch, commit signing) all flow through
+      # the host approval TUI, which owns the YubiKey itself.
       ++ minimalDev
       # /dev/net/tun must be added AFTER --dev /dev (which would wipe it).
       ++ (optionals cfg.network.enable [
@@ -675,7 +670,6 @@ with lib; let
       ++ (optionals (cfg.githubTokenFile != null) [
         "--ro-bind" cfg.githubTokenFile cfg.githubTokenFile
       ])
-      ++ hidrawBinds
       # /tmp/screenshots: read-only window into host's screenshot drop.
       # Lives on box's /tmp tmpfs (privateTmp). Silently skipped if absent.
       ++ [ "--ro-bind-try" "/tmp/screenshots" "/tmp/screenshots" ]
@@ -912,9 +906,6 @@ in {
           ''^.*\.githubusercontent\.com$''
           # GitHub MCP server (hosted on GitHub Copilot infra by Microsoft)
           ''^api\.githubcopilot\.com$''
-          # GitHub SSH-over-HTTPS endpoint (port 443) — tunneled via tinyproxy
-          # CONNECT so `git push` works without opening port 22 in the box.
-          ''^ssh\.github\.com$''
           # Azure storage / Microsoft cloud: GitHub Actions log/artifact
           # downloads redirect here (productionresultssa5.blob.core.windows.net
           # and similar). Broad on purpose so future Azure-hosted GitHub
@@ -946,8 +937,6 @@ in {
       type = with types; listOf str;
       default = [
         "/data/.system-configuration"
-        "/data/.secret/ssh/id_ed25519_yubi.pub"
-        "/data/.secret/ssh/id_ed25519_yubi"
       ];
       description = "Host paths bind-mounted read-only inside the sandbox (same path inside and out).";
     };
@@ -973,12 +962,6 @@ in {
       type = types.bool;
       default = true;
       description = "Bind-mount host ~/.claude into the sandbox so Claude Code's state persists.";
-    };
-
-    exposeFidoDevices = mkOption {
-      type = types.bool;
-      default = true;
-      description = "Expose /dev/hidraw0..31 so libfido2 can talk to the YubiKey (needed for SSH SK signing).";
     };
 
     githubTokenFile = mkOption {

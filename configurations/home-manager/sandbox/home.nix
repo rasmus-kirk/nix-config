@@ -17,7 +17,8 @@ in {
     xdgMime.enable = true;
     git = {
       enable = true;
-      signKey = "${secretDir}/ssh/id_ed25519_yubi.pub";
+      # No signKey — box has no YubiKey access. Commits land unsigned;
+      # use git-batch-sign on the host to amend-sign a range when ready.
       userEmail = "mail@rasmuskirk.com";
       userName = "rasmus-kirk";
     };
@@ -36,7 +37,8 @@ in {
     };
     ssh = {
       enable = true;
-      identityPath = "${secretDir}/ssh/id_ed25519_yubi";
+      # No identityPath — box has no SSH key access. Git push/pull/fetch
+      # flow through the host approval TUI which uses the host's YubiKey.
     };
     box.brokerClient.enable = true;
     userDirs = {
@@ -96,42 +98,10 @@ in {
     wl-clipboard
   ];
 
-  # Box has no direct egress except tinyproxy. To make `git push` (over SSH)
-  # work, route github.com through GitHub's HTTPS-port SSH listener
-  # (ssh.github.com:443) and tunnel it through tinyproxy via socat+CONNECT.
-  # Transparent: stock `git@github.com:owner/repo` URLs just work.
-  programs.ssh.matchBlocks."github.com" = {
-    hostname = "ssh.github.com";
-    port = 443;
-    user = "git";
-    extraOptions = {
-      ProxyCommand = "${pkgs.socat}/bin/socat - PROXY:10.0.2.2:%h:%p,proxyport=8888";
-    };
-  };
-
-  # OpenSSH refuses configs not owned by the current user or root. Inside the
-  # box's user-namespace, host root (which owns everything in /nix/store) maps
-  # to "nobody" — so home-manager's standard symlink ~/.ssh/config →
-  # /nix/store/.../config fails SSH's strict ownership check.
-  #
-  # Fix: materialize the config as a real, user-owned file. linkGeneration
-  # creates the symlink as usual; the entryBefore hook clears any stale
-  # materialized file so the next switch can re-link cleanly; the entryAfter
-  # hook copies the freshly-linked target's content into a real file.
-  home.activation.materializeSshConfigPre = lib.hm.dag.entryBefore [ "linkGeneration" ] ''
-    if [ -e "$HOME/.ssh/config" ] && [ ! -L "$HOME/.ssh/config" ]; then
-      $DRY_RUN_CMD rm -f "$HOME/.ssh/config"
-    fi
-  '';
-  home.activation.materializeSshConfigPost = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-    link="$HOME/.ssh/config"
-    if [ -L "$link" ]; then
-      target=$(readlink -f "$link" 2>/dev/null || true)
-      if [ -n "$target" ] && [ -f "$target" ]; then
-        $DRY_RUN_CMD rm -f "$link"
-        $DRY_RUN_CMD cp --no-preserve=mode,ownership "$target" "$link"
-        $DRY_RUN_CMD chmod 0600 "$link"
-      fi
-    fi
-  '';
+  # Box no longer talks to GitHub directly — git push/pull/fetch all
+  # route through the host approval TUI, which performs the SSH op
+  # from the host (where the YubiKey lives). Commits in box are
+  # unsigned by design (commit.gpgsign = false below); use
+  # `git-batch-sign` to amend-sign a range on the host when ready.
+  programs.git.settings.commit.gpgsign = false;
 }
