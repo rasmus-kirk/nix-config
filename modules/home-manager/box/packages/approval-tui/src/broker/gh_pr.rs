@@ -440,3 +440,145 @@ impl Broker for GhPrReview {
         })
     }
 }
+
+// ─── review-append ─────────────────────────────────────────────────────────
+
+#[derive(Debug, Deserialize)]
+struct ReviewAppendPayload {
+    repo: String,
+    pr_number: u64,
+    comments: Vec<Value>,
+}
+
+#[derive(Debug, Serialize)]
+struct AppendedComments {
+    op: &'static str,
+    url: String,
+    appended: usize,
+}
+
+pub struct GhPrReviewAppend {
+    pub client: GhClient,
+}
+
+/// Whitelist of comment fields forwarded to GitHub. We only pass through
+/// what the in-box CLI documents, never the raw JSON object.
+const COMMENT_FIELDS: &[&str] = &[
+    "path",
+    "line",
+    "body",
+    "side",
+    "start_line",
+    "start_side",
+    "in_reply_to",
+];
+
+fn comment_to_post_body(commit_id: &str, raw: &Value) -> Result<Value> {
+    let obj = raw
+        .as_object()
+        .ok_or_else(|| anyhow!("comment entry is not an object"))?;
+    // Required: path, line, body.
+    for required in ["path", "line", "body"] {
+        if !obj.contains_key(required) {
+            bail!("comment entry missing required field `{required}`");
+        }
+    }
+    let mut out = Map::new();
+    out.insert("commit_id".into(), Value::String(commit_id.to_string()));
+    for &field in COMMENT_FIELDS {
+        if let Some(v) = obj.get(field) {
+            out.insert(field.into(), v.clone());
+        }
+    }
+    Ok(Value::Object(out))
+}
+
+impl Broker for GhPrReviewAppend {
+    fn op_id(&self) -> &'static str {
+        "gh.pr.review-append"
+    }
+
+    fn fallback_summary(&self, env: &RequestEnvelope) -> String {
+        let p: ReviewAppendPayload = match serde_json::from_value(env.payload.clone()) {
+            Ok(v) => v,
+            Err(_) => return "Append review comments (malformed payload)".into(),
+        };
+        format!(
+            "Append {} inline comment(s) to PR {}/#{}",
+            p.comments.len(),
+            p.repo,
+            p.pr_number,
+        )
+    }
+
+    fn dispatch<'a>(&'a self, env: &'a RequestEnvelope) -> BrokerFuture<'a> {
+        Box::pin(async move {
+            let p: ReviewAppendPayload = serde_json::from_value(env.payload.clone())
+                .context("decoding review-append payload")?;
+            if p.comments.is_empty() {
+                bail!("review-append: comments array is empty");
+            }
+            // Pre-validate every entry before any POST so we don't half-post.
+            for (i, c) in p.comments.iter().enumerate() {
+                let obj = c
+                    .as_object()
+                    .ok_or_else(|| anyhow!("comment[{i}] is not an object"))?;
+                if !obj.get("path").is_some_and(|v| v.is_string()) {
+                    bail!("comment[{i}] missing string field `path`");
+                }
+                if !obj.get("line").is_some_and(|v| v.is_number()) {
+                    bail!("comment[{i}] missing numeric field `line`");
+                }
+                if !obj.get("body").is_some_and(|v| v.is_string()) {
+                    bail!("comment[{i}] missing string field `body`");
+                }
+            }
+
+            // Look up the PR's head SHA — every comment POST needs commit_id.
+            let pr_url = format!("{GH_API}/repos/{}/pulls/{}", p.repo, p.pr_number);
+            let (status, pr_value) = self
+                .client
+                .rest_request(reqwest::Method::GET, &pr_url, None)
+                .await?;
+            if status.as_u16() != 200 {
+                bail!("GitHub get-PR returned HTTP {}: {}", status, pr_value);
+            }
+            let head_sha = pr_value
+                .pointer("/head/sha")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow!("PR response missing .head.sha"))?
+                .to_string();
+            let html_url = pr_value
+                .get("html_url")
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| anyhow!("PR response missing .html_url"))?
+                .to_string();
+
+            // Post each comment. Stop on first failure.
+            let post_url = format!("{GH_API}/repos/{}/pulls/{}/comments", p.repo, p.pr_number);
+            let mut appended: usize = 0;
+            for (i, c) in p.comments.iter().enumerate() {
+                let body = comment_to_post_body(&head_sha, c)?;
+                let (status, value) = self
+                    .client
+                    .rest_request(reqwest::Method::POST, &post_url, Some(body))
+                    .await?;
+                // Both 200 and 201 are observed for this endpoint.
+                if status.as_u16() != 200 && status.as_u16() != 201 {
+                    bail!(
+                        "appended {appended} comment(s); HTTP {} on comment {i}: {}",
+                        status,
+                        value
+                    );
+                }
+                appended += 1;
+            }
+
+            Ok(serde_json::to_value(AppendedComments {
+                op: "review-append",
+                url: html_url,
+                appended,
+            })?)
+        })
+    }
+}

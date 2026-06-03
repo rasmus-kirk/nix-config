@@ -11,7 +11,7 @@ mod watcher;
 
 use crate::agents::{AgentEventFile, AgentRegistry};
 use crate::audit::{sha256_hex, AuditEntry, AuditLog};
-use crate::broker::gh_pr::{GhClient, GhPrCreate, GhPrEdit, GhPrReview};
+use crate::broker::gh_pr::{GhClient, GhPrCreate, GhPrEdit, GhPrReview, GhPrReviewAppend};
 use crate::broker::git::{GitFetch, GitPull, GitPush, GitSignRange};
 use crate::broker::Registry;
 use crate::config::Config;
@@ -506,7 +506,8 @@ fn build_registry(cfg: &Config) -> Result<Registry> {
         reg.register(Box::new(GhPrEdit {
             client: client.clone(),
         }));
-        reg.register(Box::new(GhPrReview { client }));
+        reg.register(Box::new(GhPrReview { client: client.clone() }));
+        reg.register(Box::new(GhPrReviewAppend { client }));
     } else {
         eprintln!(
             "approval-tui: BOX_GH_PAT_FILE not set — gh.pr.* brokers will fail with \

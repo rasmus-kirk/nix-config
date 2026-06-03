@@ -244,6 +244,81 @@ with lib; let
     '';
   };
 
+  ghPrReviewAppendScript = pkgs.writeShellApplication {
+    name = "gh-pr-review-append";
+    runtimeInputs = (with pkgs; [ coreutils jq ]) ++ [ requestApprovalScript ];
+    inheritPath = false;
+    text = ''
+      set -euo pipefail
+      usage() {
+        cat >&2 <<EOF
+      Usage: gh-pr-review-append --repo OWNER/REPO --number N --comments-file FILE
+
+      Appends inline comments to the caller's pending review on a PR.
+      Use this for multi-step review work: leave a few comments, do more
+      reading, leave more — all into the same pending draft. Submitting
+      the review (event=COMMENT or REQUEST_CHANGES) is gh-pr-review's job.
+
+      If no pending review exists for this PR, the first comment creates
+      one as a side-effect and subsequent comments attach to that draft.
+
+      --comments-file: JSON array of inline review comments, e.g.:
+        [
+          {"path": "src/foo.rs", "line": 42, "body": "issue"},
+          {"path": "src/bar.rs", "start_line": 5, "line": 10, "body": "block"}
+        ]
+      Each entry needs path + line + body. Optional: side (LEFT|RIGHT,
+      default RIGHT), start_line + start_side (multi-line), in_reply_to
+      (thread under an existing comment).
+
+      Posts each comment via a separate API call (GitHub has no batch
+      endpoint). On any individual failure, stops and reports how many
+      succeeded plus the index of the failed one.
+      EOF
+        exit 1
+      }
+
+      REPO="" NUMBER="" COMMENTS_JSON=""
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --repo) REPO="$2"; shift 2 ;;
+          --number) NUMBER="$2"; shift 2 ;;
+          --comments-file) COMMENTS_JSON=$(cat "$2"); shift 2 ;;
+          -h|--help) usage ;;
+          *) echo "Unknown arg: $1" >&2; usage ;;
+        esac
+      done
+
+      if [ -z "$REPO" ] || [ -z "$NUMBER" ] || [ -z "$COMMENTS_JSON" ]; then
+        usage
+      fi
+      if ! printf '%s' "$COMMENTS_JSON" | jq -e 'type == "array" and length > 0' >/dev/null 2>&1; then
+        echo "--comments-file must contain a non-empty JSON array" >&2
+        exit 1
+      fi
+      if ! printf '%s' "$COMMENTS_JSON" | jq -e 'all(.[]; (.path | type == "string") and (.line | type == "number") and (.body | type == "string"))' >/dev/null 2>&1; then
+        echo "every comment entry needs path (string), line (number), and body (string)" >&2
+        exit 1
+      fi
+
+      PAYLOAD_TMP=$(mktemp)
+      trap 'rm -f "$PAYLOAD_TMP"' EXIT
+      jq -n \
+        --arg repo "$REPO" \
+        --argjson pr_number "$NUMBER" \
+        --argjson comments "$COMMENTS_JSON" \
+        '{repo:$repo, pr_number:$pr_number, comments:$comments}' \
+        > "$PAYLOAD_TMP"
+
+      COMMENT_COUNT=$(printf '%s' "$COMMENTS_JSON" | jq 'length')
+      SUMMARY="Append $COMMENT_COUNT inline comment(s) to PR $REPO/#$NUMBER"
+
+      RESULT=$(request-approval --op gh.pr.review-append \
+        --payload-file "$PAYLOAD_TMP" --summary "$SUMMARY")
+      printf '%s\n' "$RESULT" | jq -r '.url'
+    '';
+  };
+
   # Generic in-box client for the approval TUI. Wraps a payload in the
   # request-envelope shape, drops it at ${cfg.brokerRoot}/request/, waits for
   # the TUI to ack (5s), then polls for the final response. Exit codes:
@@ -1155,6 +1230,7 @@ in {
         ghPrCreateScript
         ghPrEditScript
         ghPrReviewScript
+        ghPrReviewAppendScript
         # Git wrapper shadows pkgs.git's bin/git for push/pull/fetch only;
         # other subcommands fall through to the real git binary. hiPrio
         # resolves the bin/git symlink collision in favour of the wrapper.
