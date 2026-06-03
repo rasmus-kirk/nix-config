@@ -29,9 +29,14 @@ impl AgentState {
 #[derive(Debug, Clone)]
 pub struct AgentEntry {
     pub session_id: String,
-    /// User-chosen display name (via `/rename`). When set, the bottom
-    /// pane shows this in place of the cwd. None ⇒ fall back to cwd.
+    /// Display name for this agent, sourced from Claude Code's transcript
+    /// (`agent-name` lines in `~/.claude/projects/<slug>/<uuid>.jsonl`).
+    /// None until the transcript watcher finds one — UI falls back to cwd.
     pub name: Option<String>,
+    /// Claude Code's session UUID, recorded the first time `agent-hook`
+    /// fires for this box session. Lets the transcript watcher cross-
+    /// reference jsonl files (`<uuid>.jsonl`) back to this AgentEntry.
+    pub claude_session_id: Option<String>,
     /// Last-known cwd from a request envelope (basename for display).
     pub cwd: String,
     /// Number of requests this agent currently has in the queue (pending +
@@ -59,7 +64,7 @@ pub struct AgentEventFile {
     pub session_id: String,
     pub cwd: String,
     #[serde(default)]
-    pub name: Option<String>,
+    pub claude_session_id: Option<String>,
     #[allow(dead_code)]
     pub ts: String,
 }
@@ -103,6 +108,7 @@ impl AgentRegistry {
             .or_insert_with(|| AgentEntry {
                 session_id: session_id.clone(),
                 name: None,
+                claude_session_id: None,
                 cwd: cwd.clone(),
                 in_flight: 0,
                 total_seen: 0,
@@ -142,17 +148,14 @@ impl AgentRegistry {
         };
         let cwd = display_cwd(&event.cwd);
         let session_id = event.session_id;
-        // Working/Ready events from agent-hook also carry the
-        // Claude-Code-assigned agent-name (when known). Update the
-        // entry's name in-place; empty/missing means "don't change".
-        let name = event.name.filter(|n| !n.is_empty());
+        let claude_session_id = event.claude_session_id.filter(|s| !s.is_empty());
         match self.by_session.get_mut(&session_id) {
             Some(entry) => {
                 let from = entry.state;
                 entry.cwd = cwd;
                 entry.state = new_state;
-                if let Some(n) = name {
-                    entry.name = Some(n);
+                if let Some(uuid) = claude_session_id {
+                    entry.claude_session_id = Some(uuid);
                 }
                 entry.last_seen = Instant::now();
                 if from == new_state {
@@ -166,7 +169,8 @@ impl AgentRegistry {
                     session_id.clone(),
                     AgentEntry {
                         session_id,
-                        name,
+                        name: None,
+                        claude_session_id,
                         cwd,
                         in_flight: 0,
                         total_seen: 0,
@@ -177,6 +181,26 @@ impl AgentRegistry {
                 AgentTransition::Created(new_state)
             }
         }
+    }
+
+    /// Update the display name for the agent whose `claude_session_id`
+    /// matches `uuid`. Called by the transcript watcher when it sees a
+    /// new `agent-name` line. No-op if no agent has that UUID yet.
+    pub fn update_name_by_claude_session(&mut self, uuid: &str, name: String) -> bool {
+        if name.is_empty() {
+            return false;
+        }
+        let mut changed = false;
+        for entry in self.by_session.values_mut() {
+            if entry.claude_session_id.as_deref() == Some(uuid) {
+                if entry.name.as_deref() != Some(name.as_str()) {
+                    entry.name = Some(name.clone());
+                    entry.last_seen = Instant::now();
+                    changed = true;
+                }
+            }
+        }
+        changed
     }
 
     /// Iterate agents in last-seen-first order, capped at `max` rows.

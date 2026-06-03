@@ -4,6 +4,7 @@ mod broker;
 mod config;
 mod queue;
 mod response;
+mod transcripts;
 mod types;
 mod ui;
 mod watcher;
@@ -15,6 +16,7 @@ use crate::broker::git::{GitFetch, GitPull, GitPush, GitSignRange};
 use crate::broker::Registry;
 use crate::config::Config;
 use crate::queue::Queue;
+use crate::transcripts::TranscriptEvent;
 use crate::response::{
     abandoned_response, dispatch_failed_response, ok_response, rejected_response, write_ack,
     write_response,
@@ -76,6 +78,8 @@ async fn main() -> Result<()> {
     let mut watch_rx = watcher::spawn(&cfg.request_dir()).context("spawning request watcher")?;
     let mut agent_rx = watcher::spawn_agent_events(&cfg.agent_events_dir())
         .context("spawning agent-events watcher")?;
+    let mut transcript_rx = transcripts::spawn(&cfg.claude_projects_dir)
+        .context("spawning transcript watcher")?;
     let (pipeline_tx, mut pipeline_rx) = mpsc::unbounded_channel::<PipelineOutcome>();
 
     let mut terminal = init_terminal().context("entering raw mode + alt screen")?;
@@ -88,6 +92,7 @@ async fn main() -> Result<()> {
         &mut agents,
         &mut watch_rx,
         &mut agent_rx,
+        &mut transcript_rx,
         &mut pipeline_rx,
         pipeline_tx,
     )
@@ -107,6 +112,7 @@ async fn run_event_loop<B: ratatui::backend::Backend>(
     agents: &mut AgentRegistry,
     watch_rx: &mut mpsc::UnboundedReceiver<WatchEvent>,
     agent_rx: &mut mpsc::UnboundedReceiver<AgentEventNotice>,
+    transcript_rx: &mut mpsc::UnboundedReceiver<TranscriptEvent>,
     pipeline_rx: &mut mpsc::UnboundedReceiver<PipelineOutcome>,
     pipeline_tx: mpsc::UnboundedSender<PipelineOutcome>,
 ) -> Result<()> {
@@ -184,6 +190,17 @@ async fn run_event_loop<B: ratatui::backend::Backend>(
                     }
                     AgentEventNotice::Error(msg) => {
                         ui_state.message = Some(format!("agent-events watcher: {msg}"));
+                    }
+                }
+            }
+
+            Some(transcript_ev) = transcript_rx.recv() => {
+                match transcript_ev {
+                    TranscriptEvent::AgentName { claude_session_id, name } => {
+                        agents.update_name_by_claude_session(&claude_session_id, name);
+                    }
+                    TranscriptEvent::Error(msg) => {
+                        ui_state.message = Some(format!("transcript watcher: {msg}"));
                     }
                 }
             }

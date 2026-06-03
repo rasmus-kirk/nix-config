@@ -379,13 +379,13 @@ with lib; let
       EVENT="''${1:-}"
       case "$EVENT" in
         working|ready) ;;
-        *) echo "agent-event: usage: agent-event {working|ready} [--name NAME]" >&2; exit 1 ;;
+        *) echo "agent-event: usage: agent-event {working|ready} [--claude-session UUID]" >&2; exit 1 ;;
       esac
       shift
-      NAME=""
+      CLAUDE_SESSION=""
       while [ $# -gt 0 ]; do
         case "$1" in
-          --name) NAME="$2"; shift 2 ;;
+          --claude-session) CLAUDE_SESSION="$2"; shift 2 ;;
           *) echo "agent-event: unknown arg: $1" >&2; exit 1 ;;
         esac
       done
@@ -398,22 +398,22 @@ with lib; let
       FINAL="$DIR/$ID.json"
       jq -n \
         --arg event "$EVENT" --arg session_id "$SESSION_ID" \
-        --arg name "$NAME" --arg cwd "$PWD" --arg ts "$NOW" \
-        '{event:$event, session_id:$session_id, name:$name, cwd:$cwd, ts:$ts}' \
+        --arg claude_session_id "$CLAUDE_SESSION" \
+        --arg cwd "$PWD" --arg ts "$NOW" \
+        '{event:$event, session_id:$session_id,
+          claude_session_id:$claude_session_id, cwd:$cwd, ts:$ts}' \
         > "$STAGE"
       mv "$STAGE" "$FINAL"
     '';
   };
 
   # Wrapper invoked by Claude Code's UserPromptSubmit / Stop hooks.
-  # Reads the hook context JSON from stdin to find:
-  #   - session_id      Claude's session UUID (different from BOX_SESSION_ID)
-  #   - transcript_path path to ~/.claude/projects/<slug>/<uuid>.jsonl
-  # Tails the transcript for the most recent `agent-name` entry and
-  # forwards both the event type and the name to `agent-event`. If the
-  # transcript hasn't been written yet (early in a fresh session), the
-  # name is empty and the agent shows its cwd basename until the next
-  # hook fires.
+  # Reads the hook context JSON from stdin to extract Claude's
+  # session UUID (different from BOX_SESSION_ID) and forwards the
+  # event type + UUID to agent-event. The TUI uses the UUID to
+  # cross-reference transcript files in ~/.claude/projects/ and
+  # picks up agent-name updates directly from there (so /rename
+  # reflects immediately, not just on the next hook).
   agentHookScript = pkgs.writeShellApplication {
     name = "agent-hook";
     runtimeInputs = with pkgs; [ coreutils jq agentEventScript ];
@@ -425,26 +425,16 @@ with lib; let
         working|ready) ;;
         *) echo "agent-hook: usage: agent-hook {working|ready}" >&2; exit 1 ;;
       esac
-      # Hook context arrives on stdin as JSON. If stdin has nothing
-      # (someone runs this from a shell), fall back to a name-less event.
       CONTEXT=""
       if [ ! -t 0 ]; then
         CONTEXT=$(cat || true)
       fi
-      NAME=""
+      CLAUDE_SESSION=""
       if [ -n "$CONTEXT" ]; then
-        TRANSCRIPT=$(printf '%s' "$CONTEXT" | jq -r '.transcript_path // empty')
-        if [ -n "$TRANSCRIPT" ] && [ -r "$TRANSCRIPT" ]; then
-          # The transcript is JSONL. agentName lines look like:
-          #   {"type":"agent-name","agentName":"<name>","sessionId":"<uuid>"}
-          # Take the last one (most recent).
-          NAME=$(grep -E '"type":"agent-name"' "$TRANSCRIPT" 2>/dev/null \
-                  | tail -n 1 \
-                  | jq -r '.agentName // empty' 2>/dev/null || true)
-        fi
+        CLAUDE_SESSION=$(printf '%s' "$CONTEXT" | jq -r '.session_id // empty')
       fi
-      if [ -n "$NAME" ]; then
-        agent-event "$EVENT" --name "$NAME"
+      if [ -n "$CLAUDE_SESSION" ]; then
+        agent-event "$EVENT" --claude-session "$CLAUDE_SESSION"
       else
         agent-event "$EVENT"
       fi

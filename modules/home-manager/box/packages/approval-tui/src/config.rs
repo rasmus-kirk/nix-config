@@ -6,6 +6,7 @@ pub struct Config {
     pub broker_root: PathBuf,
     pub audit_log: PathBuf,
     pub gh_pat_file: Option<PathBuf>,
+    pub claude_projects_dir: PathBuf,
 }
 
 impl Config {
@@ -17,10 +18,17 @@ impl Config {
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("/data/.state/approval-tui/audit.log"));
         let gh_pat_file = env::var("BOX_GH_PAT_FILE").ok().map(PathBuf::from);
+        let claude_projects_dir = env::var("BOX_CLAUDE_PROJECTS_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| {
+                let home = env::var("HOME").unwrap_or_else(|_| "/home/user".into());
+                PathBuf::from(home).join(".claude").join("projects")
+            });
         Self {
             broker_root,
             audit_log,
             gh_pat_file,
+            claude_projects_dir,
         }
     }
 
