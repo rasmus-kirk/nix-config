@@ -10,6 +10,7 @@ mod watcher;
 
 use crate::audit::{sha256_hex, AuditEntry, AuditLog};
 use crate::broker::gh_pr::{GhClient, GhPrCreate, GhPrEdit, GhPrReview};
+use crate::broker::git::{GitFetch, GitPull, GitPush, GitSignRange};
 use crate::broker::Registry;
 use crate::config::Config;
 use crate::queue::Queue;
@@ -429,5 +430,9 @@ fn build_registry(cfg: &Config) -> Result<Registry> {
              'no broker registered'. Set the env var in the systemd service to enable them."
         );
     }
+    reg.register(Box::new(GitPush));
+    reg.register(Box::new(GitPull));
+    reg.register(Box::new(GitFetch));
+    reg.register(Box::new(GitSignRange));
     Ok(reg)
 }

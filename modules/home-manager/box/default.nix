@@ -23,7 +23,7 @@ with lib; let
 
   ghPrCreateScript = pkgs.writeShellApplication {
     name = "gh-pr-create";
-    runtimeInputs = with pkgs; [ coreutils jq ];
+    runtimeInputs = (with pkgs; [ coreutils jq ]) ++ [ requestApprovalScript ];
     inheritPath = false;
     text = ''
       set -euo pipefail
@@ -81,7 +81,7 @@ with lib; let
 
   ghPrEditScript = pkgs.writeShellApplication {
     name = "gh-pr-edit";
-    runtimeInputs = with pkgs; [ coreutils jq ];
+    runtimeInputs = (with pkgs; [ coreutils jq ]) ++ [ requestApprovalScript ];
     inheritPath = false;
     text = ''
       set -euo pipefail
@@ -168,7 +168,7 @@ with lib; let
 
   ghPrReviewScript = pkgs.writeShellApplication {
     name = "gh-pr-review";
-    runtimeInputs = with pkgs; [ coreutils jq ];
+    runtimeInputs = (with pkgs; [ coreutils jq ]) ++ [ requestApprovalScript ];
     inheritPath = false;
     text = ''
       set -euo pipefail
@@ -361,6 +361,120 @@ with lib; let
       exit 14
     '';
   };
+
+  # In-box git wrapper. Intercepts push / pull / fetch and routes them
+  # through the approval TUI on the host (which runs the actual git op
+  # with the host's YubiKey-bound SSH key). Other subcommands — including
+  # `commit` (intentionally unsigned in the box for fast checkpointing)
+  # — pass through to the real git binary.
+  gitWrapperScript = pkgs.writeShellApplication {
+    name = "git";
+    runtimeInputs = (with pkgs; [ coreutils jq ]) ++ [ requestApprovalScript ];
+    inheritPath = false;
+    text = ''
+      set -euo pipefail
+      REAL_GIT=${pkgs.git}/bin/git
+
+      if [ $# -lt 1 ]; then
+        exec "$REAL_GIT"
+      fi
+      SUB="$1"
+      case "$SUB" in
+        push|pull|fetch) ;;
+        *) exec "$REAL_GIT" "$@" ;;
+      esac
+
+      # Capture context for the TUI summary. All best-effort — the actual
+      # git invocation happens on the host, against the same working tree.
+      shift  # drop the subcommand from the array we forward as argv
+      ARGS=("$@")
+      BRANCH=$("$REAL_GIT" symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+      HEAD_SHA=$("$REAL_GIT" rev-parse --short HEAD 2>/dev/null || true)
+      UPSTREAM_STATE=""
+      SIGNING_STATUS=""
+      if [ "$SUB" = "push" ]; then
+        UPSTREAM_STATE=$("$REAL_GIT" log --oneline '@{u}..HEAD' 2>/dev/null || true)
+        SIGNING_STATUS=$("$REAL_GIT" log '@{u}..HEAD' --format='%h %G?' 2>/dev/null || true)
+      fi
+
+      PAYLOAD_TMP=$(mktemp)
+      trap 'rm -f "$PAYLOAD_TMP"' EXIT
+      jq -n \
+        --arg cwd "$PWD" \
+        --arg branch "$BRANCH" \
+        --arg head_sha "$HEAD_SHA" \
+        --arg upstream_state "$UPSTREAM_STATE" \
+        --arg signing_status "$SIGNING_STATUS" \
+        --arg sub "$SUB" \
+        --args -- "''${ARGS[@]}" '
+        # The wrapper drops the subcommand; the broker dispatcher runs
+        # `git <sub> <args>` on host, so we put $sub first in argv.
+        {cwd:$cwd, argv:([$sub] + $ARGS),
+         current_branch:$branch, head_sha:$head_sha,
+         upstream_state:$upstream_state, signing_status:$signing_status}' \
+        > "$PAYLOAD_TMP"
+
+      ARGS_JOINED=$(printf '%s ' "''${ARGS[@]}")
+      SUMMARY="git $SUB ''${ARGS_JOINED}(in $PWD, branch ''${BRANCH:-?})"
+
+      RESULT=$(request-approval --op "git.$SUB" \
+        --payload-file "$PAYLOAD_TMP" --summary "$SUMMARY")
+      # On success, surface the broker's stdout/stderr to the caller so the
+      # agent sees what git printed on the host.
+      printf '%s' "$RESULT" | jq -r '.stdout // ""'
+      printf '%s' "$RESULT" | jq -r '.stderr // ""' >&2
+    '';
+  };
+
+  # git-batch-sign: amend-sign every unsigned commit between <base> and
+  # HEAD via the existing git-sign-range on the host. Single approval
+  # request gates the whole batch; the rebase loop still touches the
+  # YubiKey once per commit.
+  gitBatchSignScript = pkgs.writeShellApplication {
+    name = "git-batch-sign";
+    runtimeInputs = (with pkgs; [ coreutils jq git ]) ++ [ requestApprovalScript ];
+    inheritPath = false;
+    text = ''
+      set -euo pipefail
+      BASE="''${1:-}"
+
+      if [ -z "$BASE" ]; then
+        if git rev-parse --verify --quiet '@{u}' >/dev/null; then
+          BASE='@{u}'
+        elif git rev-parse --verify --quiet main >/dev/null; then
+          BASE='main'
+        else
+          echo "git-batch-sign: no upstream and no 'main' — pass a base ref" >&2
+          exit 1
+        fi
+      fi
+
+      COUNT=$(git rev-list --count "$BASE..HEAD")
+      if [ "$COUNT" -eq 0 ]; then
+        echo "git-batch-sign: nothing to sign ($BASE..HEAD is empty)."
+        exit 0
+      fi
+
+      HEAD_SHA=$(git rev-parse --short HEAD)
+      COMMIT_LIST=$(git log "$BASE..HEAD" --format='%h %G? %s' --no-color)
+
+      PAYLOAD_TMP=$(mktemp)
+      trap 'rm -f "$PAYLOAD_TMP"' EXIT
+      jq -n \
+        --arg cwd "$PWD" --arg base "$BASE" \
+        --arg head_sha "$HEAD_SHA" --arg commit_list "$COMMIT_LIST" \
+        '{cwd:$cwd, base:$base, head_sha:$head_sha, commit_list:$commit_list}' \
+        > "$PAYLOAD_TMP"
+
+      SUMMARY="Sign $COUNT commit(s) in $PWD from $BASE to HEAD"
+
+      RESULT=$(request-approval --op git.sign-range \
+        --payload-file "$PAYLOAD_TMP" --summary "$SUMMARY" --timeout 3600)
+      printf '%s' "$RESULT" | jq -r '.stdout // ""'
+      printf '%s' "$RESULT" | jq -r '.stderr // ""' >&2
+    '';
+  };
+
   proxyConfigFile = pkgs.writeText "sandbox-proxy.conf" ''
     Port ${toString cfg.network.proxyPort}
     Listen 127.0.0.1
@@ -967,6 +1081,11 @@ in {
         ghPrCreateScript
         ghPrEditScript
         ghPrReviewScript
+        # Git wrapper shadows pkgs.git's bin/git for push/pull/fetch only;
+        # other subcommands fall through to the real git binary. hiPrio
+        # resolves the bin/git symlink collision in favour of the wrapper.
+        (lib.hiPrio gitWrapperScript)
+        gitBatchSignScript
       ];
     })
     (mkIf cfg.enable {

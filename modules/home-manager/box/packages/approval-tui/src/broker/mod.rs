@@ -5,6 +5,7 @@ use std::future::Future;
 use std::pin::Pin;
 
 pub mod gh_pr;
+pub mod git;
 
 pub type BrokerFuture<'a> = Pin<Box<dyn Future<Output = Result<Value>> + Send + 'a>>;
 
