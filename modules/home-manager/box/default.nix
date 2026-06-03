@@ -937,6 +937,11 @@ in {
       type = with types; listOf str;
       default = [
         "/data/.system-configuration"
+        # YubiKey PUBLIC key only — the box uses this to verify commit
+        # signatures in the shared working tree (kirk.git builds
+        # allowed_signers from it). The matching SK private blob lives
+        # only on host; signing happens via the approval TUI.
+        "/data/.secret/ssh/id_ed25519_yubi.pub"
       ];
       description = "Host paths bind-mounted read-only inside the sandbox (same path inside and out).";
     };

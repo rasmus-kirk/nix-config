@@ -17,8 +17,12 @@ in {
     xdgMime.enable = true;
     git = {
       enable = true;
-      # No signKey — box has no YubiKey access. Commits land unsigned;
-      # use git-batch-sign on the host to amend-sign a range when ready.
+      # signKey set so kirk.git wires up SSH-format signature handling
+      # (gpg.format=ssh + allowedSignersFile). signByDefault=false because
+      # the box can't actually sign (no private key, no YubiKey) — that
+      # happens later via `git-batch-sign` on the host.
+      signKey = "${secretDir}/ssh/id_ed25519_yubi.pub";
+      signByDefault = false;
       userEmail = "mail@rasmuskirk.com";
       userName = "rasmus-kirk";
     };
@@ -101,7 +105,6 @@ in {
   # Box no longer talks to GitHub directly — git push/pull/fetch all
   # route through the host approval TUI, which performs the SSH op
   # from the host (where the YubiKey lives). Commits in box are
-  # unsigned by design (commit.gpgsign = false below); use
-  # `git-batch-sign` to amend-sign a range on the host when ready.
-  programs.git.settings.commit.gpgsign = false;
+  # unsigned by design (signByDefault=false above); use `git-batch-sign`
+  # to amend-sign a range on the host when ready.
 }

@@ -23,7 +23,24 @@ in {
     signKey = mkOption {
       type = with types; nullOr (either path str);
       default = null;
-      description = "Path to the public key used to sign. All commits will be signed (must be SSH).";
+      description = ''
+        Path to the SSH public key. Enables SSH signature handling:
+        `gpg.format = ssh`, `allowedSignersFile` is built from this
+        key, and commits are signed by default (controllable via
+        `signByDefault`).
+      '';
+    };
+
+    signByDefault = mkOption {
+      type = types.bool;
+      default = cfg.signKey != null;
+      description = ''
+        Whether `git commit` signs by default. Defaults to true when
+        `signKey` is set. Set to false to get signature verification
+        (format=ssh + allowedSignersFile) without forcing every commit
+        to be signed — useful inside sandboxes where signing happens
+        elsewhere but verification of signed commits is still wanted.
+      '';
     };
   };
 
@@ -43,7 +60,7 @@ in {
       signing = mkIf (cfg.signKey != null) {
         key = cfg.signKey;
         format = "ssh";
-        signByDefault = true;
+        signByDefault = cfg.signByDefault;
       };
       settings = {
         gpg.ssh.allowedSignersFile = mkIf (cfg.signKey != null) (toString (pkgs.writeText "allowed_signers"
