@@ -677,9 +677,6 @@ with lib; let
       # /tmp/screenshots: read-only window into host's screenshot drop.
       # Lives on box's /tmp tmpfs (privateTmp). Silently skipped if absent.
       ++ [ "--ro-bind-try" "/tmp/screenshots" "/tmp/screenshots" ]
-      # /tmp/box-notify: read-write outbox for the `notify` script. A host-side
-      # systemd path unit watches this dir and dispatches each file via notify-send.
-      ++ [ "--bind-try" "/tmp/box-notify" "/tmp/box-notify" ]
       # Broker IPC: box drops request files in ${cfg.brokerRoot}/request (RW),
       # reads response files from ${cfg.brokerRoot}/response (RO). Host
       # dispatcher (or approval TUI) holds the write-PAT and only invokes
@@ -713,13 +710,9 @@ with lib; let
         exit 0
       fi
       mkdir -p "${cfg.stateDir}/home"
-      # Ensure /tmp/box-notify exists on host BEFORE bwrap, otherwise the
-      # --bind-try silently skips and the box's `notify` writes land in the
-      # box's private /tmp where the host watcher never sees them.
-      mkdir -p /tmp/box-notify
       ${optionalString cfg.githubPrBroker.enable ''
-        # Same reasoning for the PR broker: directories must exist on host
-        # before bwrap so bind-try'd mounts actually attach.
+        # PR broker dirs: must exist on host before bwrap so bind-try'd
+        # mounts actually attach.
         mkdir -p ${cfg.brokerRoot}/request ${cfg.brokerRoot}/response
       ''}
 
@@ -1005,11 +998,11 @@ in {
         default = false;
         description = ''
           Host-side capability broker for opening GitHub pull requests from
-          inside the box. Mirrors the box-notify file-drop pattern:
-          `gh-pr-create` (in the box) drops a JSON request at
-          `''${brokerRoot}/request/`, a host systemd path unit dispatches
-          it via the GitHub API, and the response (PR URL) lands in
-          `''${brokerRoot}/response/` for the in-box client to read.
+          inside the box. File-drop pattern: `gh-pr-create` (in the box)
+          drops a JSON request at `''${brokerRoot}/request/`, the host
+          approval TUI dispatches it via the GitHub API, and the response
+          (PR URL) lands in `''${brokerRoot}/response/` for the in-box
+          client to read.
 
           The write-scoped PAT lives at `writeTokenFile` on the host and is
           never bind-mounted into the box. The broker only ever invokes

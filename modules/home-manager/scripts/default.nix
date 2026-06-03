@@ -228,24 +228,6 @@ with lib; let
     '';
   };
 
-  notify = pkgs.writeShellApplication {
-    name = "notify";
-    runtimeInputs = with pkgs; [ coreutils ];
-    inheritPath = false;
-    text = ''
-      DIR=/tmp/box-notify
-      mkdir -p "$DIR"
-      # Atomic write: stage in a temp file, rename into place so the watcher
-      # doesn't observe a half-written notification.
-      STAGE=$(mktemp "$DIR/.staging.XXXXXX")
-      {
-        printf '%s\n' "''${1:-Notification}"
-        printf '%s\n' "''${2:-}"
-      } > "$STAGE"
-      mv "$STAGE" "$DIR/$(date +%s%N).$$"
-    '';
-  };
-
   screenshot = pkgs.writeShellApplication {
     name = "screenshot";
     runtimeInputs = with pkgs; [ systemd coreutils ];
@@ -295,7 +277,6 @@ in {
       ff-cut
       ff-compress
       git-sign-range
-      notify
       screenshot
       upkob
       updap

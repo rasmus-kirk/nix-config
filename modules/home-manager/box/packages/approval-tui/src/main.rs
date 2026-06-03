@@ -125,8 +125,17 @@ async fn run_event_loop<B: ratatui::backend::Backend>(
                         match queue.try_enqueue(path) {
                             Ok(Some(req)) => {
                                 let id = req.envelope.request_id.clone();
+                                let op = req.envelope.op.clone();
+                                let summary = req.envelope.summary.clone();
                                 write_ack(cfg, &id).await.ok();
                                 ui_state.message = Some(format!("queued {id}"));
+                                let body = match summary {
+                                    Some(s) if !s.is_empty() => format!("{op}: {s}"),
+                                    _ => op,
+                                };
+                                tokio::spawn(async move {
+                                    dispatch_notification("Approval requested", &body).await;
+                                });
                             }
                             Ok(None) => {} // already seen
                             Err(e) => {
@@ -353,6 +362,31 @@ async fn handle_outcome(
         }
     }
     Ok(())
+}
+
+/// Fire a desktop notification via notify-send and (best-effort) play the
+/// message sound. Both invocations are detached: we don't block the event
+/// loop on either, and we ignore exit status so missing tooling / unset
+/// sound path silently no-op.
+async fn dispatch_notification(title: &str, body: &str) {
+    if let Ok(sound) = std::env::var("BOX_NOTIFY_SOUND") {
+        if !sound.is_empty() {
+            tokio::spawn(async move {
+                let _ = tokio::process::Command::new("pw-cat")
+                    .args(["--playback", &sound])
+                    .stdout(std::process::Stdio::null())
+                    .stderr(std::process::Stdio::null())
+                    .status()
+                    .await;
+            });
+        }
+    }
+    let _ = tokio::process::Command::new("notify-send")
+        .args(["--app-name=approval-tui", "--", title, body])
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .await;
 }
 
 async fn cleanup_request_file(req: Option<crate::types::PendingRequest>) {

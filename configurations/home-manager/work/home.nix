@@ -151,44 +151,12 @@ in {
     inputs.self.packages.${pkgs.system}.approval-tui
   ];
 
-  # Tell approval-tui where the write-scoped PAT lives. The TUI reads it
+  # Tell approval-tui where the write-scoped PAT lives + which sound to
+  # play when a new request lands in its queue. The TUI reads the PAT
   # fresh on each dispatch and never bind-mounts it into the box. Other
-  # BOX_* env vars (BROKER_ROOT, SIGNING_KEY, AUDIT_LOG) default to sane
-  # paths matching the box module's defaults.
-  home.sessionVariables.BOX_GH_PAT_FILE = "${secretDir}/github/qms-pat-pr-rw";
-
-  # Watch /tmp/box-notify and dispatch any file dropped there as a desktop
-  # notification. Lets processes inside the `box` sandbox notify the host
-  # without giving them DBUS access.
-  systemd.user.paths.box-notify = {
-    Unit.Description = "Watch /tmp/box-notify for notification drops";
-    Path = {
-      PathExistsGlob = "/tmp/box-notify/[!.]*";
-      MakeDirectory = true;
-      DirectoryMode = "0755";
-    };
-    Install.WantedBy = [ "default.target" ];
-  };
-  systemd.user.services.box-notify = {
-    Unit.Description = "Dispatch /tmp/box-notify drops via notify-send";
-    Service = {
-      Type = "oneshot";
-      ExecStart = "${pkgs.writeShellScript "box-notify-dispatch" ''
-        set -u
-        for f in /tmp/box-notify/[!.]*; do
-          [ -f "$f" ] || continue
-          TITLE=$(${pkgs.coreutils}/bin/head -n1 "$f")
-          BODY=$(${pkgs.coreutils}/bin/tail -n+2 "$f")
-          # Play attention sound in parallel with the popup. Backgrounded so
-          # the popup fires immediately; `wait` keeps the systemd oneshot
-          # alive until pw-cat finishes, otherwise KillMode=control-group
-          # reaps the sound mid-playback.
-          ${pkgs.pipewire}/bin/pw-cat --playback ${pkgs.sound-theme-freedesktop}/share/sounds/freedesktop/stereo/message.oga >/dev/null 2>&1 &
-          ${pkgs.libnotify}/bin/notify-send -- "$TITLE" "$BODY" || true
-          wait
-          ${pkgs.coreutils}/bin/rm -f "$f"
-        done
-      ''}";
-    };
+  # BOX_* env vars default to sane paths matching the box module.
+  home.sessionVariables = {
+    BOX_GH_PAT_FILE = "${secretDir}/github/qms-pat-pr-rw";
+    BOX_NOTIFY_SOUND = "${pkgs.sound-theme-freedesktop}/share/sounds/freedesktop/stereo/message.oga";
   };
 }
