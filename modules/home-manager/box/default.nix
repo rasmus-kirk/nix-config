@@ -409,7 +409,7 @@ with lib; let
         --args -- "''${ARGS[@]}" '
         # The wrapper drops the subcommand; the broker dispatcher runs
         # `git <sub> <args>` on host, so we put $sub first in argv.
-        {cwd:$cwd, argv:([$sub] + $ARGS),
+        {cwd:$cwd, argv:([$sub] + $ARGS.positional),
          current_branch:$branch, head_sha:$head_sha,
          upstream_state:$upstream_state, signing_status:$signing_status}' \
         > "$PAYLOAD_TMP"
