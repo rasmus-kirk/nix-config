@@ -399,6 +399,9 @@ with lib; let
 
       PAYLOAD_TMP=$(mktemp)
       trap 'rm -f "$PAYLOAD_TMP"' EXIT
+      # Filter program MUST precede --args (otherwise jq treats the
+      # filter as a positional and uses ARGS[0] as the filter, e.g.
+      # "origin/0 is not defined").
       jq -n \
         --arg cwd "$PWD" \
         --arg branch "$BRANCH" \
@@ -406,12 +409,13 @@ with lib; let
         --arg upstream_state "$UPSTREAM_STATE" \
         --arg signing_status "$SIGNING_STATUS" \
         --arg sub "$SUB" \
-        --args -- "''${ARGS[@]}" '
+        '
         # The wrapper drops the subcommand; the broker dispatcher runs
         # `git <sub> <args>` on host, so we put $sub first in argv.
         {cwd:$cwd, argv:([$sub] + $ARGS.positional),
          current_branch:$branch, head_sha:$head_sha,
          upstream_state:$upstream_state, signing_status:$signing_status}' \
+        --args -- "''${ARGS[@]}" \
         > "$PAYLOAD_TMP"
 
       ARGS_JOINED=$(printf '%s ' "''${ARGS[@]}")
