@@ -143,23 +143,29 @@ in {
     silent = true;
   };
 
-  home.packages = with pkgs; [
+  # approval-tui is launched manually by the user from a terminal. We
+  # wrap it in a small shell script that hard-codes all the BOX_* env
+  # vars (PAT path, notify binaries, sound file) so launches survive
+  # stale shells / non-shell launchers — no reliance on
+  # home.sessionVariables having been re-sourced.
+  home.packages = let
+    approvalTuiWrapped = pkgs.writeShellApplication {
+      name = "approval-tui";
+      runtimeInputs = [];
+      inheritPath = true;
+      text = ''
+        export BOX_GH_PAT_FILE="${secretDir}/github/qms-pat-pr-rw"
+        export BOX_NOTIFY_BIN="${pkgs.libnotify}/bin/notify-send"
+        export BOX_PW_CAT_BIN="${pkgs.pipewire}/bin/pw-cat"
+        export BOX_NOTIFY_SOUND="${pkgs.sound-theme-freedesktop}/share/sounds/freedesktop/stereo/message.oga"
+        exec ${inputs.self.packages.${pkgs.system}.approval-tui}/bin/approval-tui "$@"
+      '';
+    };
+  in with pkgs; [
     claude-code
     bubblewrap
     socat
     finamp
-    inputs.self.packages.${pkgs.system}.approval-tui
+    approvalTuiWrapped
   ];
-
-  # Tell approval-tui where the write-scoped PAT lives + how to fire
-  # desktop notifications (notify-send + sound via pw-cat). The TUI
-  # reads the PAT fresh on each dispatch and never bind-mounts it into
-  # the box. Absolute /nix/store paths for the binaries so the TUI
-  # doesn't need them on PATH.
-  home.sessionVariables = {
-    BOX_GH_PAT_FILE = "${secretDir}/github/qms-pat-pr-rw";
-    BOX_NOTIFY_BIN = "${pkgs.libnotify}/bin/notify-send";
-    BOX_PW_CAT_BIN = "${pkgs.pipewire}/bin/pw-cat";
-    BOX_NOTIFY_SOUND = "${pkgs.sound-theme-freedesktop}/share/sounds/freedesktop/stereo/message.oga";
-  };
 }
