@@ -1,3 +1,4 @@
+mod agents;
 mod audit;
 mod broker;
 mod config;
@@ -7,6 +8,7 @@ mod types;
 mod ui;
 mod watcher;
 
+use crate::agents::AgentRegistry;
 use crate::audit::{sha256_hex, AuditEntry, AuditLog};
 use crate::broker::gh_pr::{GhClient, GhPrCreate, GhPrEdit, GhPrReview};
 use crate::broker::git::{GitFetch, GitPull, GitPush, GitSignRange};
@@ -57,16 +59,18 @@ async fn main() -> Result<()> {
     let registry = Arc::new(build_registry(&cfg)?);
 
     let mut queue = Queue::new();
+    let mut agents = AgentRegistry::new();
     let preloaded = queue
         .reload_from_dir(&cfg.request_dir())
         .context("reloading request dir on startup")?;
     if preloaded > 0 {
         eprintln!("approval-tui: reloaded {preloaded} pending request(s) from disk");
     }
-    for req in queue.iter().map(|(_, r)| r.envelope.request_id.clone()).collect::<Vec<_>>() {
+    for env in queue.iter().map(|(_, r)| r.envelope.clone()).collect::<Vec<_>>() {
+        agents.record_request(&env);
         // Acknowledge anything we already see on startup so the in-box
         // client knows we picked it up.
-        write_ack(&cfg, &req).await.ok();
+        write_ack(&cfg, &env.request_id).await.ok();
     }
 
     let mut watch_rx = watcher::spawn(&cfg.request_dir()).context("spawning request watcher")?;
@@ -79,6 +83,7 @@ async fn main() -> Result<()> {
         audit,
         registry,
         &mut queue,
+        &mut agents,
         &mut watch_rx,
         &mut pipeline_rx,
         pipeline_tx,
@@ -96,6 +101,7 @@ async fn run_event_loop<B: ratatui::backend::Backend>(
     audit: AuditLog,
     registry: Arc<Registry>,
     queue: &mut Queue,
+    agents: &mut AgentRegistry,
     watch_rx: &mut mpsc::UnboundedReceiver<WatchEvent>,
     pipeline_rx: &mut mpsc::UnboundedReceiver<PipelineOutcome>,
     pipeline_tx: mpsc::UnboundedSender<PipelineOutcome>,
@@ -105,7 +111,7 @@ async fn run_event_loop<B: ratatui::backend::Backend>(
     let mut tick = tokio::time::interval(Duration::from_millis(500));
 
     loop {
-        terminal.draw(|f| ui::draw(f, queue, &ui_state))?;
+        terminal.draw(|f| ui::draw(f, queue, agents, &ui_state))?;
 
         tokio::select! {
             biased;
@@ -116,7 +122,7 @@ async fn run_event_loop<B: ratatui::backend::Backend>(
                 if matches!(action, InputAction::Quit) {
                     break;
                 }
-                apply_action(action, cfg, &audit, &registry, queue, &mut ui_state, &pipeline_tx).await?;
+                apply_action(action, cfg, &audit, &registry, queue, agents, &mut ui_state, &pipeline_tx).await?;
             }
 
             Some(watch_ev) = watch_rx.recv() => {
@@ -127,6 +133,7 @@ async fn run_event_loop<B: ratatui::backend::Backend>(
                                 let id = req.envelope.request_id.clone();
                                 let op = req.envelope.op.clone();
                                 let summary = req.envelope.summary.clone();
+                                agents.record_request(&req.envelope);
                                 write_ack(cfg, &id).await.ok();
                                 ui_state.message = Some(format!("queued {id}"));
                                 let body = match summary {
@@ -150,7 +157,7 @@ async fn run_event_loop<B: ratatui::backend::Backend>(
             }
 
             Some(outcome) = pipeline_rx.recv() => {
-                handle_outcome(outcome, cfg, &audit, queue, &mut ui_state).await?;
+                handle_outcome(outcome, cfg, &audit, queue, agents, &mut ui_state).await?;
             }
 
             _ = tick.tick() => {} // periodic redraw
@@ -192,12 +199,14 @@ fn handle_input(event: &Event) -> InputAction {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn apply_action(
     action: InputAction,
     cfg: &Config,
     audit: &AuditLog,
     registry: &Arc<Registry>,
     queue: &mut Queue,
+    agents: &mut AgentRegistry,
     state: &mut UiState,
     pipeline_tx: &mpsc::UnboundedSender<PipelineOutcome>,
 ) -> Result<()> {
@@ -213,7 +222,7 @@ async fn apply_action(
         }
         InputAction::Reject => {
             if let Some(id) = queue.selected_id() {
-                reject_request(&id, cfg, audit, queue, state).await?;
+                reject_request(&id, cfg, audit, queue, agents, state).await?;
             }
         }
     }
@@ -313,9 +322,13 @@ async fn reject_request(
     cfg: &Config,
     audit: &AuditLog,
     queue: &mut Queue,
+    agents: &mut AgentRegistry,
     state: &mut UiState,
 ) -> Result<()> {
-    let op = queue.get_mut(id).map(|r| r.envelope.op.clone()).unwrap_or_default();
+    let (op, envelope_for_agents) = queue
+        .get_mut(id)
+        .map(|r| (r.envelope.op.clone(), Some(r.envelope.clone())))
+        .unwrap_or_default();
     write_response(cfg, id, &rejected_response()).await?;
     audit
         .append(&AuditEntry {
@@ -330,6 +343,9 @@ async fn reject_request(
         })
         .await?;
     let removed = queue.remove(id);
+    if let Some(env) = envelope_for_agents {
+        agents.complete_request(&env);
+    }
     cleanup_request_file(removed).await;
     state.message = Some(format!("rejected {id}"));
     Ok(())
@@ -340,12 +356,17 @@ async fn handle_outcome(
     cfg: &Config,
     _audit: &AuditLog,
     queue: &mut Queue,
+    agents: &mut AgentRegistry,
     state: &mut UiState,
 ) -> Result<()> {
     match outcome {
         PipelineOutcome::Ok { request_id, result } => {
+            let env_clone = queue.get_mut(&request_id).map(|r| r.envelope.clone());
             write_response(cfg, &request_id, &ok_response(result)).await?;
             let removed = queue.remove(&request_id);
+            if let Some(env) = env_clone {
+                agents.complete_request(&env);
+            }
             cleanup_request_file(removed).await;
             state.message = Some(format!("ok {request_id}"));
         }
@@ -355,8 +376,12 @@ async fn handle_outcome(
         } => {
             // Dispatch failed — write response so the box client unblocks.
             // The user can also re-trigger via retry if appropriate.
+            let env_clone = queue.get_mut(&request_id).map(|r| r.envelope.clone());
             write_response(cfg, &request_id, &dispatch_failed_response(detail.clone())).await?;
             let removed = queue.remove(&request_id);
+            if let Some(env) = env_clone {
+                agents.complete_request(&env);
+            }
             cleanup_request_file(removed).await;
             state.message = Some(format!("dispatch failed: {detail}"));
         }

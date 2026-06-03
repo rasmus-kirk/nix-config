@@ -1,3 +1,4 @@
+use crate::agents::AgentRegistry;
 use crate::queue::Queue;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
@@ -25,10 +26,18 @@ impl Default for UiState {
     }
 }
 
-pub fn draw(frame: &mut Frame, queue: &Queue, state: &UiState) {
+pub fn draw(frame: &mut Frame, queue: &Queue, agents: &AgentRegistry, state: &UiState) {
+    // Vertical: top = queue+detail, middle = agents (up to ~6 rows),
+    // bottom = status bar.
+    let agents_height = (agents.len().min(5) as u16).saturating_add(2); // +2 for borders
+    let agents_height = if agents.len() == 0 { 3 } else { agents_height };
     let outer = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(1)])
+        .constraints([
+            Constraint::Min(0),
+            Constraint::Length(agents_height),
+            Constraint::Length(1),
+        ])
         .split(frame.area());
 
     let main = Layout::default()
@@ -38,10 +47,51 @@ pub fn draw(frame: &mut Frame, queue: &Queue, state: &UiState) {
 
     draw_queue(frame, main[0], queue);
     draw_detail(frame, main[1], queue);
-    draw_status(frame, outer[1], queue, state);
+    draw_agents(frame, outer[1], agents);
+    draw_status(frame, outer[2], queue, state);
 
     if state.help_visible {
         draw_help_overlay(frame, frame.area());
+    }
+}
+
+fn draw_agents(frame: &mut Frame, area: Rect, agents: &AgentRegistry) {
+    let items: Vec<ListItem> = agents
+        .recent(5)
+        .iter()
+        .map(|a| {
+            let status_style = if a.in_flight > 0 {
+                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(Color::Green)
+            };
+            let line = Line::from(vec![
+                Span::styled(format!("{:>8} ", a.status_label()), status_style),
+                Span::raw(format!("{:<24} ", truncate(&a.cwd, 24))),
+                Span::styled(
+                    format!("in-flight {}  seen {}", a.in_flight, a.total_seen),
+                    Style::default().fg(Color::DarkGray),
+                ),
+            ]);
+            ListItem::new(line)
+        })
+        .collect();
+    let title = if agents.len() == 0 {
+        "Agents (none yet)".to_string()
+    } else {
+        format!("Agents ({})", agents.len())
+    };
+    let list = List::new(items).block(Block::default().borders(Borders::ALL).title(title));
+    frame.render_widget(list, area);
+}
+
+fn truncate(s: &str, n: usize) -> String {
+    if s.chars().count() <= n {
+        s.to_string()
+    } else {
+        let mut t: String = s.chars().take(n.saturating_sub(1)).collect();
+        t.push('…');
+        t
     }
 }
 

@@ -298,15 +298,18 @@ with lib; let
 
       ID="$(date +%s%N).$$"
       NOW="$(date -Iseconds)"
+      SESSION_ID="''${BOX_SESSION_ID:-unknown}"
       ENVELOPE=$(jq -n \
         --arg id "$ID" --arg requested_at "$NOW" \
         --arg op "$OP" --arg summary "$SUMMARY" \
         --arg cwd "$PWD" --arg started_at "$NOW" \
+        --arg session_id "$SESSION_ID" \
         --argjson agent_pid "$$" \
         --slurpfile payload "$PAYLOAD_FILE" \
         '{v:1, request_id:$id, requested_at:$requested_at, op:$op,
           payload:$payload[0], summary:$summary,
-          client_context:{cwd:$cwd, agent_pid:$agent_pid, started_at:$started_at}}')
+          client_context:{cwd:$cwd, agent_pid:$agent_pid,
+                          session_id:$session_id, started_at:$started_at}}')
 
       REQ_TMP="${cfg.brokerRoot}/request/.staging.$ID"
       REQ_FINAL="${cfg.brokerRoot}/request/$ID.json"
@@ -572,6 +575,10 @@ with lib; let
     export NIX_REMOTE=daemon
     export NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
     export SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
+    # Stable identifier for this box session. Propagated into every
+    # request-approval envelope so the approval TUI can group requests
+    # by agent and render an "active agents" pane.
+    export BOX_SESSION_ID="$(date +%s%N).$$"
     ${proxyEnv}
     ${optionalString (cfg.githubTokenFile != null) ''
       if [ -r ${cfg.githubTokenFile} ]; then

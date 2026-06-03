@@ -19,6 +19,8 @@ pub struct RequestEnvelope {
 pub struct ClientContext {
     pub cwd: String,
     pub agent_pid: u32,
+    #[serde(default)]
+    pub session_id: Option<String>,
     pub started_at: String,
 }
 
