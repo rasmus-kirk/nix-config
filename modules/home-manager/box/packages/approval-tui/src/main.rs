@@ -8,7 +8,7 @@ mod types;
 mod ui;
 mod watcher;
 
-use crate::agents::{AgentEventFile, AgentRegistry, AgentState, AgentTransition};
+use crate::agents::{AgentEventFile, AgentRegistry};
 use crate::audit::{sha256_hex, AuditEntry, AuditLog};
 use crate::broker::gh_pr::{GhClient, GhPrCreate, GhPrEdit, GhPrReview};
 use crate::broker::git::{GitFetch, GitPull, GitPush, GitSignRange};
@@ -170,21 +170,11 @@ async fn run_event_loop<B: ratatui::backend::Backend>(
                         match tokio::fs::read(&path).await {
                             Ok(bytes) => match serde_json::from_slice::<AgentEventFile>(&bytes) {
                                 Ok(event) => {
-                                    let cwd_display = std::path::Path::new(&event.cwd)
-                                        .file_name()
-                                        .and_then(|n| n.to_str())
-                                        .unwrap_or("?")
-                                        .to_string();
-                                    let transition = agents.apply_event(event);
-                                    if let Some(new_state) = transitioned_to_ready(transition) {
-                                        let _ = new_state;
-                                        tokio::spawn(async move {
-                                            dispatch_notification(
-                                                "Agent ready",
-                                                &format!("{cwd_display} is awaiting input"),
-                                            ).await;
-                                        });
-                                    }
+                                    // Update the bottom pane only — no
+                                    // desktop notification on ready
+                                    // (intentionally; the pane is enough
+                                    // and notify-send was too noisy).
+                                    let _ = agents.apply_event(event);
                                 }
                                 Err(e) => ui_state.message = Some(format!("agent-event parse: {e:#}")),
                             },
@@ -459,16 +449,6 @@ async fn dispatch_notification(title: &str, body: &str) {
         .await;
     if let Err(e) = result {
         eprintln!("approval-tui: notify-send failed to spawn ({notify_bin}): {e:#}");
-    }
-}
-
-/// Notify on Working → Ready or Unknown → Ready transitions, and on
-/// brand-new agents that come in already-Ready. Everything else is silent.
-fn transitioned_to_ready(transition: AgentTransition) -> Option<AgentState> {
-    match transition {
-        AgentTransition::Created(AgentState::Ready) => Some(AgentState::Ready),
-        AgentTransition::Changed { to: AgentState::Ready, .. } => Some(AgentState::Ready),
-        _ => None,
     }
 }
 
