@@ -2,6 +2,7 @@
 {
   pkgs,
   config,
+  inputs,
   ...
 }: let
   dataDir = "/data";
@@ -142,7 +143,19 @@ in {
     silent = true;
   };
 
-  home.packages = with pkgs; [ claude-code bubblewrap socat finamp ];
+  home.packages = with pkgs; [
+    claude-code
+    bubblewrap
+    socat
+    finamp
+    inputs.self.packages.${pkgs.system}.approval-tui
+  ];
+
+  # Tell approval-tui where the write-scoped PAT lives. The TUI reads it
+  # fresh on each dispatch and never bind-mounts it into the box. Other
+  # BOX_* env vars (BROKER_ROOT, SIGNING_KEY, AUDIT_LOG) default to sane
+  # paths matching the box module's defaults.
+  home.sessionVariables.BOX_GH_PAT_FILE = "${secretDir}/github/qms-pat-pr-rw";
 
   # Watch /tmp/box-notify and dispatch any file dropped there as a desktop
   # notification. Lets processes inside the `box` sandbox notify the host
