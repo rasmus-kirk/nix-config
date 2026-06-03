@@ -29,6 +29,9 @@ impl AgentState {
 #[derive(Debug, Clone)]
 pub struct AgentEntry {
     pub session_id: String,
+    /// User-chosen display name (via `/rename`). When set, the bottom
+    /// pane shows this in place of the cwd. None ⇒ fall back to cwd.
+    pub name: Option<String>,
     /// Last-known cwd from a request envelope (basename for display).
     pub cwd: String,
     /// Number of requests this agent currently has in the queue (pending +
@@ -40,6 +43,13 @@ pub struct AgentEntry {
     pub last_seen: Instant,
 }
 
+impl AgentEntry {
+    /// Display label: explicit `name` if set, else cwd basename.
+    pub fn label(&self) -> &str {
+        self.name.as_deref().unwrap_or(&self.cwd)
+    }
+}
+
 /// JSON shape of `${brokerRoot}/agent-events/<id>.json`, produced by the
 /// in-box `agent-event` script via Claude Code's UserPromptSubmit / Stop
 /// hooks.
@@ -48,6 +58,8 @@ pub struct AgentEventFile {
     pub event: String,
     pub session_id: String,
     pub cwd: String,
+    #[serde(default)]
+    pub name: Option<String>,
     #[allow(dead_code)]
     pub ts: String,
 }
@@ -90,6 +102,7 @@ impl AgentRegistry {
             .entry(session_id.clone())
             .or_insert_with(|| AgentEntry {
                 session_id: session_id.clone(),
+                name: None,
                 cwd: cwd.clone(),
                 in_flight: 0,
                 total_seen: 0,
@@ -122,6 +135,27 @@ impl AgentRegistry {
     /// typically only notify on Working/Unknown → Ready, since that's the
     /// "your agent is waiting on you" moment).
     pub fn apply_event(&mut self, event: AgentEventFile) -> AgentTransition {
+        // Rename event: update the name field, leave state untouched.
+        if event.event == "rename" {
+            let cwd = display_cwd(&event.cwd);
+            let entry = self
+                .by_session
+                .entry(event.session_id.clone())
+                .or_insert_with(|| AgentEntry {
+                    session_id: event.session_id.clone(),
+                    name: None,
+                    cwd: cwd.clone(),
+                    in_flight: 0,
+                    total_seen: 0,
+                    state: AgentState::Unknown,
+                    last_seen: Instant::now(),
+                });
+            entry.cwd = cwd;
+            entry.name = event.name.filter(|n| !n.is_empty());
+            entry.last_seen = Instant::now();
+            return AgentTransition::NoChange;
+        }
+
         let new_state = match event.event.as_str() {
             "working" => AgentState::Working,
             "ready" => AgentState::Ready,
@@ -146,6 +180,7 @@ impl AgentRegistry {
                     session_id.clone(),
                     AgentEntry {
                         session_id,
+                        name: None,
                         cwd,
                         in_flight: 0,
                         total_seen: 0,

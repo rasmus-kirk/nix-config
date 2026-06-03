@@ -368,9 +368,8 @@ with lib; let
   # Fire-and-forget signal to the host approval TUI's agent registry.
   # Invoked from Claude Code's UserPromptSubmit (working) and Stop
   # (ready) hooks via ~/.claude/settings.json. Drops a small JSON file
-  # at ${cfg.brokerRoot}/agent-events/<nanos>.json that the TUI reads,
-  # uses to update the bottom pane, and (on ready) fires a desktop
-  # notification.
+  # at ${cfg.brokerRoot}/agent-events/<nanos>.json that the TUI reads
+  # to update the bottom pane.
   agentEventScript = pkgs.writeShellApplication {
     name = "agent-event";
     runtimeInputs = with pkgs; [ coreutils jq ];
@@ -395,6 +394,38 @@ with lib; let
         '{event:$event, session_id:$session_id, cwd:$cwd, ts:$ts}' \
         > "$STAGE"
       mv "$STAGE" "$FINAL"
+    '';
+  };
+
+  # Set a display name for this box session in the host approval TUI's
+  # bottom pane. Invoked via the `/rename` slash command in Claude Code.
+  # Same agent-events channel as agent-event, just a different `event`
+  # value plus a `name` field.
+  agentRenameScript = pkgs.writeShellApplication {
+    name = "agent-rename";
+    runtimeInputs = with pkgs; [ coreutils jq ];
+    inheritPath = false;
+    text = ''
+      set -euo pipefail
+      NAME="''${1:-}"
+      if [ -z "$NAME" ]; then
+        echo "agent-rename: usage: agent-rename <name>" >&2
+        exit 1
+      fi
+      DIR=${cfg.brokerRoot}/agent-events
+      [ -d "$DIR" ] || exit 0
+      ID="$(date +%s%N).$$"
+      SESSION_ID="''${BOX_SESSION_ID:-unknown}"
+      NOW="$(date -Iseconds)"
+      STAGE="$DIR/.staging.$ID"
+      FINAL="$DIR/$ID.json"
+      jq -n \
+        --arg event "rename" --arg session_id "$SESSION_ID" \
+        --arg name "$NAME" --arg cwd "$PWD" --arg ts "$NOW" \
+        '{event:$event, session_id:$session_id, name:$name, cwd:$cwd, ts:$ts}' \
+        > "$STAGE"
+      mv "$STAGE" "$FINAL"
+      echo "Renamed agent (session $SESSION_ID) to: $NAME"
     '';
   };
 
@@ -1108,6 +1139,7 @@ in {
       home.packages = [
         requestApprovalScript
         agentEventScript
+        agentRenameScript
         ghPrCreateScript
         ghPrEditScript
         ghPrReviewScript

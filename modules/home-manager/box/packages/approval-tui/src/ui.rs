@@ -76,7 +76,7 @@ fn draw_agents(frame: &mut Frame, area: Rect, agents: &AgentRegistry) {
             };
             let line = Line::from(vec![
                 Span::styled(format!("{:>8} ", a.state.label()), status_style),
-                Span::raw(format!("{:<24} ", truncate(&a.cwd, 24))),
+                Span::raw(format!("{:<24} ", truncate(a.label(), 24))),
                 Span::styled(
                     format!("seen {}{}", a.total_seen, in_flight_extra),
                     Style::default().fg(Color::DarkGray),
