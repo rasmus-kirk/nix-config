@@ -4,6 +4,8 @@ use serde_json::Value;
 use std::future::Future;
 use std::pin::Pin;
 
+pub mod gh_pr;
+
 pub type BrokerFuture<'a> = Pin<Box<dyn Future<Output = Result<Value>> + Send + 'a>>;
 
 /// A broker dispatches an approved request against the underlying service

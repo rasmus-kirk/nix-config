@@ -6,6 +6,7 @@ pub struct Config {
     pub broker_root: PathBuf,
     pub signing_key: PathBuf,
     pub audit_log: PathBuf,
+    pub gh_pat_file: Option<PathBuf>,
 }
 
 impl Config {
@@ -19,10 +20,12 @@ impl Config {
         let audit_log = env::var("BOX_AUDIT_LOG")
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("/data/.state/approval-tui/audit.log"));
+        let gh_pat_file = env::var("BOX_GH_PAT_FILE").ok().map(PathBuf::from);
         Self {
             broker_root,
             signing_key,
             audit_log,
+            gh_pat_file,
         }
     }
 

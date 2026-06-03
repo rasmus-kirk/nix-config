@@ -9,6 +9,7 @@ mod ui;
 mod watcher;
 
 use crate::audit::{sha256_hex, AuditEntry, AuditLog};
+use crate::broker::gh_pr::{GhClient, GhPrCreate, GhPrEdit, GhPrReview};
 use crate::broker::Registry;
 use crate::config::Config;
 use crate::queue::Queue;
@@ -55,7 +56,7 @@ enum PipelineOutcome {
 async fn main() -> Result<()> {
     let cfg = Config::from_env();
     let audit = AuditLog::new(cfg.audit_log.clone());
-    let registry = Arc::new(Registry::new());
+    let registry = Arc::new(build_registry(&cfg)?);
 
     let mut queue = Queue::new();
     let preloaded = queue
@@ -409,4 +410,24 @@ fn restore_terminal() -> Result<()> {
 #[allow(dead_code)]
 async fn write_abandoned(cfg: &Config, request_id: &str, reason: &str) -> Result<()> {
     write_response(cfg, request_id, &abandoned_response(reason.into())).await
+}
+
+fn build_registry(cfg: &Config) -> Result<Registry> {
+    let mut reg = Registry::new();
+    if let Some(pat) = cfg.gh_pat_file.clone() {
+        let client = GhClient::new(pat).context("building GitHub client")?;
+        reg.register(Box::new(GhPrCreate {
+            client: client.clone(),
+        }));
+        reg.register(Box::new(GhPrEdit {
+            client: client.clone(),
+        }));
+        reg.register(Box::new(GhPrReview { client }));
+    } else {
+        eprintln!(
+            "approval-tui: BOX_GH_PAT_FILE not set — gh.pr.* brokers will fail with \
+             'no broker registered'. Set the env var in the systemd service to enable them."
+        );
+    }
+    Ok(reg)
 }
