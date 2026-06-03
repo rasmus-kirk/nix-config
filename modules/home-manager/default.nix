@@ -13,7 +13,7 @@
     ./mpv
     ./mvi
     ./rustle
-    ./sandbox
+    ./box
     ./scripts
     ./ssh
     ./terminalTools

@@ -38,7 +38,7 @@ in {
       enable = true;
       identityPath = "${secretDir}/ssh/id_ed25519_yubi";
     };
-    sandbox.brokerClient.enable = true;
+    box.brokerClient.enable = true;
     userDirs = {
       enable = true;
       rootDir = dataDir;

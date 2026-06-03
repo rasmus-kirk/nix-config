@@ -48,7 +48,7 @@ in {
       stateDir = stateDir;
     };
     fonts.enable = true;
-    sandbox = {
+    box = {
       enable = true;
       githubTokenFile = "${secretDir}/github/qms-pat-global-ro";
       githubPrBroker = {
