@@ -141,6 +141,12 @@ impl AgentRegistry {
     /// typically only notify on Working/Unknown → Ready, since that's the
     /// "your agent is waiting on you" moment).
     pub fn apply_event(&mut self, event: AgentEventFile) -> AgentTransition {
+        // Terminated → drop the entry. The box session is gone; nothing
+        // more to display for it.
+        if event.event == "terminated" {
+            self.by_session.remove(&event.session_id);
+            return AgentTransition::NoChange;
+        }
         let new_state = match event.event.as_str() {
             "working" => AgentState::Working,
             "ready" => AgentState::Ready,

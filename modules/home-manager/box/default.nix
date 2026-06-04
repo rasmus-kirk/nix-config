@@ -453,8 +453,8 @@ with lib; let
       set -euo pipefail
       EVENT="''${1:-}"
       case "$EVENT" in
-        working|ready) ;;
-        *) echo "agent-event: usage: agent-event {working|ready} [--claude-session UUID]" >&2; exit 1 ;;
+        working|ready|terminated) ;;
+        *) echo "agent-event: usage: agent-event {working|ready|terminated} [--claude-session UUID]" >&2; exit 1 ;;
       esac
       shift
       CLAUDE_SESSION=""
@@ -730,6 +730,12 @@ with lib; let
     # request-approval envelope so the approval TUI can group requests
     # by agent and render an "active agents" pane.
     export BOX_SESSION_ID="$(date +%s%N).$$"
+    # Fire a `terminated` agent-event when this init script exits so the
+    # TUI removes the agent row from the bottom pane. The trap fires on
+    # normal exit, EOF on the controlling tty, SIGHUP from a closing
+    # terminal — anything that lets the shell unwind cleanly. SIGKILL
+    # is uncatchable; in that rare case the agent row will linger.
+    trap 'agent-event terminated || true' EXIT
     ${proxyEnv}
     ${optionalString (cfg.githubTokenFile != null) ''
       if [ -r ${cfg.githubTokenFile} ]; then
@@ -747,10 +753,11 @@ with lib; let
       eval "$(/home/user/.nix-profile/bin/direnv export bash 2>/dev/null)" || true
     fi
     if [ $# -eq 0 ]; then
-      exec zsh
+      zsh
     else
-      exec "$@"
+      "$@"
     fi
+    exit $?
   '';
 
   # Whitelist /dev: replace buildFHSEnv's full /dev bind with a minimal

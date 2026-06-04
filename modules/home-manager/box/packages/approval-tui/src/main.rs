@@ -184,6 +184,11 @@ async fn run_event_loop<B: ratatui::backend::Backend>(
                                 }
                                 Err(e) => ui_state.message = Some(format!("agent-event parse: {e:#}")),
                             },
+                            // ENOENT is a benign race: inotify can fire
+                            // twice for the same file (Create + Modify),
+                            // and we delete it after the first successful
+                            // read. Silence those; surface anything else.
+                            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
                             Err(e) => ui_state.message = Some(format!("agent-event read: {e:#}")),
                         }
                         let _ = tokio::fs::remove_file(&path).await;
