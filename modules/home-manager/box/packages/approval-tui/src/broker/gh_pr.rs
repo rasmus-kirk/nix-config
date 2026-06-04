@@ -250,7 +250,11 @@ impl Broker for GhPrEdit {
             }
 
             let has_fields = !fields.is_empty();
-            let draft_target = p.draft_target.as_deref();
+            // The in-box gh-pr-edit script always sets draft_target — empty
+            // string when neither --draft nor --ready was passed, which
+            // serde happily deserialises as Some("") rather than None.
+            // Treat empty as absent.
+            let draft_target = p.draft_target.as_deref().filter(|s| !s.is_empty());
             if !has_fields && draft_target.is_none() {
                 bail!("edit has no fields to update");
             }
