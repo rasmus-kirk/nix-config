@@ -159,7 +159,7 @@ with lib; let
     # normal exit, EOF on the controlling tty, SIGHUP from a closing
     # terminal — anything that lets the shell unwind cleanly. SIGKILL
     # is uncatchable; in that rare case the agent row will linger.
-    trap 'box-broker agent-event terminated || true' EXIT
+    trap 'box-broker agent event terminated || true' EXIT
     ${proxyEnv}
     ${optionalString (cfg.githubTokenFile != null) ''
       if [ -r ${cfg.githubTokenFile} ]; then
