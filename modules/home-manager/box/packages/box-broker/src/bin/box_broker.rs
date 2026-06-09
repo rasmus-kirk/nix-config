@@ -151,6 +151,10 @@ struct LinearIssueCmd {
 enum LinearIssueSub {
     /// Create a new Linear issue.
     Create(LinearIssueCreateArgs),
+    /// Update an existing Linear issue (status / title / description / priority).
+    Update(LinearIssueUpdateArgs),
+    /// Add a comment to an existing Linear issue (markdown supported).
+    Comment(LinearIssueCommentArgs),
 }
 
 #[derive(Args)]
@@ -162,6 +166,27 @@ struct LinearIssueCreateArgs {
     #[arg(long = "description-file", value_name = "FILE")] description_file: Option<PathBuf>,
     /// Linear priority 0–4 (0 = no priority, 1 = urgent, 4 = low).
     #[arg(long)] priority: Option<u8>,
+}
+
+#[derive(Args)]
+struct LinearIssueUpdateArgs {
+    /// Issue identifier, e.g. "QMS-84".
+    #[arg(long)] id: String,
+    /// Workflow state name (e.g. "Todo", "In Progress", "Done").
+    /// Host resolves to the per-team workflow-state UUID.
+    #[arg(long)] status: Option<String>,
+    #[arg(long)] title: Option<String>,
+    #[arg(long)] description: Option<String>,
+    #[arg(long = "description-file", value_name = "FILE")] description_file: Option<PathBuf>,
+    #[arg(long)] priority: Option<u8>,
+}
+
+#[derive(Args)]
+struct LinearIssueCommentArgs {
+    /// Issue identifier, e.g. "QMS-84".
+    #[arg(long)] id: String,
+    #[arg(long)] body: Option<String>,
+    #[arg(long = "body-file", value_name = "FILE")] body_file: Option<PathBuf>,
 }
 
 // ─── git ───────────────────────────────────────────────────────────────
@@ -258,6 +283,8 @@ async fn dispatch(cmd: Cmd) -> Result<Outcome> {
         Cmd::Linear(c) => match c.sub {
             LinearSub::Issue(i) => match i.sub {
                 LinearIssueSub::Create(a) => cmd_linear_issue_create(a).await,
+                LinearIssueSub::Update(a) => cmd_linear_issue_update(a).await,
+                LinearIssueSub::Comment(a) => cmd_linear_issue_comment(a).await,
             },
         },
         Cmd::Git(c) => match c.sub {
@@ -386,6 +413,62 @@ async fn cmd_linear_issue_create(args: LinearIssueCreateArgs) -> Result<Outcome>
     });
     if let Some(p) = args.priority { payload["priority"] = json!(p); }
     submit(payload, "linear.issue.create", summary, DEFAULT_TIMEOUT)
+        .await
+        .map(|o| project_field(o, "url"))
+}
+
+async fn cmd_linear_issue_update(args: LinearIssueUpdateArgs) -> Result<Outcome> {
+    let description = resolve_body(args.description, args.description_file).await?;
+    if args.status.is_none()
+        && args.title.is_none()
+        && description.is_none()
+        && args.priority.is_none()
+    {
+        bail!("update needs at least one of --status / --title / --description / --priority");
+    }
+    let mut bits: Vec<String> = vec![];
+    if let Some(s) = &args.status {
+        bits.push(format!("status→{s}"));
+    }
+    if args.title.is_some() {
+        bits.push("title".into());
+    }
+    if description.is_some() {
+        bits.push("description".into());
+    }
+    if let Some(n) = args.priority {
+        bits.push(format!("priority→{n}"));
+    }
+    let summary = format!("Update Linear {}: {}", args.id, bits.join(", "));
+    let mut payload = json!({ "issue_id": args.id });
+    if let Some(s) = args.status {
+        payload["status"] = json!(s);
+    }
+    if let Some(t) = args.title {
+        payload["title"] = json!(t);
+    }
+    if let Some(d) = description {
+        payload["description"] = json!(d);
+    }
+    if let Some(n) = args.priority {
+        payload["priority"] = json!(n);
+    }
+    submit(payload, "linear.issue.update", summary, DEFAULT_TIMEOUT)
+        .await
+        .map(|o| project_field(o, "url"))
+}
+
+async fn cmd_linear_issue_comment(args: LinearIssueCommentArgs) -> Result<Outcome> {
+    let body = resolve_body(args.body, args.body_file)
+        .await?
+        .ok_or_else(|| anyhow!("comment needs --body or --body-file"))?;
+    if body.trim().is_empty() {
+        bail!("--body is empty");
+    }
+    let preview: String = body.lines().next().unwrap_or("").chars().take(80).collect();
+    let summary = format!("Comment on Linear {}: {preview}", args.id);
+    let payload = json!({ "issue_id": args.id, "body": body });
+    submit(payload, "linear.issue.comment", summary, DEFAULT_TIMEOUT)
         .await
         .map(|o| project_field(o, "url"))
 }

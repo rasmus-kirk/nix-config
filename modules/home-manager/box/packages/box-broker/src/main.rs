@@ -12,7 +12,7 @@ mod watcher;
 use crate::agents::{AgentEventFile, AgentRegistry};
 use crate::audit::{sha256_hex, AuditEntry, AuditLog};
 use crate::broker::gh_pr::{GhClient, GhPrCreate, GhPrEdit, GhPrReview, GhPrReviewAppend};
-use crate::broker::linear::{LinearClient, LinearIssueCreate};
+use crate::broker::linear::{LinearClient, LinearIssueComment, LinearIssueCreate, LinearIssueUpdate};
 use crate::broker::git::{GitFetch, GitPull, GitPush, GitSignRange};
 use crate::broker::Registry;
 use crate::config::Config;
@@ -522,7 +522,9 @@ fn build_registry(cfg: &Config) -> Result<Registry> {
     }
     if let Some(pat) = cfg.linear_pat_file.clone() {
         let client = LinearClient::new(pat).context("building Linear client")?;
-        reg.register(Box::new(LinearIssueCreate { client }));
+        reg.register(Box::new(LinearIssueCreate { client: client.clone() }));
+        reg.register(Box::new(LinearIssueUpdate { client: client.clone() }));
+        reg.register(Box::new(LinearIssueComment { client }));
     } else {
         eprintln!(
             "box-approver: BOX_LINEAR_PAT_FILE not set — linear.issue.create will fail \
