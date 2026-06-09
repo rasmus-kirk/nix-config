@@ -251,16 +251,18 @@ fn draw_detail_structured(
         );
     } else {
         for (label, md) in &view.prose {
+            let area_for_section = inner[idx];
+            let inner_width = area_for_section.width.saturating_sub(2); // minus borders
             let text: Text = if md.is_empty() {
                 Text::styled("(empty)", Style::default().fg(Color::DarkGray))
             } else {
-                markdown_to_text(md)
+                markdown_to_text(md, inner_width)
             };
             frame.render_widget(
                 Paragraph::new(text)
                     .wrap(Wrap { trim: false })
                     .block(Block::default().borders(Borders::ALL).title(label.clone())),
-                inner[idx],
+                area_for_section,
             );
             idx += 1;
         }

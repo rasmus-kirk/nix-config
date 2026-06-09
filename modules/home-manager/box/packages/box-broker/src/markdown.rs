@@ -13,12 +13,12 @@ use ratatui::text::{Line, Span, Text};
 
 const BULLETS: [&str; 4] = ["•", "◦", "▪", "▫"];
 
-pub fn markdown_to_text(md: &str) -> Text<'static> {
+pub fn markdown_to_text(md: &str, width: u16) -> Text<'static> {
     let mut opts = Options::empty();
     opts.insert(Options::ENABLE_STRIKETHROUGH);
     opts.insert(Options::ENABLE_TABLES);
     opts.insert(Options::ENABLE_TASKLISTS);
-    let mut renderer = Renderer::default();
+    let mut renderer = Renderer::with_width(width);
     for event in Parser::new_ext(md, opts) {
         renderer.event(event);
     }
@@ -27,6 +27,9 @@ pub fn markdown_to_text(md: &str) -> Text<'static> {
 
 #[derive(Default)]
 struct Renderer {
+    /// Render-area width (in cells), used for word-wrapping blockquote
+    /// content so the `│ ` prefix repeats on continuation lines.
+    width: u16,
     lines: Vec<Line<'static>>,
     /// Spans accumulating into the line currently being built.
     current: Vec<Span<'static>>,
@@ -54,6 +57,13 @@ struct ListFrame {
 }
 
 impl Renderer {
+    fn with_width(width: u16) -> Self {
+        Self {
+            width,
+            ..Default::default()
+        }
+    }
+
     fn event(&mut self, ev: Event<'_>) {
         match ev {
             Event::Start(tag) => self.start_tag(tag),
@@ -128,10 +138,7 @@ impl Renderer {
                     CodeBlockKind::Fenced(l) => l.into_string(),
                     CodeBlockKind::Indented => String::new(),
                 };
-                self.lines.push(Line::from(Span::styled(
-                    format!("```{lang}"),
-                    Style::default().fg(Color::DarkGray),
-                )));
+                self.lines.push(Line::from(Span::raw(format!("```{lang}"))));
             }
             Tag::List(first) => {
                 self.flush_line();
@@ -206,10 +213,7 @@ impl Renderer {
             TagEnd::CodeBlock => {
                 self.flush_line();
                 self.in_code_block = false;
-                self.lines.push(Line::from(Span::styled(
-                    "```".to_string(),
-                    Style::default().fg(Color::DarkGray),
-                )));
+                self.lines.push(Line::from(Span::raw("```".to_string())));
                 self.blank_line();
             }
             TagEnd::List(_) => {
@@ -237,10 +241,12 @@ impl Renderer {
     }
 
     fn text(&mut self, t: &str) {
-        // In a code block: emit each line as its own dimmed line so
-        // newlines aren't lost.
+        // In a code block: emit each line as its own dimmed line.
+        // `lines()` (not `split('\n')`) drops the trailing empty
+        // string that pulldown-cmark's terminating newline produces,
+        // so no spurious blank tail-line.
         if self.in_code_block {
-            for (i, line) in t.split('\n').enumerate() {
+            for (i, line) in t.lines().enumerate() {
                 if i > 0 {
                     self.flush_line();
                 }
@@ -295,18 +301,26 @@ impl Renderer {
         if self.current.is_empty() {
             return;
         }
-        let prefix = if self.quote_depth > 0 {
-            Span::styled(
-                "│ ".repeat(self.quote_depth as usize),
-                Style::default().fg(Color::DarkGray),
-            )
-        } else {
-            Span::raw("")
-        };
-        let mut spans = Vec::with_capacity(self.current.len() + 1);
-        if !prefix.content.is_empty() {
-            spans.push(prefix);
+        if self.quote_depth > 0 {
+            // Word-wrap blockquote content so the `│ ` prefix repeats
+            // on every visual line. We collapse the per-span styles to
+            // plain text for the wrap calculation (acceptable: bold/
+            // italic inside blockquotes is rare; keeping the prefix
+            // matters more than preserving inline styles on wrap).
+            let prefix_chars = 2 * self.quote_depth as usize;
+            let body: String = self.current.drain(..).map(|s| s.content.into_owned()).collect();
+            let avail = (self.width as usize).saturating_sub(prefix_chars).max(1);
+            for chunk in word_wrap(&body, avail) {
+                let prefix_span = Span::styled(
+                    "│ ".repeat(self.quote_depth as usize),
+                    Style::default().fg(Color::DarkGray),
+                );
+                self.lines
+                    .push(Line::from(vec![prefix_span, Span::raw(chunk)]));
+            }
+            return;
         }
+        let mut spans = Vec::with_capacity(self.current.len());
         spans.extend(self.current.drain(..));
         self.lines.push(Line::from(spans));
     }
@@ -323,4 +337,32 @@ impl Renderer {
 
 fn line_is_blank(line: &Line<'_>) -> bool {
     line.spans.iter().all(|s| s.content.trim().is_empty())
+}
+
+/// Simple greedy word-wrap by Unicode scalar count. Good enough for
+/// blockquote prose (which is typically short, prose-style text).
+fn word_wrap(text: &str, max_width: usize) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut current = String::new();
+    for word in text.split_whitespace() {
+        let word_len = word.chars().count();
+        if current.is_empty() {
+            current.push_str(word);
+            continue;
+        }
+        if current.chars().count() + 1 + word_len <= max_width {
+            current.push(' ');
+            current.push_str(word);
+        } else {
+            out.push(std::mem::take(&mut current));
+            current.push_str(word);
+        }
+    }
+    if !current.is_empty() {
+        out.push(current);
+    }
+    if out.is_empty() {
+        out.push(String::new());
+    }
+    out
 }
