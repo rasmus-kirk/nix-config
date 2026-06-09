@@ -1,4 +1,4 @@
-use super::{Broker, BrokerFuture};
+use super::{Broker, BrokerFuture, DetailView};
 use crate::types::RequestEnvelope;
 use anyhow::{anyhow, bail, Context, Result};
 use reqwest::Client;
@@ -154,6 +154,32 @@ impl Broker for GhPrCreate {
                 number,
                 op: "create",
             })?)
+        })
+    }
+
+    fn render_detail(&self, env: &RequestEnvelope) -> Option<DetailView> {
+        let p: CreatePayload = serde_json::from_value(env.payload.clone()).ok()?;
+        let mut fields = vec![
+            ("Repo".into(), p.repo.clone()),
+            ("Branch".into(), format!("{} → {}", p.head, p.base)),
+            ("Title".into(), p.title.clone()),
+        ];
+        let mut flags = vec![];
+        if p.draft {
+            flags.push("DRAFT".into());
+        }
+        let mut prose = vec![];
+        if !p.body.is_empty() {
+            prose.push(("Body".into(), p.body));
+        }
+        // Drop trailing duplicate of title in fields if no body so the
+        // panel isn't padded with redundant info — just keep Title.
+        let _ = &mut fields;
+        Some(DetailView {
+            title: format!("Create PR in {}", p.repo),
+            fields,
+            flags,
+            prose,
         })
     }
 }
@@ -356,6 +382,43 @@ impl Broker for GhPrEdit {
             })?)
         })
     }
+
+    fn render_detail(&self, env: &RequestEnvelope) -> Option<DetailView> {
+        let p: EditPayload = serde_json::from_value(env.payload.clone()).ok()?;
+        let mut fields = vec![("Repo".into(), p.repo.clone())];
+        if p.title_set == 1 {
+            fields.push(("Title".into(), p.title.clone().unwrap_or_default()));
+        }
+        if p.base_set == 1 {
+            fields.push(("Base".into(), p.base.clone().unwrap_or_default()));
+        }
+        if p.state_set == 1 {
+            fields.push(("State".into(), p.state.clone().unwrap_or_default()));
+        }
+        let mut flags = vec![];
+        if let Some(d) = p.draft_target.as_deref() {
+            if d == "draft" {
+                flags.push("→ DRAFT".into());
+            } else if d == "ready" {
+                flags.push("→ READY".into());
+            }
+        }
+        let mut prose = vec![];
+        if p.body_set == 1 {
+            let body = p.body.clone().unwrap_or_default();
+            if !body.is_empty() {
+                prose.push(("New body".into(), body));
+            } else {
+                prose.push(("New body".into(), "_(empty)_".into()));
+            }
+        }
+        Some(DetailView {
+            title: format!("Edit PR {}#{}", p.repo, p.pr_number),
+            fields,
+            flags,
+            prose,
+        })
+    }
 }
 
 // ─── review ────────────────────────────────────────────────────────────────
@@ -443,6 +506,53 @@ impl Broker for GhPrReview {
             })?)
         })
     }
+
+    fn render_detail(&self, env: &RequestEnvelope) -> Option<DetailView> {
+        let p: ReviewPayload = serde_json::from_value(env.payload.clone()).ok()?;
+        let fields = vec![
+            ("Repo".into(), p.repo.clone()),
+            ("Event".into(), p.event.clone()),
+        ];
+        let flags = if p.event == "REQUEST_CHANGES" {
+            vec!["REQUEST_CHANGES".into()]
+        } else {
+            vec![]
+        };
+        let mut prose = vec![];
+        if !p.body.is_empty() {
+            prose.push(("Body".into(), p.body.clone()));
+        }
+        if !p.comments.is_empty() {
+            prose.push(("Inline comments".into(), format_comments(&p.comments)));
+        }
+        Some(DetailView {
+            title: format!("Review {}#{}", p.repo, p.pr_number),
+            fields,
+            flags,
+            prose,
+        })
+    }
+}
+
+/// Render an inline-comments array as a markdown blob: one section per
+/// comment with a bold `path:line` header.
+fn format_comments(comments: &[Value]) -> String {
+    let mut out = String::new();
+    for (i, c) in comments.iter().enumerate() {
+        if i > 0 {
+            out.push_str("\n\n---\n\n");
+        }
+        let path = c.get("path").and_then(Value::as_str).unwrap_or("?");
+        let line = c.get("line").and_then(Value::as_i64).unwrap_or(0);
+        let start_line = c.get("start_line").and_then(Value::as_i64);
+        let body = c.get("body").and_then(Value::as_str).unwrap_or("");
+        let loc = match start_line {
+            Some(s) if s != line => format!("{path}:{s}-{line}"),
+            _ => format!("{path}:{line}"),
+        };
+        out.push_str(&format!("**{loc}**\n\n{body}"));
+    }
+    out
 }
 
 // ─── review-append ─────────────────────────────────────────────────────────
@@ -583,6 +693,25 @@ impl Broker for GhPrReviewAppend {
                 url: html_url,
                 appended,
             })?)
+        })
+    }
+
+    fn render_detail(&self, env: &RequestEnvelope) -> Option<DetailView> {
+        let p: ReviewAppendPayload = serde_json::from_value(env.payload.clone()).ok()?;
+        let fields = vec![
+            ("Repo".into(), p.repo.clone()),
+            ("Comments".into(), p.comments.len().to_string()),
+        ];
+        let prose = if p.comments.is_empty() {
+            vec![]
+        } else {
+            vec![("Inline comments".into(), format_comments(&p.comments))]
+        };
+        Some(DetailView {
+            title: format!("Append to review on {}#{}", p.repo, p.pr_number),
+            fields,
+            flags: vec![],
+            prose,
         })
     }
 }

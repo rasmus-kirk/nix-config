@@ -1,8 +1,10 @@
 use crate::agents::AgentRegistry;
+use crate::broker::{DetailView, Registry};
 use crate::queue::Queue;
+use box_broker::markdown::markdown_to_text;
 use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
-use ratatui::text::{Line, Span};
+use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{Block, Borders, List, ListItem, ListState, Paragraph, Wrap};
 use ratatui::Frame;
 
@@ -26,7 +28,13 @@ impl Default for UiState {
     }
 }
 
-pub fn draw(frame: &mut Frame, queue: &Queue, agents: &AgentRegistry, state: &UiState) {
+pub fn draw(
+    frame: &mut Frame,
+    queue: &Queue,
+    agents: &AgentRegistry,
+    registry: &Registry,
+    state: &UiState,
+) {
     // Vertical: top = queue+detail, middle = agents (up to ~6 rows),
     // bottom = status bar.
     let agents_height = (agents.len().min(5) as u16).saturating_add(2); // +2 for borders
@@ -46,7 +54,7 @@ pub fn draw(frame: &mut Frame, queue: &Queue, agents: &AgentRegistry, state: &Ui
         .split(outer[0]);
 
     draw_queue(frame, main[0], queue);
-    draw_detail(frame, main[1], queue);
+    draw_detail(frame, main[1], queue, registry);
     draw_agents(frame, outer[1], agents);
     draw_status(frame, outer[2], queue, state);
 
@@ -142,7 +150,129 @@ fn draw_queue(frame: &mut Frame, area: Rect, queue: &Queue) {
     frame.render_stateful_widget(list, area, &mut state);
 }
 
-fn draw_detail(frame: &mut Frame, area: Rect, queue: &Queue) {
+fn draw_detail(frame: &mut Frame, area: Rect, queue: &Queue, registry: &Registry) {
+    let Some(req) = queue.selected() else {
+        let p = Paragraph::new("Queue empty. Waiting for requests...")
+            .block(Block::default().borders(Borders::ALL).title("Detail"));
+        frame.render_widget(p, area);
+        return;
+    };
+    let env = &req.envelope;
+    match registry.render_detail(env) {
+        Some(view) => draw_detail_structured(frame, area, req, &view),
+        None => draw_detail_generic(frame, area, req),
+    }
+}
+
+fn draw_detail_structured(
+    frame: &mut Frame,
+    area: Rect,
+    req: &crate::types::PendingRequest,
+    view: &DetailView,
+) {
+    // Header (title + flag badges).
+    let mut header_spans: Vec<Span> = vec![Span::styled(view.title.clone(), bold())];
+    for flag in &view.flags {
+        header_spans.push(Span::raw(" "));
+        header_spans.push(Span::styled(
+            format!(" {flag} "),
+            Style::default()
+                .fg(Color::Black)
+                .bg(badge_color(flag))
+                .add_modifier(Modifier::BOLD),
+        ));
+    }
+    // Fields block — one line per field; field name dimmed, value plain.
+    let mut field_lines: Vec<Line> = Vec::with_capacity(view.fields.len());
+    let max_label = view
+        .fields
+        .iter()
+        .map(|(k, _)| k.chars().count())
+        .max()
+        .unwrap_or(0);
+    for (k, v) in &view.fields {
+        let pad = max_label - k.chars().count();
+        field_lines.push(Line::from(vec![
+            Span::styled(format!("{k}:{}", " ".repeat(pad + 1)), bold()),
+            Span::raw(v.clone()),
+        ]));
+    }
+
+    // Footer (state + optional error).
+    let mut footer_spans: Vec<Span> = vec![
+        Span::styled("state: ", bold()),
+        Span::raw(req.state.label()),
+    ];
+    if let Some(err) = req.last_error.as_ref() {
+        footer_spans.push(Span::raw("  "));
+        footer_spans.push(Span::styled(
+            format!("error: {err}"),
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+        ));
+    }
+
+    let prose_count = view.prose.len().max(1);
+    let fields_height = (field_lines.len() as u16).saturating_add(2); // +2 borders
+
+    // Layout: header (1) + fields box + prose sections (split evenly) + footer (1).
+    let mut constraints: Vec<Constraint> = vec![Constraint::Length(1)]; // header
+    if !view.fields.is_empty() {
+        constraints.push(Constraint::Length(fields_height));
+    }
+    for _ in 0..prose_count.max(1) {
+        constraints.push(Constraint::Min(3));
+    }
+    constraints.push(Constraint::Length(1)); // footer
+    let inner = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(constraints)
+        .split(area);
+
+    let mut idx = 0;
+    frame.render_widget(Paragraph::new(Line::from(header_spans)), inner[idx]);
+    idx += 1;
+    if !view.fields.is_empty() {
+        frame.render_widget(
+            Paragraph::new(field_lines)
+                .block(Block::default().borders(Borders::ALL).title("Fields")),
+            inner[idx],
+        );
+        idx += 1;
+    }
+    if view.prose.is_empty() {
+        // Nothing to render in the prose slot — fill with a marker so
+        // the layout doesn't look broken when there's no body.
+        frame.render_widget(
+            Paragraph::new("(no prose fields)")
+                .style(Style::default().fg(Color::DarkGray))
+                .block(Block::default().borders(Borders::ALL)),
+            inner[idx],
+        );
+        idx += 1;
+    } else {
+        for (label, md) in &view.prose {
+            let text: Text = if md.is_empty() {
+                Text::styled("(empty)", Style::default().fg(Color::DarkGray))
+            } else {
+                markdown_to_text(md)
+            };
+            frame.render_widget(
+                Paragraph::new(text)
+                    .wrap(Wrap { trim: false })
+                    .block(
+                        Block::default()
+                            .borders(Borders::ALL)
+                            .title(label.clone()),
+                    ),
+                inner[idx],
+            );
+            idx += 1;
+        }
+    }
+    frame.render_widget(Paragraph::new(Line::from(footer_spans)), inner[idx]);
+}
+
+fn draw_detail_generic(frame: &mut Frame, area: Rect, req: &crate::types::PendingRequest) {
     let inner = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -151,13 +281,6 @@ fn draw_detail(frame: &mut Frame, area: Rect, queue: &Queue) {
             Constraint::Min(0),
         ])
         .split(area);
-
-    let Some(req) = queue.selected() else {
-        let p = Paragraph::new("Queue empty. Waiting for requests...")
-            .block(Block::default().borders(Borders::ALL).title("Detail"));
-        frame.render_widget(p, area);
-        return;
-    };
     let env = &req.envelope;
     let head_lines = vec![
         Line::from(vec![Span::styled("op:        ", bold()), Span::raw(env.op.clone())]),
@@ -181,7 +304,7 @@ fn draw_detail(frame: &mut Frame, area: Rect, queue: &Queue) {
     let summary_text = env
         .summary
         .clone()
-        .unwrap_or_else(|| "(no summary; Haiku integration pending)".into());
+        .unwrap_or_else(|| "(no summary)".into());
     let summary = Paragraph::new(summary_text)
         .wrap(Wrap { trim: false })
         .block(Block::default().borders(Borders::ALL).title("Summary"));
@@ -192,13 +315,25 @@ fn draw_detail(frame: &mut Frame, area: Rect, queue: &Queue) {
     if let Some(err) = req.last_error.as_ref() {
         body_lines.push(Line::raw(""));
         body_lines.push(Line::from(vec![
-            Span::styled("error: ", Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)),
+            Span::styled(
+                "error: ",
+                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            ),
             Span::raw(err.clone()),
         ]));
     }
     let payload =
         Paragraph::new(body_lines).block(Block::default().borders(Borders::ALL).title("Payload"));
     frame.render_widget(payload, inner[2]);
+}
+
+fn badge_color(flag: &str) -> Color {
+    match flag {
+        "DRAFT" | "→ DRAFT" => Color::Yellow,
+        "→ READY" => Color::Green,
+        "REQUEST_CHANGES" => Color::Red,
+        _ => Color::Cyan,
+    }
 }
 
 fn draw_status(frame: &mut Frame, area: Rect, queue: &Queue, state: &UiState) {

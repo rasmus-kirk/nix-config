@@ -122,7 +122,7 @@ async fn run_event_loop<B: ratatui::backend::Backend>(
     let mut tick = tokio::time::interval(Duration::from_millis(500));
 
     loop {
-        terminal.draw(|f| ui::draw(f, queue, agents, &ui_state))?;
+        terminal.draw(|f| ui::draw(f, queue, agents, &registry, &ui_state))?;
 
         tokio::select! {
             biased;

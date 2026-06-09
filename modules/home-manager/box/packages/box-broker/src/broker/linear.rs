@@ -1,4 +1,4 @@
-use super::{Broker, BrokerFuture};
+use super::{Broker, BrokerFuture, DetailView};
 use crate::types::RequestEnvelope;
 use anyhow::{anyhow, bail, Context, Result};
 use reqwest::Client;
@@ -214,5 +214,38 @@ impl Broker for LinearIssueCreate {
                 title,
             })?)
         })
+    }
+
+    fn render_detail(&self, env: &RequestEnvelope) -> Option<DetailView> {
+        let p: IssueCreatePayload = serde_json::from_value(env.payload.clone()).ok()?;
+        let mut fields = vec![
+            ("Team".into(), p.team_key.clone()),
+            ("Title".into(), p.title.clone()),
+        ];
+        if let Some(n) = p.priority {
+            fields.push(("Priority".into(), priority_label(n)));
+        }
+        let mut prose = vec![];
+        if !p.description.is_empty() {
+            prose.push(("Description".into(), p.description));
+        }
+        Some(DetailView {
+            title: format!("Create Linear issue in {}", p.team_key),
+            fields,
+            flags: vec![],
+            prose,
+        })
+    }
+}
+
+/// Linear priority enum: 0 = no priority, 1 = urgent, 2 = high, 3 = medium, 4 = low.
+fn priority_label(n: u8) -> String {
+    match n {
+        0 => "No priority (0)".into(),
+        1 => "Urgent (1)".into(),
+        2 => "High (2)".into(),
+        3 => "Medium (3)".into(),
+        4 => "Low (4)".into(),
+        other => format!("{other} (?)"),
     }
 }

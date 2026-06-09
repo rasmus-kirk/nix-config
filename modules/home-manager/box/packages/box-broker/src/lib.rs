@@ -5,4 +5,5 @@
 //! stays out of the lib so the box-broker binary doesn't pull it.
 
 pub mod broker_client;
+pub mod markdown;
 pub mod types;

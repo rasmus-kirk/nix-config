@@ -10,6 +10,22 @@ pub mod linear;
 
 pub type BrokerFuture<'a> = Pin<Box<dyn Future<Output = Result<Value>> + Send + 'a>>;
 
+/// Structured detail view for the TUI's right-hand pane. Brokers
+/// that implement `render_detail` get a custom layout (header + key/
+/// value rows + flag badges + prose sections rendered as markdown);
+/// brokers that don't fall back to today's generic JSON dump.
+#[derive(Debug, Clone)]
+pub struct DetailView {
+    /// Shown at the top of the detail pane in bold.
+    pub title: String,
+    /// Compact key/value rows below the title.
+    pub fields: Vec<(String, String)>,
+    /// Short badge-like flags (e.g. ["DRAFT"], ["REQUEST_CHANGES"]).
+    pub flags: Vec<String>,
+    /// One section per (label, markdown) — rendered in order.
+    pub prose: Vec<(String, String)>,
+}
+
 /// A broker dispatches an approved request against the underlying service
 /// (GitHub API, git CLI, Linear, …). Each op has its own impl. Brokers are
 /// invoked AFTER the user has approved (Enter + YubiKey touch) — so an impl
@@ -27,6 +43,12 @@ pub trait Broker: Send + Sync {
 
     /// Run the action. Return the broker-specific JSON result on success.
     fn dispatch<'a>(&'a self, envelope: &'a RequestEnvelope) -> BrokerFuture<'a>;
+
+    /// Structured detail view for the TUI. Default: None → ui.rs
+    /// falls back to today's generic JSON dump.
+    fn render_detail(&self, _envelope: &RequestEnvelope) -> Option<DetailView> {
+        None
+    }
 }
 
 /// Registry: op_id → Broker. Populated at construction time.
@@ -58,6 +80,10 @@ impl Registry {
         } else {
             format!("unknown op `{}`", envelope.op)
         }
+    }
+
+    pub fn render_detail(&self, envelope: &RequestEnvelope) -> Option<DetailView> {
+        self.get(&envelope.op)?.render_detail(envelope)
     }
 
     pub fn dispatch<'a>(&'a self, envelope: &'a RequestEnvelope) -> BrokerFuture<'a> {
