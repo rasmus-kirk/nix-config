@@ -12,6 +12,7 @@ mod watcher;
 use crate::agents::{AgentEventFile, AgentRegistry};
 use crate::audit::{sha256_hex, AuditEntry, AuditLog};
 use crate::broker::gh_pr::{GhClient, GhPrCreate, GhPrEdit, GhPrReview, GhPrReviewAppend};
+use crate::broker::linear::{LinearClient, LinearIssueCreate};
 use crate::broker::git::{GitFetch, GitPull, GitPush, GitSignRange};
 use crate::broker::Registry;
 use crate::config::Config;
@@ -515,8 +516,17 @@ fn build_registry(cfg: &Config) -> Result<Registry> {
         reg.register(Box::new(GhPrReviewAppend { client }));
     } else {
         eprintln!(
-            "approval-tui: BOX_GH_PAT_FILE not set — gh.pr.* brokers will fail with \
-             'no broker registered'. Set the env var in the systemd service to enable them."
+            "box-approver: BOX_GH_PAT_FILE not set — gh.pr.* brokers will fail with \
+             'no broker registered'. Set the env var in the wrapper to enable them."
+        );
+    }
+    if let Some(pat) = cfg.linear_pat_file.clone() {
+        let client = LinearClient::new(pat).context("building Linear client")?;
+        reg.register(Box::new(LinearIssueCreate { client }));
+    } else {
+        eprintln!(
+            "box-approver: BOX_LINEAR_PAT_FILE not set — linear.issue.create will fail \
+             with 'no broker registered'."
         );
     }
     reg.register(Box::new(GitPush));

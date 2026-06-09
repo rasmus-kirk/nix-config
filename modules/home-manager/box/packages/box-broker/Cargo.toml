@@ -1,11 +1,19 @@
 [package]
-name = "approval-tui"
-version = "0.1.1"
+name = "box-broker"
+version = "0.2.0"
 edition = "2021"
 
+[lib]
+name = "box_broker"
+path = "src/lib.rs"
+
 [[bin]]
-name = "approval-tui"
+name = "box-approver"
 path = "src/main.rs"
+
+[[bin]]
+name = "box-broker"
+path = "src/bin/box_broker.rs"
 
 [dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "fs", "io-util", "sync", "time", "process"] }
@@ -22,6 +30,7 @@ hex = "0.4"
 tokio-stream = "0.1"
 futures = "0.3"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+clap = { version = "4", features = ["derive"] }
 
 [profile.release]
 lto = "thin"

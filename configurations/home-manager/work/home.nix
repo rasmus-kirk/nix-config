@@ -144,22 +144,24 @@ in {
     silent = true;
   };
 
-  # approval-tui is launched manually by the user from a terminal. We
+  # box-approver is launched manually by the user from a terminal. We
   # wrap it in a small shell script that hard-codes all the BOX_* env
-  # vars (PAT path, notify binaries, sound file) so launches survive
+  # vars (PAT paths, notify binaries, sound file) so launches survive
   # stale shells / non-shell launchers — no reliance on
   # home.sessionVariables having been re-sourced.
   home.packages = let
-    approvalTuiWrapped = pkgs.writeShellApplication {
-      name = "approval-tui";
+    boxBrokerPkg = inputs.self.packages.${pkgs.system}.box-broker;
+    boxApproverWrapped = pkgs.writeShellApplication {
+      name = "box-approver";
       runtimeInputs = [];
       inheritPath = true;
       text = ''
         export BOX_GH_PAT_FILE="${secretDir}/github/qms-pat-pr-rw"
+        export BOX_LINEAR_PAT_FILE="${secretDir}/linear/pat"
         export BOX_NOTIFY_BIN="${pkgs.libnotify}/bin/notify-send"
         export BOX_PW_CAT_BIN="${pkgs.pipewire}/bin/pw-cat"
         export BOX_NOTIFY_SOUND="${pkgs.sound-theme-freedesktop}/share/sounds/freedesktop/stereo/message.oga"
-        exec ${inputs.self.packages.${pkgs.system}.approval-tui}/bin/approval-tui "$@"
+        exec ${boxBrokerPkg}/bin/box-approver "$@"
       '';
     };
   in
@@ -168,6 +170,6 @@ in {
       bubblewrap
       socat
       finamp
-      approvalTuiWrapped
+      boxApproverWrapped
     ];
 }

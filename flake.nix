@@ -133,11 +133,11 @@
     in {
       default = website.package;
       debug = website.loop;
-      approval-tui = pkgs.rustPlatform.buildRustPackage {
-        pname = "approval-tui";
-        version = "0.1.0";
-        src = ./modules/home-manager/box/packages/approval-tui;
-        cargoLock.lockFile = ./modules/home-manager/box/packages/approval-tui/Cargo.lock;
+      box-broker = pkgs.rustPlatform.buildRustPackage {
+        pname = "box-broker";
+        version = "0.2.0";
+        src = ./modules/home-manager/box/packages/box-broker;
+        cargoLock.lockFile = ./modules/home-manager/box/packages/box-broker/Cargo.lock;
       };
     });
 

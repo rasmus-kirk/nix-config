@@ -2,634 +2,58 @@
   config,
   pkgs,
   lib,
+  inputs,
   ...
 }:
 with lib; let
   cfg = config.kirk.box;
 
+  boxBrokerPkg = inputs.self.packages.${pkgs.system}.box-broker;
+
   proxyFilterFile = pkgs.writeText "sandbox-proxy-filter" (concatStringsSep "\n" cfg.network.allowedHosts);
 
-  # ─── GitHub PR brokers (envelope-based, via request-approval) ──────────
-  # Inside the box, gh-pr-{create,edit,review} build a JSON payload and
-  # delegate to `request-approval`, which wraps it in an envelope at
-  # ${cfg.brokerRoot}/request/ and waits for the host-side approval TUI
-  # (running on the user's host home-manager profile) to gate + dispatch.
+  # ─── Box-broker: in-box CLI for approval-gated host ops ─────────────
+  # Every action that needs human approval (PR ops, Linear ticket
+  # creation, git push/pull/fetch, batch-sign, agent lifecycle hooks)
+  # routes through the `box-broker` Rust binary: builds an envelope,
+  # writes it to ${cfg.brokerRoot}/request/, waits for the host
+  # `box-approver` TUI to gate + dispatch. Both binaries live in the
+  # same Rust crate (modules/home-manager/box/packages/box-broker/)
+  # and share envelope/response types via the `box_broker` lib.
   #
-  # Security: box only knows how to drop a file. The host TUI verifies
-  # ssh-keygen -Y signature on each approval (binding the YubiKey touch
-  # to the exact request bytes) and calls GitHub with the write-PAT,
-  # which lives at githubPrBroker.writeTokenFile and is never visible
-  # to the box.
+  # Security: box only knows how to drop a file. The host approver
+  # holds the write tokens (GitHub PAT, Linear PAT, the YubiKey-bound
+  # SSH key) and only invokes whitelisted endpoints per op-id.
 
-  ghPrCreateScript = pkgs.writeShellApplication {
-    name = "gh-pr-create";
-    runtimeInputs = (with pkgs; [coreutils jq]) ++ [requestApprovalScript];
-    inheritPath = false;
-    text = ''
-      set -euo pipefail
-
-      usage() {
-        cat >&2 <<EOF
-      Usage: gh-pr-create --repo OWNER/REPO --head BRANCH --base BRANCH \\
-                         --title TITLE [--body BODY | --body-file FILE] \\
-                         [--draft]
-
-      Builds the create-PR payload and submits it to the host approval TUI
-      via request-approval (op gh.pr.create). On approval, prints the new
-      PR URL on stdout.
-      EOF
-        exit 1
-      }
-
-      REPO="" HEAD="" BASE="" TITLE="" BODY="" DRAFT=false
-      while [ $# -gt 0 ]; do
-        case "$1" in
-          --repo) REPO="$2"; shift 2 ;;
-          --head) HEAD="$2"; shift 2 ;;
-          --base) BASE="$2"; shift 2 ;;
-          --title) TITLE="$2"; shift 2 ;;
-          --body) BODY="$2"; shift 2 ;;
-          --body-file) BODY=$(cat "$2"); shift 2 ;;
-          --draft) DRAFT=true; shift ;;
-          -h|--help) usage ;;
-          *) echo "Unknown arg: $1" >&2; usage ;;
-        esac
-      done
-
-      if [ -z "$REPO" ] || [ -z "$HEAD" ] || [ -z "$BASE" ] || [ -z "$TITLE" ]; then
-        usage
-      fi
-
-      PAYLOAD_TMP=$(mktemp)
-      trap 'rm -f "$PAYLOAD_TMP"' EXIT
-      jq -n \
-        --arg repo "$REPO" --arg head "$HEAD" --arg base "$BASE" \
-        --arg title "$TITLE" --arg body "$BODY" \
-        --argjson draft "$DRAFT" \
-        '{repo:$repo, head:$head, base:$base, title:$title, body:$body, draft:$draft}' \
-        > "$PAYLOAD_TMP"
-
-      DRAFT_LABEL=""
-      if [ "$DRAFT" = "true" ]; then DRAFT_LABEL=" [DRAFT]"; fi
-      SUMMARY="Create PR in $REPO: $HEAD → $BASE$DRAFT_LABEL: $TITLE"
-
-      RESULT=$(request-approval --op gh.pr.create \
-        --payload-file "$PAYLOAD_TMP" --summary "$SUMMARY")
-      printf '%s\n' "$RESULT" | jq -r '.url'
-    '';
-  };
-
-  ghPrEditScript = pkgs.writeShellApplication {
-    name = "gh-pr-edit";
-    runtimeInputs = (with pkgs; [coreutils jq]) ++ [requestApprovalScript];
-    inheritPath = false;
-    text = ''
-      set -euo pipefail
-
-      usage() {
-        cat >&2 <<EOF
-      Usage: gh-pr-edit --repo OWNER/REPO --number N \\
-                       [--title TITLE] \\
-                       [--body BODY | --body-file FILE] \\
-                       [--base BRANCH] \\
-                       [--state open|closed] \\
-                       [--draft | --ready]
-
-      Builds the edit-PR payload and submits it to the host approval TUI
-      via request-approval (op gh.pr.edit). Only fields passed are updated;
-      others are left untouched. --draft and --ready toggle draft state via
-      GraphQL. Prints the updated PR URL on stdout.
-      EOF
-        exit 1
-      }
-
-      REPO="" NUMBER="" TITLE="" BODY="" BASE="" STATE="" DRAFT_TARGET=""
-      TITLE_SET=0 BODY_SET=0 BASE_SET=0 STATE_SET=0
-      while [ $# -gt 0 ]; do
-        case "$1" in
-          --repo) REPO="$2"; shift 2 ;;
-          --number) NUMBER="$2"; shift 2 ;;
-          --title) TITLE="$2"; TITLE_SET=1; shift 2 ;;
-          --body) BODY="$2"; BODY_SET=1; shift 2 ;;
-          --body-file) BODY=$(cat "$2"); BODY_SET=1; shift 2 ;;
-          --base) BASE="$2"; BASE_SET=1; shift 2 ;;
-          --state) STATE="$2"; STATE_SET=1; shift 2 ;;
-          --draft) DRAFT_TARGET="draft"; shift ;;
-          --ready) DRAFT_TARGET="ready"; shift ;;
-          -h|--help) usage ;;
-          *) echo "Unknown arg: $1" >&2; usage ;;
-        esac
-      done
-
-      if [ -z "$REPO" ] || [ -z "$NUMBER" ]; then
-        usage
-      fi
-      if [ "$TITLE_SET" = 0 ] && [ "$BODY_SET" = 0 ] && [ "$BASE_SET" = 0 ] \
-         && [ "$STATE_SET" = 0 ] && [ -z "$DRAFT_TARGET" ]; then
-        echo "Nothing to update (pass at least one of --title/--body/--base/--state/--draft/--ready)" >&2
-        exit 1
-      fi
-      if [ "$STATE_SET" = 1 ] && [ "$STATE" != "open" ] && [ "$STATE" != "closed" ]; then
-        echo "--state must be 'open' or 'closed', got: $STATE" >&2
-        exit 1
-      fi
-
-      PAYLOAD_TMP=$(mktemp)
-      trap 'rm -f "$PAYLOAD_TMP"' EXIT
-      jq -n \
-        --arg repo "$REPO" \
-        --argjson pr_number "$NUMBER" \
-        --arg title "$TITLE" --argjson title_set "$TITLE_SET" \
-        --arg body "$BODY" --argjson body_set "$BODY_SET" \
-        --arg base "$BASE" --argjson base_set "$BASE_SET" \
-        --arg state "$STATE" --argjson state_set "$STATE_SET" \
-        --arg draft_target "$DRAFT_TARGET" \
-        '{repo:$repo, pr_number:$pr_number,
-          title:$title, title_set:$title_set,
-          body:$body, body_set:$body_set,
-          base:$base, base_set:$base_set,
-          state:$state, state_set:$state_set,
-          draft_target:$draft_target}' \
-        > "$PAYLOAD_TMP"
-
-      BITS=""
-      [ "$TITLE_SET" = 1 ] && BITS="$BITS title"
-      [ "$BODY_SET"  = 1 ] && BITS="$BITS body"
-      [ "$BASE_SET"  = 1 ] && BITS="$BITS base"
-      [ "$STATE_SET" = 1 ] && BITS="$BITS state→$STATE"
-      [ -n "$DRAFT_TARGET" ] && BITS="$BITS draft→$DRAFT_TARGET"
-      SUMMARY="Edit PR $REPO/#$NUMBER:''${BITS}"
-
-      RESULT=$(request-approval --op gh.pr.edit \
-        --payload-file "$PAYLOAD_TMP" --summary "$SUMMARY")
-      printf '%s\n' "$RESULT" | jq -r '.url'
-    '';
-  };
-
-  ghPrReviewScript = pkgs.writeShellApplication {
-    name = "gh-pr-review";
-    runtimeInputs = (with pkgs; [coreutils jq]) ++ [requestApprovalScript];
-    inheritPath = false;
-    text = ''
-      set -euo pipefail
-      usage() {
-        cat >&2 <<EOF
-      Usage: gh-pr-review --repo OWNER/REPO --number N \\
-                         [--body BODY | --body-file FILE] \\
-                         [--event COMMENT|REQUEST_CHANGES] \\
-                         [--comments-file FILE]
-
-      Submits a PR review via the host-side broker. Default event is COMMENT.
-      APPROVE is intentionally not reachable from inside the box.
-
-      --comments-file: JSON array of inline review comments, e.g.:
-        [
-          {"path": "src/foo.rs", "line": 42, "body": "issue"},
-          {"path": "src/bar.rs", "start_line": 5, "line": 10, "body": "block"}
-        ]
-      Each entry needs path + line + body. Optional: side (LEFT|RIGHT,
-      default RIGHT), start_side, start_line for multi-line.
-      EOF
-        exit 1
-      }
-
-      REPO="" NUMBER="" BODY="" EVENT="COMMENT" COMMENTS_JSON="[]"
-      while [ $# -gt 0 ]; do
-        case "$1" in
-          --repo) REPO="$2"; shift 2 ;;
-          --number) NUMBER="$2"; shift 2 ;;
-          --body) BODY="$2"; shift 2 ;;
-          --body-file) BODY=$(cat "$2"); shift 2 ;;
-          --event) EVENT="$2"; shift 2 ;;
-          --comments-file) COMMENTS_JSON=$(cat "$2"); shift 2 ;;
-          -h|--help) usage ;;
-          *) echo "Unknown arg: $1" >&2; usage ;;
-        esac
-      done
-
-      if [ -z "$REPO" ] || [ -z "$NUMBER" ]; then
-        usage
-      fi
-      case "$EVENT" in
-        COMMENT|REQUEST_CHANGES) ;;
-        APPROVE)
-          echo "APPROVE is not allowed from inside the box (intentional)." >&2
-          exit 1 ;;
-        *)
-          echo "--event must be COMMENT or REQUEST_CHANGES, got: $EVENT" >&2
-          exit 1 ;;
-      esac
-      if ! printf '%s' "$COMMENTS_JSON" | jq -e 'type == "array"' >/dev/null 2>&1; then
-        echo "--comments-file must contain a JSON array" >&2
-        exit 1
-      fi
-
-      PAYLOAD_TMP=$(mktemp)
-      trap 'rm -f "$PAYLOAD_TMP"' EXIT
-      jq -n \
-        --arg repo "$REPO" \
-        --argjson pr_number "$NUMBER" \
-        --arg body "$BODY" \
-        --arg event "$EVENT" \
-        --argjson comments "$COMMENTS_JSON" \
-        '{repo:$repo, pr_number:$pr_number, body:$body, event:$event, comments:$comments}' \
-        > "$PAYLOAD_TMP"
-
-      COMMENT_COUNT=$(printf '%s' "$COMMENTS_JSON" | jq 'length')
-      SUMMARY="Review $REPO/#$NUMBER: event=$EVENT, $COMMENT_COUNT inline comment(s)"
-
-      RESULT=$(request-approval --op gh.pr.review \
-        --payload-file "$PAYLOAD_TMP" --summary "$SUMMARY")
-      printf '%s\n' "$RESULT" | jq -r '.url'
-    '';
-  };
-
-  ghPrReviewAppendScript = pkgs.writeShellApplication {
-    name = "gh-pr-review-append";
-    runtimeInputs = (with pkgs; [coreutils jq]) ++ [requestApprovalScript];
-    inheritPath = false;
-    text = ''
-      set -euo pipefail
-      usage() {
-        cat >&2 <<EOF
-      Usage: gh-pr-review-append --repo OWNER/REPO --number N --comments-file FILE
-
-      Appends inline comments to the caller's pending review on a PR.
-      Use this for multi-step review work: leave a few comments, do more
-      reading, leave more — all into the same pending draft. Submitting
-      the review (event=COMMENT or REQUEST_CHANGES) is gh-pr-review's job.
-
-      If no pending review exists for this PR, the first comment creates
-      one as a side-effect and subsequent comments attach to that draft.
-
-      --comments-file: JSON array of inline review comments, e.g.:
-        [
-          {"path": "src/foo.rs", "line": 42, "body": "issue"},
-          {"path": "src/bar.rs", "start_line": 5, "line": 10, "body": "block"}
-        ]
-      Each entry needs path + line + body. Optional: side (LEFT|RIGHT,
-      default RIGHT), start_line + start_side (multi-line), in_reply_to
-      (thread under an existing comment).
-
-      Posts each comment via a separate API call (GitHub has no batch
-      endpoint). On any individual failure, stops and reports how many
-      succeeded plus the index of the failed one.
-      EOF
-        exit 1
-      }
-
-      REPO="" NUMBER="" COMMENTS_JSON=""
-      while [ $# -gt 0 ]; do
-        case "$1" in
-          --repo) REPO="$2"; shift 2 ;;
-          --number) NUMBER="$2"; shift 2 ;;
-          --comments-file) COMMENTS_JSON=$(cat "$2"); shift 2 ;;
-          -h|--help) usage ;;
-          *) echo "Unknown arg: $1" >&2; usage ;;
-        esac
-      done
-
-      if [ -z "$REPO" ] || [ -z "$NUMBER" ] || [ -z "$COMMENTS_JSON" ]; then
-        usage
-      fi
-      if ! printf '%s' "$COMMENTS_JSON" | jq -e 'type == "array" and length > 0' >/dev/null 2>&1; then
-        echo "--comments-file must contain a non-empty JSON array" >&2
-        exit 1
-      fi
-      if ! printf '%s' "$COMMENTS_JSON" | jq -e 'all(.[]; (.path | type == "string") and (.line | type == "number") and (.body | type == "string"))' >/dev/null 2>&1; then
-        echo "every comment entry needs path (string), line (number), and body (string)" >&2
-        exit 1
-      fi
-
-      PAYLOAD_TMP=$(mktemp)
-      trap 'rm -f "$PAYLOAD_TMP"' EXIT
-      jq -n \
-        --arg repo "$REPO" \
-        --argjson pr_number "$NUMBER" \
-        --argjson comments "$COMMENTS_JSON" \
-        '{repo:$repo, pr_number:$pr_number, comments:$comments}' \
-        > "$PAYLOAD_TMP"
-
-      COMMENT_COUNT=$(printf '%s' "$COMMENTS_JSON" | jq 'length')
-      SUMMARY="Append $COMMENT_COUNT inline comment(s) to PR $REPO/#$NUMBER"
-
-      RESULT=$(request-approval --op gh.pr.review-append \
-        --payload-file "$PAYLOAD_TMP" --summary "$SUMMARY")
-      printf '%s\n' "$RESULT" | jq -r '.url'
-    '';
-  };
-
-  # Generic in-box client for the approval TUI. Wraps a payload in the
-  # request-envelope shape, drops it at ${cfg.brokerRoot}/request/, waits for
-  # the TUI to ack (5s), then polls for the final response. Exit codes:
-  #   0  ok     — stdout is the broker's JSON result
-  #  10  user rejected via TUI
-  #  11  sign_failed or dispatch_failed (stderr has detail)
-  #  12  TUI not running (no ack within 5s)
-  #  13  abandoned (TUI restarted mid-request)
-  #  14  timeout (no decision within --timeout)
-  requestApprovalScript = pkgs.writeShellApplication {
-    name = "request-approval";
-    runtimeInputs = with pkgs; [coreutils jq];
-    inheritPath = false;
-    text = ''
-      set -euo pipefail
-      usage() {
-        cat >&2 <<EOF
-      Usage: request-approval --op <dotted.id> --payload-file <path>
-                              [--summary <one-liner>] [--timeout <secs>]
-
-      Examples of --op:  gh.pr.create, gh.pr.edit, gh.pr.review,
-                         git.push, git.pull, git.fetch, git.sign-range.
-
-      On status=ok, the broker's JSON result is printed to stdout.
-      Exit codes: 0 ok / 10 rejected / 11 sign|dispatch failed /
-                  12 TUI not running / 13 abandoned / 14 timeout.
-      EOF
-        exit 1
-      }
-
-      OP="" PAYLOAD_FILE="" SUMMARY="" TIMEOUT=1800
-      while [ $# -gt 0 ]; do
-        case "$1" in
-          --op) OP="$2"; shift 2 ;;
-          --payload-file) PAYLOAD_FILE="$2"; shift 2 ;;
-          --summary) SUMMARY="$2"; shift 2 ;;
-          --timeout) TIMEOUT="$2"; shift 2 ;;
-          -h|--help) usage ;;
-          *) echo "Unknown arg: $1" >&2; usage ;;
-        esac
-      done
-      if [ -z "$OP" ] || [ -z "$PAYLOAD_FILE" ]; then usage; fi
-      if [ ! -r "$PAYLOAD_FILE" ]; then
-        echo "request-approval: payload file not readable: $PAYLOAD_FILE" >&2
-        exit 1
-      fi
-      if [ ! -d ${cfg.brokerRoot}/request ]; then
-        echo "request-approval: broker dir not mounted (${cfg.brokerRoot}/request)." >&2
-        echo "Box may not have been launched with the broker bind-mounts." >&2
-        exit 12
-      fi
-
-      ID="$(date +%s%N).$$"
-      NOW="$(date -Iseconds)"
-      SESSION_ID="''${BOX_SESSION_ID:-unknown}"
-      ENVELOPE=$(jq -n \
-        --arg id "$ID" --arg requested_at "$NOW" \
-        --arg op "$OP" --arg summary "$SUMMARY" \
-        --arg cwd "$PWD" --arg started_at "$NOW" \
-        --arg session_id "$SESSION_ID" \
-        --argjson agent_pid "$$" \
-        --slurpfile payload "$PAYLOAD_FILE" \
-        '{v:1, request_id:$id, requested_at:$requested_at, op:$op,
-          payload:$payload[0], summary:$summary,
-          client_context:{cwd:$cwd, agent_pid:$agent_pid,
-                          session_id:$session_id, started_at:$started_at}}')
-
-      REQ_TMP="${cfg.brokerRoot}/request/.staging.$ID"
-      REQ_FINAL="${cfg.brokerRoot}/request/$ID.json"
-      ACK_FILE="${cfg.brokerRoot}/response/$ID.ack"
-      RESP_FILE="${cfg.brokerRoot}/response/$ID.json"
-
-      printf '%s' "$ENVELOPE" > "$REQ_TMP"
-      mv "$REQ_TMP" "$REQ_FINAL"
-
-      # Wait up to ~5s for TUI to ack the request. No ack → TUI not running.
-      for _ in $(seq 1 10); do
-        [ -f "$ACK_FILE" ] && break
-        sleep 0.5
-      done
-      if [ ! -f "$ACK_FILE" ]; then
-        echo "request-approval: TUI not running on host (no ack within 5s)." >&2
-        echo "Start 'approval-tui' on the host and retry." >&2
-        exit 12
-      fi
-
-      # Poll for final response until --timeout. Sleep 0.5s between checks.
-      DEADLINE=$(( $(date +%s) + TIMEOUT ))
-      while [ "$(date +%s)" -lt "$DEADLINE" ]; do
-        if [ -f "$RESP_FILE" ]; then
-          STATUS=$(jq -r '.status' "$RESP_FILE")
-          case "$STATUS" in
-            ok)
-              jq -c '.result' "$RESP_FILE"
-              exit 0
-              ;;
-            rejected)
-              jq -r '.detail // "rejected"' "$RESP_FILE" >&2
-              exit 10
-              ;;
-            sign_failed|dispatch_failed)
-              jq -r '.detail // "broker failure"' "$RESP_FILE" >&2
-              exit 11
-              ;;
-            abandoned)
-              jq -r '.detail // "abandoned"' "$RESP_FILE" >&2
-              exit 13
-              ;;
-            *)
-              echo "request-approval: unknown status: $STATUS" >&2
-              exit 11
-              ;;
-          esac
-        fi
-        sleep 0.5
-      done
-      echo "request-approval: timed out after ''${TIMEOUT}s waiting for decision." >&2
-      exit 14
-    '';
-  };
-
-  # Fire-and-forget signal to the host approval TUI's agent registry.
-  # Invoked from Claude Code's UserPromptSubmit (working) and Stop
-  # (ready) hooks via ~/.claude/settings.json. Drops a small JSON file
-  # at ${cfg.brokerRoot}/agent-events/<nanos>.json that the TUI reads
-  # to update the bottom pane.
-  agentEventScript = pkgs.writeShellApplication {
-    name = "agent-event";
-    runtimeInputs = with pkgs; [coreutils jq];
-    inheritPath = false;
-    text = ''
-      set -euo pipefail
-      EVENT="''${1:-}"
-      case "$EVENT" in
-        working|ready|terminated) ;;
-        *) echo "agent-event: usage: agent-event {working|ready|terminated} [--claude-session UUID]" >&2; exit 1 ;;
-      esac
-      shift
-      CLAUDE_SESSION=""
-      while [ $# -gt 0 ]; do
-        case "$1" in
-          --claude-session) CLAUDE_SESSION="$2"; shift 2 ;;
-          *) echo "agent-event: unknown arg: $1" >&2; exit 1 ;;
-        esac
-      done
-      DIR=${cfg.brokerRoot}/agent-events
-      [ -d "$DIR" ] || exit 0  # broker not mounted — silent no-op
-      ID="$(date +%s%N).$$"
-      SESSION_ID="''${BOX_SESSION_ID:-unknown}"
-      NOW="$(date -Iseconds)"
-      STAGE="$DIR/.staging.$ID"
-      FINAL="$DIR/$ID.json"
-      jq -n \
-        --arg event "$EVENT" --arg session_id "$SESSION_ID" \
-        --arg claude_session_id "$CLAUDE_SESSION" \
-        --arg cwd "$PWD" --arg ts "$NOW" \
-        '{event:$event, session_id:$session_id,
-          claude_session_id:$claude_session_id, cwd:$cwd, ts:$ts}' \
-        > "$STAGE"
-      mv "$STAGE" "$FINAL"
-    '';
-  };
-
-  # Wrapper invoked by Claude Code's UserPromptSubmit / Stop hooks.
-  # Reads the hook context JSON from stdin to extract Claude's
-  # session UUID (different from BOX_SESSION_ID) and forwards the
-  # event type + UUID to agent-event. The TUI uses the UUID to
-  # cross-reference transcript files in ~/.claude/projects/ and
-  # picks up agent-name updates directly from there (so /rename
-  # reflects immediately, not just on the next hook).
-  agentHookScript = pkgs.writeShellApplication {
-    name = "agent-hook";
-    runtimeInputs = with pkgs; [coreutils jq agentEventScript];
-    inheritPath = false;
-    text = ''
-      set -euo pipefail
-      EVENT="''${1:-}"
-      case "$EVENT" in
-        working|ready) ;;
-        *) echo "agent-hook: usage: agent-hook {working|ready}" >&2; exit 1 ;;
-      esac
-      CONTEXT=""
-      if [ ! -t 0 ]; then
-        CONTEXT=$(cat || true)
-      fi
-      CLAUDE_SESSION=""
-      if [ -n "$CONTEXT" ]; then
-        CLAUDE_SESSION=$(printf '%s' "$CONTEXT" | jq -r '.session_id // empty')
-      fi
-      if [ -n "$CLAUDE_SESSION" ]; then
-        agent-event "$EVENT" --claude-session "$CLAUDE_SESSION"
-      else
-        agent-event "$EVENT"
-      fi
-    '';
-  };
-
-  # In-box git wrapper. Intercepts push / pull / fetch and routes them
-  # through the approval TUI on the host (which runs the actual git op
-  # with the host's YubiKey-bound SSH key). Other subcommands — including
-  # `commit` (intentionally unsigned in the box for fast checkpointing)
-  # — pass through to the real git binary.
+  # In-box `git` wrapper. Blocks network-touching subcommands
+  # (push / pull / fetch) with a helpful message; everything else
+  # passes through to the real git binary. Network ops are deliberately
+  # the human's job — run them on the host against the same working
+  # tree (which is bind-mounted both directions). `git-batch-sign` is
+  # still available via `box-broker git-batch-sign`.
   gitWrapperScript = pkgs.writeShellApplication {
     name = "git";
-    runtimeInputs = (with pkgs; [coreutils jq]) ++ [requestApprovalScript];
+    runtimeInputs = with pkgs; [coreutils];
     inheritPath = false;
     text = ''
       set -euo pipefail
       REAL_GIT=${pkgs.git}/bin/git
+      if [ $# -lt 1 ]; then exec "$REAL_GIT"; fi
+      case "$1" in
+        push|pull|fetch)
+          SUB="$1"
+          shift
+          cat >&2 <<EOF
+      \`git $SUB\` is gated by the approval TUI. Use the brokered version:
 
-      if [ $# -lt 1 ]; then
-        exec "$REAL_GIT"
-      fi
-      SUB="$1"
-      case "$SUB" in
-        push|pull|fetch) ;;
-        *) exec "$REAL_GIT" "$@" ;;
+        box-broker git $SUB $*
+
+      See \`box-broker --help\` for the full subcommand list.
+      EOF
+          exit 11
+          ;;
       esac
-
-      # Capture context for the TUI summary. All best-effort — the actual
-      # git invocation happens on the host, against the same working tree.
-      shift  # drop the subcommand from the array we forward as argv
-      ARGS=("$@")
-      BRANCH=$("$REAL_GIT" symbolic-ref --quiet --short HEAD 2>/dev/null || true)
-      HEAD_SHA=$("$REAL_GIT" rev-parse --short HEAD 2>/dev/null || true)
-      UPSTREAM_STATE=""
-      SIGNING_STATUS=""
-      if [ "$SUB" = "push" ]; then
-        UPSTREAM_STATE=$("$REAL_GIT" log --oneline '@{u}..HEAD' 2>/dev/null || true)
-        SIGNING_STATUS=$("$REAL_GIT" log '@{u}..HEAD' --format='%h %G?' 2>/dev/null || true)
-      fi
-
-      PAYLOAD_TMP=$(mktemp)
-      trap 'rm -f "$PAYLOAD_TMP"' EXIT
-      # Filter program MUST precede --args (otherwise jq treats the
-      # filter as a positional and uses ARGS[0] as the filter, e.g.
-      # "origin/0 is not defined").
-      jq -n \
-        --arg cwd "$PWD" \
-        --arg branch "$BRANCH" \
-        --arg head_sha "$HEAD_SHA" \
-        --arg upstream_state "$UPSTREAM_STATE" \
-        --arg signing_status "$SIGNING_STATUS" \
-        --arg sub "$SUB" \
-        '
-        # The wrapper drops the subcommand; the broker dispatcher runs
-        # `git <sub> <args>` on host, so we put $sub first in argv.
-        {cwd:$cwd, argv:([$sub] + $ARGS.positional),
-         current_branch:$branch, head_sha:$head_sha,
-         upstream_state:$upstream_state, signing_status:$signing_status}' \
-        --args -- "''${ARGS[@]}" \
-        > "$PAYLOAD_TMP"
-
-      ARGS_JOINED=$(printf '%s ' "''${ARGS[@]}")
-      SUMMARY="git $SUB ''${ARGS_JOINED}(in $PWD, branch ''${BRANCH:-?})"
-
-      RESULT=$(request-approval --op "git.$SUB" \
-        --payload-file "$PAYLOAD_TMP" --summary "$SUMMARY")
-      # On success, surface the broker's stdout/stderr to the caller so the
-      # agent sees what git printed on the host.
-      printf '%s' "$RESULT" | jq -r '.stdout // ""'
-      printf '%s' "$RESULT" | jq -r '.stderr // ""' >&2
-    '';
-  };
-
-  # git-batch-sign: amend-sign every unsigned commit between <base> and
-  # HEAD via the existing git-sign-range on the host. Single approval
-  # request gates the whole batch; the rebase loop still touches the
-  # YubiKey once per commit.
-  gitBatchSignScript = pkgs.writeShellApplication {
-    name = "git-batch-sign";
-    runtimeInputs = (with pkgs; [coreutils jq git]) ++ [requestApprovalScript];
-    inheritPath = false;
-    text = ''
-      set -euo pipefail
-      BASE="''${1:-}"
-
-      if [ -z "$BASE" ]; then
-        if git rev-parse --verify --quiet '@{u}' >/dev/null; then
-          BASE='@{u}'
-        elif git rev-parse --verify --quiet main >/dev/null; then
-          BASE='main'
-        else
-          echo "git-batch-sign: no upstream and no 'main' — pass a base ref" >&2
-          exit 1
-        fi
-      fi
-
-      COUNT=$(git rev-list --count "$BASE..HEAD")
-      if [ "$COUNT" -eq 0 ]; then
-        echo "git-batch-sign: nothing to sign ($BASE..HEAD is empty)."
-        exit 0
-      fi
-
-      HEAD_SHA=$(git rev-parse --short HEAD)
-      COMMIT_LIST=$(git log "$BASE..HEAD" --format='%h %G? %s' --no-color)
-
-      PAYLOAD_TMP=$(mktemp)
-      trap 'rm -f "$PAYLOAD_TMP"' EXIT
-      jq -n \
-        --arg cwd "$PWD" --arg base "$BASE" \
-        --arg head_sha "$HEAD_SHA" --arg commit_list "$COMMIT_LIST" \
-        '{cwd:$cwd, base:$base, head_sha:$head_sha, commit_list:$commit_list}' \
-        > "$PAYLOAD_TMP"
-
-      SUMMARY="Sign $COUNT commit(s) in $PWD from $BASE to HEAD"
-
-      RESULT=$(request-approval --op git.sign-range \
-        --payload-file "$PAYLOAD_TMP" --summary "$SUMMARY" --timeout 3600)
-      printf '%s' "$RESULT" | jq -r '.stdout // ""'
-      printf '%s' "$RESULT" | jq -r '.stderr // ""' >&2
+      exec "$REAL_GIT" "$@"
     '';
   };
 
@@ -735,7 +159,7 @@ with lib; let
     # normal exit, EOF on the controlling tty, SIGHUP from a closing
     # terminal — anything that lets the shell unwind cleanly. SIGKILL
     # is uncatchable; in that rare case the agent row will linger.
-    trap 'agent-event terminated || true' EXIT
+    trap 'box-broker agent-event terminated || true' EXIT
     ${proxyEnv}
     ${optionalString (cfg.githubTokenFile != null) ''
       if [ -r ${cfg.githubTokenFile} ]; then
@@ -1250,22 +674,19 @@ in {
   };
 
   config = mkMerge [
-    # Box's in-box client scripts. Independent of cfg.enable so the BOX's
-    # home-manager (which never sets box.enable) can still install them.
+    # Box's in-box client. Independent of cfg.enable so the BOX's
+    # home-manager (which never sets box.enable) can still install it.
     (mkIf cfg.brokerClient.enable {
       home.packages = [
-        requestApprovalScript
-        agentEventScript
-        agentHookScript
-        ghPrCreateScript
-        ghPrEditScript
-        ghPrReviewScript
-        ghPrReviewAppendScript
-        # Git wrapper shadows pkgs.git's bin/git for push/pull/fetch only;
-        # other subcommands fall through to the real git binary. hiPrio
-        # resolves the bin/git symlink collision in favour of the wrapper.
+        # `box-broker` (and `box-approver`, unused inside the box but
+        # along for the ride). All in-box approval-gated actions go
+        # through `box-broker SUB …`; see `box-broker --help`.
+        boxBrokerPkg
+        # Git wrapper shadows pkgs.git's bin/git for push/pull/fetch
+        # only; other subcommands fall through to the real git binary.
+        # hiPrio resolves the bin/git symlink collision in favour of
+        # the wrapper.
         (lib.hiPrio gitWrapperScript)
-        gitBatchSignScript
       ];
     })
     (mkIf cfg.enable {
