@@ -9,7 +9,6 @@
 //!   box-broker git batch-sign    →  op git.sign-range
 //!   box-broker agent event   …   →  fire-and-forget bottom-pane event
 //!   box-broker agent hook    …   →  Claude Code hook entry point
-//!   box-broker request-approval … → low-level escape hatch
 //!
 //! `box-broker --help` and each level's `--help` enumerate everything.
 
@@ -29,7 +28,8 @@ use tokio::process::Command;
     name = "box-broker",
     about = "Approval-gated host-side operations brokered by box-approver.",
     subcommand_required = true,
-    arg_required_else_help = true
+    arg_required_else_help = true,
+    disable_help_subcommand = true
 )]
 struct Cli {
     #[command(subcommand)]
@@ -46,13 +46,12 @@ enum Cmd {
     Git(GitCmd),
     /// Agent lifecycle (used by sandbox-init + Claude Code hooks).
     Agent(AgentCmd),
-    /// Low-level: drop a generic envelope into the broker queue.
-    RequestApproval(RequestApprovalArgs),
 }
 
 // ─── gh ────────────────────────────────────────────────────────────────
 
 #[derive(Args)]
+#[command(disable_help_subcommand = true)]
 struct GhCmd {
     #[command(subcommand)]
     sub: GhSub,
@@ -65,6 +64,7 @@ enum GhSub {
 }
 
 #[derive(Args)]
+#[command(disable_help_subcommand = true)]
 struct GhPrCmd {
     #[command(subcommand)]
     sub: GhPrSub,
@@ -128,6 +128,7 @@ struct GhPrReviewAppendArgs {
 // ─── linear ────────────────────────────────────────────────────────────
 
 #[derive(Args)]
+#[command(disable_help_subcommand = true)]
 struct LinearCmd {
     #[command(subcommand)]
     sub: LinearSub,
@@ -140,6 +141,7 @@ enum LinearSub {
 }
 
 #[derive(Args)]
+#[command(disable_help_subcommand = true)]
 struct LinearIssueCmd {
     #[command(subcommand)]
     sub: LinearIssueSub,
@@ -165,6 +167,7 @@ struct LinearIssueCreateArgs {
 // ─── git ───────────────────────────────────────────────────────────────
 
 #[derive(Args)]
+#[command(disable_help_subcommand = true)]
 struct GitCmd {
     #[command(subcommand)]
     sub: GitSub,
@@ -200,6 +203,7 @@ struct GitBatchSignArgs {
 // ─── agent ─────────────────────────────────────────────────────────────
 
 #[derive(Args)]
+#[command(disable_help_subcommand = true)]
 struct AgentCmd {
     #[command(subcommand)]
     sub: AgentSub,
@@ -224,17 +228,6 @@ struct AgentEventArgs {
 struct AgentHookArgs {
     #[arg(value_parser = ["working", "ready"])]
     event: String,
-}
-
-// ─── request-approval ──────────────────────────────────────────────────
-
-#[derive(Args)]
-struct RequestApprovalArgs {
-    /// Dotted op-id, e.g. gh.pr.create, git.push, linear.issue.create.
-    #[arg(long)] op: String,
-    #[arg(long = "payload-file", value_name = "FILE")] payload_file: PathBuf,
-    #[arg(long)] summary: Option<String>,
-    #[arg(long, default_value_t = 1800)] timeout: u64,
 }
 
 // ───────────────────────────────────────────────────────────────────────
@@ -277,7 +270,6 @@ async fn dispatch(cmd: Cmd) -> Result<Outcome> {
             AgentSub::Event(a) => cmd_agent_event(a).await,
             AgentSub::Hook(a) => cmd_agent_hook(a).await,
         },
-        Cmd::RequestApproval(a) => cmd_request_approval(a).await,
     }
 }
 
@@ -503,16 +495,6 @@ async fn cmd_agent_hook(args: AgentHookArgs) -> Result<Outcome> {
         .await
         .context("dropping agent-event from hook")?;
     Ok(Outcome::Ok(Value::Null))
-}
-
-// ─── request-approval (low-level) ──────────────────────────────────────
-
-async fn cmd_request_approval(args: RequestApprovalArgs) -> Result<Outcome> {
-    let bytes = tokio::fs::read(&args.payload_file)
-        .await
-        .with_context(|| format!("reading {}", args.payload_file.display()))?;
-    let payload: Value = serde_json::from_slice(&bytes).context("payload-file isn't valid JSON")?;
-    submit(payload, &args.op, args.summary.unwrap_or_default(), Duration::from_secs(args.timeout)).await
 }
 
 // ─── helpers ───────────────────────────────────────────────────────────
