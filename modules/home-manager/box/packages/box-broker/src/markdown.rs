@@ -7,7 +7,7 @@
 //! URL resolution beyond appending the target in parens when it
 //! differs from the link text.
 
-use pulldown_cmark::{CodeBlockKind, Event, HeadingLevel, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 
@@ -104,20 +104,16 @@ impl Renderer {
                 self.flush_line();
             }
             Tag::Heading { level, .. } => {
+                let _ = level;
                 self.flush_line();
                 // Blank line above headings for breathing room
                 // (except at the very top of the document).
                 if !self.lines.is_empty() {
                     self.lines.push(Line::default());
                 }
-                let prefix = "#".repeat(heading_level(level));
-                self.push_span(
-                    format!("{prefix} "),
-                    Style::default().fg(Color::DarkGray),
-                );
                 self.style_stack.push(
                     Style::default()
-                        .fg(Color::Cyan)
+                        .fg(Color::White)
                         .add_modifier(Modifier::BOLD),
                 );
             }
@@ -128,15 +124,7 @@ impl Renderer {
             Tag::CodeBlock(kind) => {
                 self.flush_line();
                 self.in_code_block = true;
-                // Optional language label.
-                if let CodeBlockKind::Fenced(lang) = kind {
-                    if !lang.is_empty() {
-                        self.lines.push(Line::from(Span::styled(
-                            format!("```{lang}"),
-                            Style::default().fg(Color::DarkGray),
-                        )));
-                    }
-                }
+                let _ = kind;
             }
             Tag::List(first) => {
                 self.flush_line();
@@ -194,22 +182,29 @@ impl Renderer {
 
     fn end_tag(&mut self, tag: TagEnd) {
         match tag {
-            TagEnd::Paragraph => self.flush_line(),
+            TagEnd::Paragraph => {
+                self.flush_line();
+                self.blank_line();
+            }
             TagEnd::Heading(_) => {
                 self.style_stack.pop();
                 self.flush_line();
+                self.blank_line();
             }
             TagEnd::BlockQuote(_) => {
                 self.flush_line();
                 self.quote_depth = self.quote_depth.saturating_sub(1);
+                self.blank_line();
             }
             TagEnd::CodeBlock => {
                 self.flush_line();
                 self.in_code_block = false;
+                self.blank_line();
             }
             TagEnd::List(_) => {
                 self.flush_line();
                 self.list_stack.pop();
+                self.blank_line();
             }
             TagEnd::Item => self.flush_line(),
             TagEnd::Strong | TagEnd::Emphasis | TagEnd::Strikethrough => {
@@ -273,6 +268,18 @@ impl Renderer {
         out
     }
 
+    /// Push an empty line for inter-block breathing room — but never
+    /// stack two empties in a row.
+    fn blank_line(&mut self) {
+        if matches!(self.lines.last(), Some(line) if line_is_blank(line)) {
+            return;
+        }
+        if self.lines.is_empty() {
+            return;
+        }
+        self.lines.push(Line::default());
+    }
+
     fn flush_line(&mut self) {
         if self.current.is_empty() && self.quote_depth == 0 {
             return;
@@ -300,17 +307,6 @@ impl Renderer {
             self.lines.pop();
         }
         Text::from(self.lines)
-    }
-}
-
-fn heading_level(level: HeadingLevel) -> usize {
-    match level {
-        HeadingLevel::H1 => 1,
-        HeadingLevel::H2 => 2,
-        HeadingLevel::H3 => 3,
-        HeadingLevel::H4 => 4,
-        HeadingLevel::H5 => 5,
-        HeadingLevel::H6 => 6,
     }
 }
 

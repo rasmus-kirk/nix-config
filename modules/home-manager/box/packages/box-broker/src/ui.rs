@@ -198,10 +198,11 @@ fn draw_detail_structured(
         ]));
     }
 
-    // Footer (state + optional error).
+    // Footer (state + optional error), color-coded.
+    let state_style = state_color(req.state, req.last_error.is_some());
     let mut footer_spans: Vec<Span> = vec![
         Span::styled("state: ", bold()),
-        Span::raw(req.state.label()),
+        Span::styled(req.state.label().to_string(), state_style),
     ];
     if let Some(err) = req.last_error.as_ref() {
         footer_spans.push(Span::raw("  "));
@@ -212,12 +213,16 @@ fn draw_detail_structured(
     }
 
     let prose_count = view.prose.len().max(1);
-    let fields_height = (field_lines.len() as u16).saturating_add(2); // +2 borders
+    let fields_height = field_lines.len() as u16;
 
-    // Layout: header (1) + fields box + prose sections (split evenly) + footer (1).
-    let mut constraints: Vec<Constraint> = vec![Constraint::Length(1)]; // header
+    // Layout: header (1) + separator rule (1) + fields rows + prose sections (split evenly) + footer (1).
+    let mut constraints: Vec<Constraint> = vec![
+        Constraint::Length(1), // header
+        Constraint::Length(1), // separator rule
+    ];
     if !view.fields.is_empty() {
         constraints.push(Constraint::Length(fields_height));
+        constraints.push(Constraint::Length(1)); // blank spacer after fields
     }
     for _ in 0..prose_count.max(1) {
         constraints.push(Constraint::Min(3));
@@ -231,12 +236,19 @@ fn draw_detail_structured(
     let mut idx = 0;
     frame.render_widget(Paragraph::new(Line::from(header_spans)), inner[idx]);
     idx += 1;
+    // Separator rule below the header.
+    frame.render_widget(
+        Paragraph::new(Line::from(Span::styled(
+            "─".repeat(inner[idx].width as usize),
+            Style::default().fg(Color::DarkGray),
+        ))),
+        inner[idx],
+    );
+    idx += 1;
     if !view.fields.is_empty() {
-        frame.render_widget(
-            Paragraph::new(field_lines)
-                .block(Block::default().borders(Borders::ALL).title("Fields")),
-            inner[idx],
-        );
+        frame.render_widget(Paragraph::new(field_lines), inner[idx]);
+        idx += 1;
+        // Blank spacer between fields and the first prose section.
         idx += 1;
     }
     if view.prose.is_empty() {
@@ -333,6 +345,20 @@ fn badge_color(flag: &str) -> Color {
         "→ READY" => Color::Green,
         "REQUEST_CHANGES" => Color::Red,
         _ => Color::Cyan,
+    }
+}
+
+fn state_color(state: crate::types::RequestState, has_error: bool) -> Style {
+    use crate::types::RequestState;
+    if has_error {
+        return Style::default().fg(Color::Red).add_modifier(Modifier::BOLD);
+    }
+    match state {
+        RequestState::Pending => Style::default().fg(Color::Yellow),
+        RequestState::Dispatching => Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+        RequestState::DispatchFailed => {
+            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+        }
     }
 }
 
