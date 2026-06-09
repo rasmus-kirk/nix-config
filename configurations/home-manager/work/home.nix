@@ -62,6 +62,7 @@ in {
       stateDir = stateDir;
       launchers = {
         Github = "https://github.com/";
+        Youtube = "https://youtube.com/";
         Calendar = "https://calendar.google.com/";
         "Family Link" = "https://familylink.google.com/";
         "Claude Chat" = "https://claude.ai/new";
