@@ -139,6 +139,12 @@
         src = ./modules/home-manager/box/packages/box-broker;
         cargoLock.lockFile = ./modules/home-manager/box/packages/box-broker/Cargo.lock;
       };
+      box-approver = pkgs.rustPlatform.buildRustPackage {
+        pname = "box-approver";
+        version = "0.2.0";
+        src = ./modules/home-manager/box/packages/box-broker;
+        cargoLock.lockFile = ./modules/home-manager/box/packages/box-broker/Cargo.lock;
+      };
     });
 
     formatter = forAllSystems ({pkgs}: pkgs.alejandra);

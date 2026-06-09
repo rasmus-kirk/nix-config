@@ -170,11 +170,15 @@ fn draw_detail_structured(
     req: &crate::types::PendingRequest,
     view: &DetailView,
 ) {
-    // Header (title + flag badges).
-    let mut header_spans: Vec<Span> = vec![Span::styled(view.title.clone(), bold())];
+    // Build the title line that lives in the header box's top border:
+    // "DetailView.title" + flag badges + optional DISPATCH FAILED flag.
+    let mut title_spans: Vec<Span> = vec![
+        Span::raw(" "),
+        Span::styled(view.title.clone(), bold()),
+    ];
     for flag in &view.flags {
-        header_spans.push(Span::raw(" "));
-        header_spans.push(Span::styled(
+        title_spans.push(Span::raw(" "));
+        title_spans.push(Span::styled(
             format!(" {flag} "),
             Style::default()
                 .fg(Color::Black)
@@ -182,7 +186,20 @@ fn draw_detail_structured(
                 .add_modifier(Modifier::BOLD),
         ));
     }
-    // Fields block — one line per field; field name dimmed, value plain.
+    if let Some(err) = req.last_error.as_ref() {
+        let truncated: String = err.chars().take(60).collect();
+        title_spans.push(Span::raw(" "));
+        title_spans.push(Span::styled(
+            format!(" DISPATCH FAILED: {truncated} "),
+            Style::default()
+                .fg(Color::White)
+                .bg(Color::Red)
+                .add_modifier(Modifier::BOLD),
+        ));
+    }
+    title_spans.push(Span::raw(" "));
+
+    // Fields rows.
     let mut field_lines: Vec<Line> = Vec::with_capacity(view.fields.len());
     let max_label = view
         .fields
@@ -198,69 +215,40 @@ fn draw_detail_structured(
         ]));
     }
 
-    // Footer (state + optional error), color-coded.
-    let state_style = state_color(req.state, req.last_error.is_some());
-    let mut footer_spans: Vec<Span> = vec![
-        Span::styled("state: ", bold()),
-        Span::styled(req.state.label().to_string(), state_style),
-    ];
-    if let Some(err) = req.last_error.as_ref() {
-        footer_spans.push(Span::raw("  "));
-        footer_spans.push(Span::styled(
-            format!("error: {err}"),
-            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
-        ));
-    }
-
     let prose_count = view.prose.len().max(1);
-    let fields_height = field_lines.len() as u16;
+    // header box: borders (2) + rows (N). Minimum 3 if no fields.
+    let header_box_height = (field_lines.len() as u16).saturating_add(2).max(3);
 
-    // Layout: header (1) + separator rule (1) + fields rows + prose sections (split evenly) + footer (1).
+    // Layout: header_box + blank spacer + prose sections (split).
     let mut constraints: Vec<Constraint> = vec![
-        Constraint::Length(1), // header
-        Constraint::Length(1), // separator rule
+        Constraint::Length(header_box_height),
+        Constraint::Length(1), // breathing room between header box and prose
     ];
-    if !view.fields.is_empty() {
-        constraints.push(Constraint::Length(fields_height));
-        constraints.push(Constraint::Length(1)); // blank spacer after fields
-    }
-    for _ in 0..prose_count.max(1) {
+    for _ in 0..prose_count {
         constraints.push(Constraint::Min(3));
     }
-    constraints.push(Constraint::Length(1)); // footer
     let inner = Layout::default()
         .direction(Direction::Vertical)
         .constraints(constraints)
         .split(area);
 
-    let mut idx = 0;
-    frame.render_widget(Paragraph::new(Line::from(header_spans)), inner[idx]);
-    idx += 1;
-    // Separator rule below the header.
+    // Header box: bordered, title in the top border, fields inside.
+    let header_block = Block::default()
+        .borders(Borders::ALL)
+        .title(Line::from(title_spans));
     frame.render_widget(
-        Paragraph::new(Line::from(Span::styled(
-            "─".repeat(inner[idx].width as usize),
-            Style::default().fg(Color::DarkGray),
-        ))),
-        inner[idx],
+        Paragraph::new(field_lines).block(header_block),
+        inner[0],
     );
-    idx += 1;
-    if !view.fields.is_empty() {
-        frame.render_widget(Paragraph::new(field_lines), inner[idx]);
-        idx += 1;
-        // Blank spacer between fields and the first prose section.
-        idx += 1;
-    }
+
+    let mut idx = 2; // skip the spacer at inner[1]
     if view.prose.is_empty() {
-        // Nothing to render in the prose slot — fill with a marker so
-        // the layout doesn't look broken when there's no body.
         frame.render_widget(
             Paragraph::new("(no prose fields)")
                 .style(Style::default().fg(Color::DarkGray))
                 .block(Block::default().borders(Borders::ALL)),
             inner[idx],
         );
-        idx += 1;
     } else {
         for (label, md) in &view.prose {
             let text: Text = if md.is_empty() {
@@ -271,17 +259,12 @@ fn draw_detail_structured(
             frame.render_widget(
                 Paragraph::new(text)
                     .wrap(Wrap { trim: false })
-                    .block(
-                        Block::default()
-                            .borders(Borders::ALL)
-                            .title(label.clone()),
-                    ),
+                    .block(Block::default().borders(Borders::ALL).title(label.clone())),
                 inner[idx],
             );
             idx += 1;
         }
     }
-    frame.render_widget(Paragraph::new(Line::from(footer_spans)), inner[idx]);
 }
 
 fn draw_detail_generic(frame: &mut Frame, area: Rect, req: &crate::types::PendingRequest) {
@@ -348,19 +331,6 @@ fn badge_color(flag: &str) -> Color {
     }
 }
 
-fn state_color(state: crate::types::RequestState, has_error: bool) -> Style {
-    use crate::types::RequestState;
-    if has_error {
-        return Style::default().fg(Color::Red).add_modifier(Modifier::BOLD);
-    }
-    match state {
-        RequestState::Pending => Style::default().fg(Color::Yellow),
-        RequestState::Dispatching => Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
-        RequestState::DispatchFailed => {
-            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
-        }
-    }
-}
 
 fn draw_status(frame: &mut Frame, area: Rect, queue: &Queue, state: &UiState) {
     let hints = if queue.is_empty() {

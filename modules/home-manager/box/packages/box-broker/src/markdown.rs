@@ -7,7 +7,7 @@
 //! URL resolution beyond appending the target in parens when it
 //! differs from the link text.
 
-use pulldown_cmark::{Event, Options, Parser, Tag, TagEnd};
+use pulldown_cmark::{CodeBlockKind, Event, Options, Parser, Tag, TagEnd};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span, Text};
 
@@ -124,7 +124,14 @@ impl Renderer {
             Tag::CodeBlock(kind) => {
                 self.flush_line();
                 self.in_code_block = true;
-                let _ = kind;
+                let lang = match kind {
+                    CodeBlockKind::Fenced(l) => l.into_string(),
+                    CodeBlockKind::Indented => String::new(),
+                };
+                self.lines.push(Line::from(Span::styled(
+                    format!("```{lang}"),
+                    Style::default().fg(Color::DarkGray),
+                )));
             }
             Tag::List(first) => {
                 self.flush_line();
@@ -199,6 +206,10 @@ impl Renderer {
             TagEnd::CodeBlock => {
                 self.flush_line();
                 self.in_code_block = false;
+                self.lines.push(Line::from(Span::styled(
+                    "```".to_string(),
+                    Style::default().fg(Color::DarkGray),
+                )));
                 self.blank_line();
             }
             TagEnd::List(_) => {
@@ -281,7 +292,7 @@ impl Renderer {
     }
 
     fn flush_line(&mut self) {
-        if self.current.is_empty() && self.quote_depth == 0 {
+        if self.current.is_empty() {
             return;
         }
         let prefix = if self.quote_depth > 0 {
