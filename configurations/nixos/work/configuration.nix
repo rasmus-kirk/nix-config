@@ -274,7 +274,6 @@ in {
   environment.systemPackages = with pkgs; [
     # Misc
     keepassxc
-    bitwarden-desktop
     thunderbird
     yubioath-flutter
     ledger-live-desktop
