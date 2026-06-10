@@ -183,7 +183,6 @@ in {
       fd # Find Files
       jq # JSON Parser
       rig # Random Identities for Privacy
-      silver-searcher # Search in Files
       tealdeer # TLDR for CLI Commands
       trash-cli # Trash Files in Terminal
       tree # View Directory as Tree
