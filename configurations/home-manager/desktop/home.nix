@@ -89,6 +89,8 @@ in {
     "d  ${stateDir}/syncthing/sync  0755 user users - -"
     "d  ${stateDir}/claude          0755 user users - -"
     "d  ${stateDir}/claude/state    0755 user users - -"
+    "d  ${stateDir}/steam           0755 user users - -"
+    "d  ${stateDir}/steam-compat    0755 user users - -"
 
     "L+ ${config.home.homeDirectory}/.thunderbird               - - - - ${stateDir}/thunderbird"
     "L+ ${config.home.homeDirectory}/.mozilla                   - - - - ${stateDir}/firefox/home"
@@ -103,6 +105,9 @@ in {
 
     "L+ ${config.home.homeDirectory}/.claude                    - - - - ${stateDir}/claude/state"
     "L+ ${config.home.homeDirectory}/.claude.json               - - - - ${stateDir}/claude/claude.json"
+
+    "L+ ${config.home.homeDirectory}/.local/share/Steam         - - - - ${stateDir}/steam"
+    "L+ ${config.home.homeDirectory}/.steam                     - - - - ${stateDir}/steam-compat"
   ];
 
   services.syncthing.enable = true;

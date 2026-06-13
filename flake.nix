@@ -42,12 +42,15 @@
     impermanence.url = "github:nix-community/impermanence";
 
     # Private game source — github.com/rasmus-kirk/ballbrawl (private repo).
-    # Fetched over SSH using the YubiKey-SK key at `nix flake update` time;
-    # flake.lock pins the rev so normal builds don't re-fetch.
-    ballbrawl = {
-      url = "git+ssh://git@github.com/rasmus-kirk/ballbrawl.git";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    # Fetched over SSH using the YubiKey-SK key at `nix flake update` time.
+    # Temporarily commented out for the first FDE/impermanence install: the
+    # live ISO has no SSH key loaded, so the build would fail when nix tries
+    # to fetch this input. Re-enable post-first-boot together with the
+    # import + service block in configurations/nixos/desktop/configuration.nix.
+    # ballbrawl = {
+    #   url = "git+ssh://git@github.com/rasmus-kirk/ballbrawl.git";
+    #   inputs.nixpkgs.follows = "nixpkgs";
+    # };
   };
 
   outputs = inputs @ {

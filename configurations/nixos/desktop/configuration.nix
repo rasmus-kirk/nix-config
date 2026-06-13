@@ -15,7 +15,10 @@
 in {
   imports = [
     ./hardware-configuration.nix
-    inputs.ballbrawl.nixosModules.default
+    # Re-enable together with the ballbrawl input in flake.nix and the
+    # services.ballbrawl block below. Commented out during the first
+    # FDE install because the live ISO can't fetch the private SSH input.
+    # inputs.ballbrawl.nixosModules.default
   ];
 
   # -------------------- Secrets -------------------- #
@@ -110,11 +113,14 @@ in {
   # entry (nixarr.ddns.nineteenEightyFour) already keeps subdomains of
   # the bare domain pointing at this host, same path jellyfin and
   # audiobookshelf use.
-  services.ballbrawl = {
-    enable = true;
-    domain = "game." + (lib.removeSuffix "\n" (builtins.readFile config.age.secrets.domain.path));
-    acmeMail = "slimness_bullish683@simplelogin.com";
-  };
+  # Temporarily disabled while the ballbrawl input is commented out for
+  # the first FDE install (see flake.nix). Re-enable together with the
+  # input + the ./hardware-configuration.nix import line above.
+  # services.ballbrawl = {
+  #   enable = true;
+  #   domain = "game." + (lib.removeSuffix "\n" (builtins.readFile config.age.secrets.domain.path));
+  #   acmeMail = "slimness_bullish683@simplelogin.com";
+  # };
 
   # MAM
   systemd = {
@@ -360,6 +366,7 @@ in {
   };
 
   boot.loader.systemd-boot.enable = true;
+  boot.loader.efi.canTouchEfiVariables = true;
 
   # -------------------- Machine Specific -------------------- #
 
