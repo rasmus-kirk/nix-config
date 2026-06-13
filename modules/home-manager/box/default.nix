@@ -176,6 +176,9 @@ with lib; let
     if [ -x /home/user/.nix-profile/bin/direnv ]; then
       eval "$(/home/user/.nix-profile/bin/direnv export bash 2>/dev/null)" || true
     fi
+    if [ "''${BOX_READ_ONLY:-0}" = "1" ]; then
+      echo "[box --read-only] $PWD is mounted read-only. Broker is unchanged; every op still approved via TUI."
+    fi
     if [ $# -eq 0 ]; then
       zsh
     else
@@ -233,6 +236,16 @@ with lib; let
       else
         BOX_CWD_TOP="/tmp"
       fi
+      # --read-only flips the caller's $PWD bind from RW to RO. The flag is
+      # read here (in the same shell as extraBwrapArgs) so the bwrap CLI sees
+      # the right mount mode. BOX_READ_ONLY_VAL is the always-defined "0"/"1"
+      # string forwarded into the sandbox via --setenv below.
+      BOX_READ_ONLY_VAL="''${BOX_READ_ONLY:-0}"
+      if [ "$BOX_READ_ONLY_VAL" = "1" ]; then
+        BOX_PWD_BIND_FLAG="--ro-bind-try"
+      else
+        BOX_PWD_BIND_FLAG="--bind-try"
+      fi
       ${optionalString (cfg.seccompFile != null) ''
         # Open the seccomp BPF program on FD 9; bwrap reads it via --seccomp 9.
         exec 9< ${cfg.seccompFile}
@@ -249,6 +262,9 @@ with lib; let
       ])
       # Hostname inside the UTS namespace (requires unshareUts).
       ++ (optionals (cfg.hostname != null && cfg.unshareUts) ["--hostname" cfg.hostname])
+      # Propagate --read-only into the sandbox so initScript / zsh / Claude
+      # can see BOX_READ_ONLY=1 (or 0 by default).
+      ++ ["--setenv" "BOX_READ_ONLY" "$BOX_READ_ONLY_VAL"]
       # tmpfs masks must come FIRST so they hide buildFHSEnv's auto-binds;
       # then our explicit binds re-introduce only the subpaths we want.
       ++ tmpfsMasks
@@ -300,8 +316,9 @@ with lib; let
       ++ cfg.extraBwrapArgs
       ++ optionals (cfg.seccompFile != null) ["--seccomp" "9"]
       # Auto-bind the caller's cwd LAST so it survives every mask above.
-      # Writable so active development inside the box works.
-      ++ ["--bind-try" "$PWD" "$PWD"];
+      # Writable by default; --read-only flips this to --ro-bind-try via
+      # BOX_PWD_BIND_FLAG (set in extraPreBwrapCmds above).
+      ++ ["$BOX_PWD_BIND_FLAG" "$PWD" "$PWD"];
   };
 
   # Single entry-point — the FHS env wrapper. When network.enable=true the
@@ -314,6 +331,14 @@ with lib; let
     runtimeInputs = with pkgs; [coreutils trash-cli];
     inheritPath = false;
     text = ''
+      # --read-only / --ro: caller's $PWD is bind-mounted read-only inside the
+      # box. Box home, broker, and ~/.claude stay RW so Claude Code itself
+      # keeps working. EROFS on Edit/Write is the enforcement; no in-process
+      # gate is added. Broker is unchanged — every op still approved via TUI.
+      if [ "''${1:-}" = "--read-only" ] || [ "''${1:-}" = "--ro" ]; then
+        export BOX_READ_ONLY=1
+        shift
+      fi
       if [ "''${1:-}" = "nuke" ]; then
         echo "Trashing ${cfg.stateDir}..."
         trash-put "${cfg.stateDir}" 2>/dev/null || echo "No state directory."
