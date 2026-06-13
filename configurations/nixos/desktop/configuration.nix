@@ -6,7 +6,7 @@
   ...
 }: let
   username = "user";
-  machine = "server";
+  machine = "desktop";
   dataDir = "/data";
   configDir = "${dataDir}/.system-configuration";
   secretDir = "${dataDir}/.secret";
@@ -155,25 +155,43 @@ in {
     };
   };
 
-  # -------------------- Power Saving -------------------- #
+  # -------------------- Desktop / Gaming -------------------- #
 
-  powerManagement.enable = true;
-  powerManagement.powertop.enable = true;
-  powerManagement.cpuFreqGovernor = "powersave";
+  # Cosmic + cosmic-greeter. Boot lands on the greeter; jovian.steam
+  # configures Steam autostart with Cosmic as the fallback session.
+  services.xserver.enable = true;
+  services.desktopManager.cosmic.enable = true;
+  services.displayManager.cosmic-greeter.enable = true;
+  services.gnome.gnome-keyring.enable = false;
+  services.gnome.gcr-ssh-agent.enable = false;
 
-  services.tlp = {
-    enable = true;
-    settings = {
-      CPU_SCALING_GOVERNOR_ON_AC = "powersave";
-      CPU_ENERGY_PERF_POLICY_ON_AC = "power";
-      # Disable wake-on-lan and bluetooth to save power
-      WOL_DISABLE = "Y";
-      DEVICES_TO_DISABLE_ON_STARTUP = "bluetooth wifi wwan";
+  # Steam in gamescope, Cosmic as the fallback session. AMD Radeon RX 9070
+  # (Navi 48) means amdgpu + redistributable firmware.
+  jovian = {
+    steamos.useSteamOSConfig = true;
+    steam = {
+      enable = true;
+      autoStart = true;
+      desktopSession = "cosmic";
+      user = "user";
     };
+    hardware.has.amd.gpu = true;
   };
 
-  hardware.bluetooth.enable = false;
-  hardware.bluetooth.powerOnBoot = false;
+  hardware.enableRedistributableFirmware = true;
+  hardware.bluetooth = {
+    enable = true;
+    powerOnBoot = true;
+  };
+
+  # Thunderbolt + firmware update daemons.
+  services.hardware.bolt.enable = true;
+  services.fwupd.enable = true;
+
+  # schedutil scales dynamically without `powersave`'s aggressive power-down.
+  # Better for gaming spikes, still ramps down at idle.
+  powerManagement.enable = true;
+  powerManagement.cpuFreqGovernor = "schedutil";
 
   # -------------------- Server Defaults -------------------- #
 
@@ -198,7 +216,7 @@ in {
     TERM = "xterm-256color";
   };
 
-  services.getty.autologinUser = username; # Enable auto-login
+  # cosmic-greeter handles login; no getty auto-login.
   services.logind.settings.Login.HandleLidSwitch = "ignore";
 
   # -------------------- Syncthing -------------------- #
@@ -353,7 +371,7 @@ in {
     extraGroups = ["networkmanager" "wheel"];
   };
 
-  hardware.graphics.enable = true; # Needed for sway to boot
+  hardware.graphics.enable = true; # Wayland / Cosmic / Vulkan
   networking = {
     hostName = machine;
     networkmanager.enable = true;

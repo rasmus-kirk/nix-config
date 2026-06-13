@@ -153,20 +153,21 @@
     formatter = forAllSystems ({pkgs}: pkgs.alejandra);
 
     nixosConfigurations = {
-      server = nixpkgs.lib.nixosSystem rec {
+      desktop = nixpkgs.lib.nixosSystem rec {
         system = "x86_64-linux";
 
         modules = [
-          ./configurations/nixos/server/configuration.nix
+          ./configurations/nixos/desktop/configuration.nix
           agenix.nixosModules.default
           self.nixosModules.default
           nixarr.nixosModules.default
           impermanence.nixosModules.impermanence
+          jovian.nixosModules.default
           home-manager.nixosModules.home-manager
           {
             home-manager.users.user = {
               imports = [
-                ./configurations/home-manager/server/home.nix
+                ./configurations/home-manager/desktop/home.nix
                 self.homeManagerModules.default
               ];
               config.home.packages = [home-manager.packages."${system}".default];
