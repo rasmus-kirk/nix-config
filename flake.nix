@@ -7,7 +7,7 @@
 
     nixarr.url = "github:nix-media-server/nixarr/kirk/1984";
     nixarr.inputs.nixpkgs.follows = "nixpkgs";
-    nixarr.inputs.vpnconfinement.follows = "nixpkgs";
+    nixarr.inputs.vpnconfinement.follows = "vpnconfinement";
 
     vpnconfinement.url = "github:Maroka-chan/VPN-Confinement";
 
