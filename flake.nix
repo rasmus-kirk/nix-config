@@ -39,6 +39,8 @@
     submerger.url = "github:rasmus-kirk/submerger";
     submerger.inputs.nixpkgs.follows = "nixpkgs";
 
+    impermanence.url = "github:nix-community/impermanence";
+
     # Private game source — github.com/rasmus-kirk/ballbrawl (private repo).
     # Fetched over SSH using the YubiKey-SK key at `nix flake update` time;
     # flake.lock pins the rev so normal builds don't re-fetch.
@@ -59,6 +61,7 @@
     vpnconfinement,
     hosts,
     nix-index-database,
+    impermanence,
     ...
   }: let
     # Systems supported
@@ -158,6 +161,7 @@
           agenix.nixosModules.default
           self.nixosModules.default
           nixarr.nixosModules.default
+          impermanence.nixosModules.impermanence
           home-manager.nixosModules.home-manager
           {
             home-manager.users.user = {

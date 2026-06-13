@@ -12,34 +12,65 @@
     (modulesPath + "/installer/scan/not-detected.nix")
   ];
 
-  boot.initrd.availableKernelModules = ["xhci_pci" "nvme" "usb_storage" "usbhid" "sd_mod"];
+  boot.initrd.availableKernelModules = ["xhci_pci" "thunderbolt" "ahci" "nvme" "usbhid" "usb_storage" "sd_mod"];
   boot.initrd.kernelModules = [];
   boot.kernelModules = ["kvm-intel"];
   boot.extraModulePackages = [];
 
+  # Root LUKS — passphrase prompted at console in initrd.
+  # Referenced by GPT partition label set at install time: `sgdisk -c 2:cryptroot`.
+  boot.initrd.luks.devices.cryptroot = {
+    device = "/dev/disk/by-partlabel/cryptroot";
+    allowDiscards = true;
+  };
+
   fileSystems."/" = {
-    device = "/dev/disk/by-uuid/5294dcf2-16dc-421a-b445-5a94516f2488";
-    fsType = "ext4";
-    options = ["noatime" "nodiratime"];
+    device = "/dev/mapper/cryptroot";
+    fsType = "btrfs";
+    options = ["subvol=@root" "noatime" "nodiratime" "compress=zstd"];
+  };
+
+  fileSystems."/nix" = {
+    device = "/dev/mapper/cryptroot";
+    fsType = "btrfs";
+    options = ["subvol=@nix" "noatime" "nodiratime" "compress=zstd"];
+  };
+
+  # Exception to the "persistent state lives on /data" policy:
+  # the Monero blockchain (~200 GB and growing) lives on the host NVMe
+  # so it doesn't unbalance /data's 8 TB SSD usage.
+  fileSystems."/var/lib/monero" = {
+    device = "/dev/mapper/cryptroot";
+    fsType = "btrfs";
+    options = ["subvol=@monero" "noatime" "nodiratime" "compress=zstd"];
+  };
+
+  # Subvol that holds the swapfile. No compression here so swap pages
+  # map 1:1 to disk; NOCOW is applied to the swapfile itself by NixOS's
+  # swapDevices module.
+  fileSystems."/var/swap" = {
+    device = "/dev/mapper/cryptroot";
+    fsType = "btrfs";
+    options = ["subvol=@swap" "noatime"];
   };
 
   fileSystems."/boot" = {
-    device = "/dev/disk/by-uuid/8273-43D3";
+    # vfat filesystem label set at install time: `mkfs.vfat -n BOOT …`.
+    device = "/dev/disk/by-label/BOOT";
     fsType = "vfat";
     options = ["fmask=0077" "dmask=0077"];
   };
 
-  swapDevices = [{device = "/dev/disk/by-uuid/caf459b1-243d-4119-a8fa-661c64e6f8f1";}];
+  swapDevices = [
+    {
+      device = "/var/swap/swapfile";
+      size = 16 * 1024; # 16 GiB
+    }
+  ];
 
-  # Enables DHCP on each ethernet and wireless interface. In case of scripted networking
-  # (the default) this is the recommended approach. When using systemd-networkd it's
-  # still possible to use this option, but it's recommended to use it in conjunction
-  # with explicit per-interface declarations with `networking.interfaces.<interface>.useDHCP`.
   networking.useDHCP = lib.mkDefault true;
-  # networking.interfaces.enp0s31f6.useDHCP = lib.mkDefault true;
-  # networking.interfaces.enp61s0u1u1.useDHCP = lib.mkDefault true;
-  # networking.interfaces.wlp4s0.useDHCP = lib.mkDefault true;
 
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
+  hardware.cpu.intel.npu.enable = true;
   hardware.cpu.intel.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
 }

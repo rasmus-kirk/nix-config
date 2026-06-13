@@ -276,24 +276,31 @@ in {
     ../../../pubkeys/deck-oled.pub
   ];
 
-  # Bare-git-over-SSH server. `git` user has git-shell only — no shell
-  # access, only `git-upload-pack`/`git-receive-pack`/`git-upload-archive`.
-  # Authorized keys mirror the user's, so anyone who can ssh in as `user`
-  # can also push/pull as `git`.
-  users.groups.git = {};
-  users.users.git = {
-    isSystemUser = true;
-    group = "git";
-    home = "/var/lib/git";
-    createHome = true;
-    shell = "${pkgs.git}/bin/git-shell";
-    description = "Git repositories over SSH";
-    openssh.authorizedKeys.keyFiles =
-      config.users.extraUsers.${username}.openssh.authorizedKeys.keyFiles;
+  # -------------------- Impermanence -------------------- #
+  # The NVMe root is ephemeral (rolled back to @root-blank each boot, see
+  # the rollback service in the Machine Specific section). These paths
+  # are bind-mounted from /data/.state/persist so they survive reboots.
+  # Default policy: anything that can be redirected via NixOS module
+  # config goes to /data/.state/<service> directly; this list is only
+  # for state whose owning module does not expose a path override.
+  environment.persistence."/data/.state/persist" = {
+    hideMounts = true;
+    directories = [
+      "/var/lib/nixos" # stable uid/gid map across rebuilds
+      "/var/lib/acme" # Let's Encrypt certs — avoid rate limits
+      "/var/lib/tuptime" # uptime history
+      "/var/lib/systemd/timers" # Persistent=true timer stamps (mam-vpn)
+      "/var/log" # journald + non-journald logs
+      "/var/lib/bluetooth" # paired-device DB (future-proof)
+    ];
+    files = [
+      "/etc/machine-id"
+      "/etc/ssh/ssh_host_ed25519_key"
+      "/etc/ssh/ssh_host_ed25519_key.pub"
+      "/etc/ssh/ssh_host_rsa_key"
+      "/etc/ssh/ssh_host_rsa_key.pub"
+    ];
   };
-  systemd.tmpfiles.rules = [
-    "d /var/lib/git/repos 0755 git git -"
-  ];
 
   # -------------------- Boilerplate -------------------- #
 
@@ -371,14 +378,51 @@ in {
     extraConfig = "Defaults insults";
   };
 
-  boot.initrd.kernelModules = ["usb_storage" "uas" "sd_mod"];
-  boot.initrd.luks.devices = {
-    crypt_ssd1 = {
-      device = "/dev/disk/by-id/ata-Samsung_SSD_870_QVO_8TB_S5SSNF0WA10922R";
-      keyFile = "/dev/disk/by-id/usb-Generic-_SD_MMC_20120501030900000-0:0";
-      keyFileSize = 34;
-      allowDiscards = true; # Allows SSD trim commands for better performance
-    };
+  # systemd in initrd: cleaner cryptsetup passphrase prompts and
+  # hosts the snapshot-rollback unit below.
+  boot.initrd.systemd.enable = true;
+
+  # /data LUKS — passphrase prompted at console (no more SD-card keyfile).
+  # Root LUKS (cryptroot) is declared in hardware-configuration.nix.
+  boot.initrd.luks.devices.crypt_ssd1 = {
+    device = "/dev/disk/by-id/ata-Samsung_SSD_870_QVO_8TB_S5SSNF0WA10922R";
+    allowDiscards = true; # Allows SSD trim commands for better performance
+  };
+
+  # Impermanence: roll @root back to a pristine state on every boot,
+  # archiving the previous @root under /old_roots/<timestamp> and
+  # GCing anything older than 30 days.
+  boot.initrd.systemd.services.rollback = {
+    description = "Rollback BTRFS root subvolume to a pristine state";
+    wantedBy = ["initrd.target"];
+    after = ["dev-mapper-cryptroot.device"];
+    before = ["sysroot.mount"];
+    unitConfig.DefaultDependencies = "no";
+    serviceConfig.Type = "oneshot";
+    script = ''
+      mkdir -p /btrfs_tmp
+      mount -o subvol=/ /dev/mapper/cryptroot /btrfs_tmp
+
+      if [[ -e /btrfs_tmp/@root ]]; then
+        mkdir -p /btrfs_tmp/old_roots
+        ts=$(date --date="@$(stat -c %Y /btrfs_tmp/@root)" "+%Y-%m-%-d_%H:%M:%S")
+        mv /btrfs_tmp/@root "/btrfs_tmp/old_roots/$ts"
+      fi
+
+      delete_subvolume_recursively() {
+        IFS=$'\n'
+        for i in $(btrfs subvolume list -o "$1" | cut -f 9- -d ' '); do
+          delete_subvolume_recursively "/btrfs_tmp/$i"
+        done
+        btrfs subvolume delete "$1"
+      }
+      for i in $(find /btrfs_tmp/old_roots/ -maxdepth 1 -mtime +30 2>/dev/null); do
+        delete_subvolume_recursively "$i"
+      done
+
+      btrfs subvolume snapshot /btrfs_tmp/@root-blank /btrfs_tmp/@root
+      umount /btrfs_tmp
+    '';
   };
 
   fileSystems."/data" = {
