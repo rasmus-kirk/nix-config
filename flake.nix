@@ -5,7 +5,7 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     nixpkgs-2405.url = "github:nixos/nixpkgs/nixos-24.05";
 
-    nixarr.url = "github:nix-media-server/nixarr/kirk/1984";
+    nixarr.url = "github:nix-media-server/nixarr";
     nixarr.inputs.nixpkgs.follows = "nixpkgs";
     nixarr.inputs.vpnconfinement.follows = "vpnconfinement";
 

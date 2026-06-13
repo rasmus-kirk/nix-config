@@ -260,16 +260,15 @@
         "website-builder": "website-builder"
       },
       "locked": {
-        "lastModified": 1777494023,
-        "narHash": "sha256-mSqS52jxpVg6kbuflXqFKpTV5d21dp2fPyp9u5EcLZQ=",
+        "lastModified": 1781086949,
+        "narHash": "sha256-Ap3qA/MJOHgQEoO0jcRi4k16wYVgj2HpuIpxaQjctLc=",
         "owner": "nix-media-server",
         "repo": "nixarr",
-        "rev": "f4fbb66e95fa8dac414acda594f194c8dc663562",
+        "rev": "10c7ce9b6819e66b002a54d1a4e871e67a28bbe2",
         "type": "github"
       },
       "original": {
         "owner": "nix-media-server",
-        "ref": "kirk/1984",
         "repo": "nixarr",
         "type": "github"
       }
