@@ -12,17 +12,28 @@
     (modulesPath + "/installer/scan/not-detected.nix")
   ];
 
-  boot.initrd.availableKernelModules = ["xhci_pci" "thunderbolt" "ahci" "nvme" "usbhid" "usb_storage" "sd_mod"];
-  boot.initrd.kernelModules = [];
   boot.kernelModules = ["kvm-intel"];
   boot.extraModulePackages = [];
 
-  # Root LUKS — passphrase prompted at console in initrd.
-  # Referenced by GPT partition label set at install time: `sgdisk -c 2:cryptroot`.
-  boot.initrd.luks.devices.cryptroot = {
-    device = "/dev/disk/by-partlabel/cryptroot";
-    allowDiscards = true;
+  boot.initrd = {
+    availableKernelModules = ["nvme" "xhci_pci" "usb_storage" "usbhid" "sd_mod" "sdhci_pci"];
+    kernelModules = [];
+    systemd.enable = true;
+    luks.fido2Support = false;
+    luks.devices = {
+      cryptroot = {
+        # allowDiscards = true;
+        device = "/dev/disk/by-partlabel/cryptroot";
+        crypttabExtraOpts = ["fido2-device=auto"];
+      };
+      crypt_ssd1 = {
+        # allowDiscards = true;
+        device = "/dev/disk/by-id/ata-Samsung_SSD_870_QVO_8TB_S5SSNF0WA10922R";
+        crypttabExtraOpts = ["fido2-device=auto"];
+      };
+    };
   };
+
 
   fileSystems."/" = {
     device = "/dev/mapper/cryptroot";
