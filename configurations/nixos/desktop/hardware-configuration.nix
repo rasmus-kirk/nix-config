@@ -47,13 +47,19 @@
     options = ["subvol=@nix" "noatime" "nodiratime" "compress=zstd"];
   };
 
-  # Exception to the "persistent state lives on /data" policy:
-  # the Monero blockchain (~200 GB and growing) lives on the host NVMe
-  # so it doesn't unbalance /data's 8 TB SSD usage.
-  fileSystems."/var/lib/monero" = {
+  # Big, disposable-but-persistent data lives here — the single exception to
+  # the "persistent state lives on /data" policy. @persist is a dedicated
+  # subvol on the host NVMe: it survives the @root rollback (so it persists
+  # across reboots), but it is NOT backed up the way /data is, because its
+  # contents are large and freely re-downloadable. Consumers point straight at
+  # subdirs (no symlinks):
+  #   /persist/monero — the Monero blockchain (~200 GB), via services.monero.dataDir
+  #   /persist/ai     — local AI models / caches, via /data/ai/flake.nix
+  # Adding a new big consumer = just `mkdir /persist/<name>`; no new subvol.
+  fileSystems."/persist" = {
     device = "/dev/mapper/cryptroot";
     fsType = "btrfs";
-    options = ["subvol=@monero" "noatime" "nodiratime" "compress=zstd"];
+    options = ["subvol=@persist" "noatime" "nodiratime" "compress=zstd"];
   };
 
   # Subvol that holds the swapfile. No compression here so swap pages

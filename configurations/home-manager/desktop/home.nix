@@ -19,7 +19,11 @@ in {
     # Keep the LG TV's HDMI audio sink from powering down on silence by
     # playing a sub-audible 20Hz tone after idle. Defaults; auto-suspend
     # stays off (minutesUntilSuspend = 0) since this box is also a server.
-    rustle.enable = true;
+    rustle = {
+      enable = true;
+      debug.enable = true; # RUST_LOG=debug + periodic status — diagnosing the speaker drop
+      amplitude = 0.05; # louder keep-alive tone (default 0.01) so the TV registers it as audio
+    };
     xdgMime.enable = true;
     stateBackup.enable = false;
     git = {
@@ -102,6 +106,10 @@ in {
     "d ${stateDir}/claude/state    0755 user users - -"
     "d ${stateDir}/steam           0755 user users - -"
     "d ${stateDir}/steam-compat    0755 user users - -"
+    "d ${stateDir}/plezy           0755 user users - -"
+    "d ${stateDir}/jellyfin-desktop-config 0755 user users - -"
+    "d ${stateDir}/jellyfin-desktop-data   0755 user users - -"
+    "d ${stateDir}/jellyfinmediaplayer     0755 user users - -"
     "d ${stateDir}/zsh             0755 user users - -"
     "d ${stateDir}/cosmic          0755 user users - -"
     "d ${stateDir}/cosmic/config   0755 user users - -"
@@ -123,6 +131,17 @@ in {
 
     "L+ ${config.home.homeDirectory}/.local/share/Steam         - - - - ${stateDir}/steam"
     "L+ ${config.home.homeDirectory}/.steam                     - - - - ${stateDir}/steam-compat"
+
+    # Jellyfin client state, persisted across the @root rollback:
+    #   - JFv3 (AppImage): login/cookies in ~/.config/jellyfin-desktop, data in
+    #     ~/.local/share/jellyfin-desktop. ~/.cache/jellyfin-desktop is
+    #     regenerable, so left ephemeral.
+    #   - Plezy (Flutter, nixpkgs): ~/.local/share/com.edde746.plezy.
+    "L+ ${config.home.homeDirectory}/.config/jellyfin-desktop       - - - - ${stateDir}/jellyfin-desktop-config"
+    "L+ ${config.home.homeDirectory}/.local/share/jellyfin-desktop  - - - - ${stateDir}/jellyfin-desktop-data"
+    # Old Qt5 JMP (jellyfin-media-player from nixpkgs-2405) — its login/config.
+    "L+ ${config.home.homeDirectory}/.local/share/jellyfinmediaplayer - - - - ${stateDir}/jellyfinmediaplayer"
+    "L+ ${config.home.homeDirectory}/.local/share/com.edde746.plezy - - - - ${stateDir}/plezy"
   ];
 
   programs.bash = {
@@ -147,6 +166,16 @@ in {
     nix-direnv.enable = true;
     silent = true;
   };
+
+  # Kill KWallet. With autologin it can never auto-unlock, so it just nags on
+  # every launch — and Chromium blocks on that prompt (its KDE "safe storage"
+  # backend), which is why only Chromium, only on Plasma, "couldn't connect".
+  # Disabling the subsystem makes apps fall back to their own stores.
+  xdg.configFile."kwalletrc".text = ''
+    [Wallet]
+    Enabled=false
+    First Use=false
+  '';
 
   home.packages = with pkgs; [];
 }

@@ -12,6 +12,38 @@
   secretDir = "${dataDir}/.secret";
   stateDir = "${dataDir}/.state";
   transmissionPort = 33915;
+
+  # JFv3 — the new CEF/mpv Jellyfin Desktop client, wrapped from its prebuilt
+  # nightly AppImage. nixpkgs only ships the old Qt 2.0.0 (broken by qtwebengine
+  # 6.11.0, nixpkgs#519073), and v3 has no versioned release to package from
+  # source. The nightly.link URL always serves "latest main", so this hash goes
+  # stale whenever upstream CI rebuilds — when a rebuild fails on a hash
+  # mismatch, refresh `version` + `hash`:
+  #   nix-prefetch-url --print-path <url>
+  #   nix hash convert --hash-algo sha256 --to sri <printed-hash>
+  # Replace with a clean appimageTools wrap of a tagged release once upstream
+  # cuts one with stable asset URLs.
+  # DISABLED — switched to the old Qt5 jellyfin-media-player (nixpkgs-2405, see
+  # systemPackages). Uncomment this block AND its systemPackages line to switch
+  # back to JFv3.
+  # jellyfinDesktopV3 = let
+  #   version = "3.0.0-dev+7ecfcdf";
+  #   zip = pkgs.fetchurl {
+  #     url = "https://nightly.link/jellyfin/jellyfin-desktop/workflows/build-linux-appimage/main/linux-appimage-x86_64.zip";
+  #     hash = "sha256-FT9DoIBV3dwG3cDS1gG1IAK8vyO2kjnOpQQgOuVZoyU=";
+  #   };
+  #   appimage = pkgs.runCommandLocal "jellyfin-desktop-${version}.AppImage" {
+  #     nativeBuildInputs = [pkgs.unzip];
+  #   } ''
+  #     unzip ${zip} '*.AppImage'
+  #     mv *.AppImage $out
+  #   '';
+  # in
+  #   pkgs.appimageTools.wrapType2 {
+  #     pname = "jellyfin-desktop";
+  #     inherit version;
+  #     src = appimage;
+  #   };
 in {
   imports = [
     ./hardware-configuration.nix
@@ -165,18 +197,35 @@ in {
 
   # -------------------- Desktop / Gaming -------------------- #
 
-  # Cosmic + cosmic-greeter. Boot lands on the greeter; jovian.steam
-  # configures Steam autostart with Cosmic as the fallback session.
   services.xserver.enable = true;
-  services.desktopManager.cosmic.enable = true;
-  # cosmic-greeter is DISABLED: jovian.steam.autoStart enables its own SDDM
-  # (wayland) with autoLogin into the gamescope-wayland session and wires
-  # Switch-to-Desktop -> desktopSession ("cosmic"). cosmic-greeter conflicts
-  # with that SDDM and was hijacking boot into Cosmic. We keep the Cosmic
-  # DESKTOP (desktopManager.cosmic above) as the switch-to-desktop target.
-  services.displayManager.cosmic-greeter.enable = false;
-  services.gnome.gnome-keyring.enable = false;
-  services.gnome.gcr-ssh-agent.enable = false;
+  # KDE Plasma 6 desktop. History: Cosmic -> GNOME -> Plasma. The DE churn was
+  # mostly chasing a frozen-video bug that turned out to be the Jellyfin client
+  # (qtwebengine 6.11.0), not the compositor; GNOME then kept enabling underscan
+  # on the TV and hiding its own display controls. Plasma gives explicit,
+  # predictable per-output display settings, which suits this TV box. Plasma is
+  # the Switch-to-Desktop target; Jovian's gamescope game-mode stays the boot
+  # session (no separate display manager — SDDM comes from jovian.steam).
+  services.desktopManager.plasma6.enable = true;
+  # Trim the Plasma app suite (we use foot + helix, not konsole/kate). These are
+  # filtered from the optional set; add/remove freely via kdePackages.*.
+  environment.plasma6.excludePackages = with pkgs.kdePackages; [
+    konsole
+    kate
+    elisa
+    khelpcenter
+    kwallet-pam # no autologin-unlockable wallet; KWallet is disabled (see home.nix)
+    kwalletmanager
+  ];
+  # jovian's Steam (Deck) module sets services.orca.enable = true (screen
+  # reader). We don't want one — force it off.
+  services.orca.enable = lib.mkForce false;
+
+  # Custom klfc keyboard layout (kirk.keyboardLayout module). Same layout the
+  # deck-oled / work machines use, pulled from the keyboard-layout flake input.
+  kirk.keyboardLayout = {
+    enable = true;
+    package = inputs.keyboard-layout.packages.${pkgs.system}.rk;
+  };
 
   # Steam in gamescope, Cosmic as the fallback session. AMD Radeon RX 9070
   # (Navi 48 / RDNA4) is well supported here: kernel 6.18 + Mesa 25+ +
@@ -195,10 +244,81 @@ in {
     steam = {
       enable = true;
       autoStart = true;
-      desktopSession = "cosmic";
+      desktopSession = "plasma";
       user = "user";
     };
     hardware.has.amd.gpu = true;
+  };
+  programs.steam.extraPackages = [pkgs.hidapi];
+  hardware.steam-hardware.enable = true;
+
+  # Multi-GPU box: Intel iGPU (8086:7D67) + AMD RX 9070XT (1002:7550, Navi 48).
+  # The iGPU drives no displays (the monitor is on the AMD HDMI) and exists
+  # only for potential media transcode (VAAPI, unaffected by this). Without a
+  # hint, DXVK/vkd3d under Proton enumerate the Intel GPU first and render
+  # games on it — dGPU stays idle/silent at ~40MHz while the weak iGPU pegs at
+  # ~1.5GHz, giving terrible framerates. Pin games to the AMD card by name.
+  #
+  # Two non-obvious requirements, both learned the hard way:
+  #   1. MUST be sessionVariables, not `environment.variables`: the latter only
+  #      lands in /etc/set-environment (sourced by login *shells*), which the
+  #      Wayland/Cosmic graphical session never reads, so Steam never saw it.
+  #      sessionVariables writes /etc/pam/environment, loaded by pam_env for
+  #      every session (graphical login included). Confirmed reaching Steam.
+  #   2. MESA_VK_DEVICE_SELECT does NOT work here: it relies on the
+  #      VkLayer_MESA_device_select implicit layer, which exists on the host
+  #      but is NOT imported into Steam's pressure-vessel runtime, so Proton
+  #      ignores it. DXVK_FILTER_DEVICE_NAME / VKD3D_FILTER_DEVICE_NAME are
+  #      read directly by DXVK (DX9-11) and vkd3d-proton (DX12), needing no
+  #      layer. "Radeon" matches "AMD Radeon RX 9070 XT (RADV ...)" and
+  #      excludes the Intel iGPU. (Verified: game VRAM landed on card1 and
+  #      gpu_busy ramped to 84% while the iGPU dropped to 0MHz.)
+  environment.sessionVariables = {
+    DXVK_FILTER_DEVICE_NAME = "Radeon";
+    VKD3D_FILTER_DEVICE_NAME = "Radeon";
+  };
+
+  # Declarative non-Steam shortcuts (kirk.steamShortcuts, modules/nixos). A
+  # oneshot runs before the display manager — before Jovian autostarts Steam —
+  # and adds any missing entries to shortcuts.vdf, so the Jellyfin/Plezy clients
+  # are in the library + game-mode without manual fiddling. steamRoot is the
+  # persisted real dir (~/.local/share/Steam is a symlink to it).
+  kirk.steamShortcuts = {
+    enable = true;
+    user = "user";
+    steamRoot = "/data/.state/user/steam";
+    # Authoritative: any non-Steam shortcut NOT declared here is removed.
+    pruneUnmanaged = true;
+    shortcuts = {
+      # Plezy is the Jellyfin/Plex client (the dedicated JF desktop clients
+      # didn't pan out), wearing the Jellyfin artwork.
+      "Plezy" = {
+        exe = "/run/current-system/sw/bin/plezy";
+        portrait = ../../../images/steam/jellyfin-portrait.png; # 600x900 library capsule
+        landscape = ../../../images/steam/jellyfin-landscape.png; # 920x430 big grid
+        hero = ../../../images/steam/jellyfin-hero.png; # 1920x620 banner
+        logo = ../../../images/steam/jellyfin-logo.png; # transparent logo
+        icon = ../../../images/steam/jellyfin-icon.png; # 256x256 list icon
+      };
+      "Firefox" = {
+        exe = "/run/current-system/sw/bin/firefox";
+        portrait = ../../../images/steam/firefox-portrait.png; # 600x900
+        landscape = ../../../images/steam/firefox-landscape.png; # 920x430
+        hero = ../../../images/steam/firefox-hero.png; # 3840x1240
+        logo = ../../../images/steam/firefox-logo.png; # 1363x480
+        icon = ../../../images/steam/firefox-icon.png; # 1024x1024
+      };
+      "Chromium" = {
+        exe = "/run/current-system/sw/bin/chromium";
+        # Fill the 4K TV with a readable UI (no gamescope nesting needed).
+        launchOptions = "%command% --window-size=3840,2160 --force-device-scale-factor=1.5";
+        portrait = ../../../images/steam/chromium-portrait.png; # 600x900
+        landscape = ../../../images/steam/chromium-landscape.png; # 920x430
+        hero = ../../../images/steam/chromium-hero.png; # 1920x620
+        logo = ../../../images/steam/chromium-logo.png; # 4315x1024
+        icon = ../../../images/steam/chromium-icon.png; # 256x256
+      };
+    };
   };
 
   hardware.enableRedistributableFirmware = true;
@@ -259,9 +379,9 @@ in {
       Type = "oneshot";
       RemainAfterExit = true;
       ExecStart = [
-        # Steady candlelight, same colour on both. 0D0300 = rgb(13,3,0).
-        "${config.services.hardware.openrgb.package}/bin/openrgb --mode static --color 0D0300"
-        "${config.services.hardware.openrgb.package}/bin/openrgb --device \"ASRock GPU\" --mode direct --color 0D0300"
+        # Steady candlelight, same colour on both. 0E0200 = rgb(14,2,0).
+        "${config.services.hardware.openrgb.package}/bin/openrgb --mode static --color 0E0200"
+        "${config.services.hardware.openrgb.package}/bin/openrgb --device \"ASRock GPU\" --mode direct --color 0E0200"
       ];
     };
   };
@@ -271,8 +391,8 @@ in {
   # (The board's Static mode survives sleep, but re-applying is harmless.)
   # NOTE: keep these colours in sync with the openrgb-color oneshot above.
   powerManagement.resumeCommands = ''
-    ${config.services.hardware.openrgb.package}/bin/openrgb --mode static --color 0D0300
-    ${config.services.hardware.openrgb.package}/bin/openrgb --device "ASRock GPU" --mode direct --color 0D0300
+    ${config.services.hardware.openrgb.package}/bin/openrgb --mode static --color 0E0200
+    ${config.services.hardware.openrgb.package}/bin/openrgb --device "ASRock GPU" --mode direct --color 0E0200
   '';
 
   # schedutil scales dynamically without `powersave`'s aggressive power-down.
@@ -297,6 +417,12 @@ in {
     # is created here. The /data/media/* XDG dirs already work via the
     # setgid 'media' group on /data/media.
     "d /data/downloads              0755 user users -"
+
+    # @persist NVMe subvol (mounted at /persist). The AI flake at
+    # /data/ai/flake.nix runs as 'user' and writes models/caches here, so the
+    # dir must be user-owned. (/persist/monero is created+owned by the monero
+    # module's createHome, so it needs no rule.)
+    "d /persist/ai                  0755 user users -"
   ];
 
   # -------------------- Server Defaults -------------------- #
@@ -345,7 +471,13 @@ in {
       enable = true;
       interval = "weekly";
     };
-    monero.enable = true;
+    monero = {
+      enable = true;
+      # Blockchain (~200 GB) lives on the @persist NVMe subvol, not the default
+      # /var/lib/monero. The module uses dataDir as the monero user's home and
+      # createHome makes it; migrated data keeps its monero:monero ownership.
+      dataDir = "/persist/monero";
+    };
     minecraft-server = {
       enable = true;
       openFirewall = true;
@@ -394,7 +526,11 @@ in {
     };
   };
 
-  networking.firewall.allowedTCPPorts = [8384];
+  programs.mosh.enable = true;
+  networking.firewall = {
+    allowedUDPPorts = [ 6000 ];
+    allowedTCPPorts = [ 8384 ];
+  };
 
   users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
     ../../../pubkeys/deck-oled.pub
@@ -453,10 +589,15 @@ in {
     settings = {
       experimental-features = ["nix-command" "flakes"];
       download-buffer-size = 500000000; # 500 MB
-      # Faster builds
+      # Faster builds: run derivations in parallel (max-jobs = auto = #cores)
+      # and let each use all cores. Oversubscribes on big parallel builds but
+      # maximizes throughput, which suits this box (it's also the remote builder).
+      max-jobs = "auto";
       cores = 0;
       # Return more information when errors happen
       show-trace = true;
+      # Let the nixremote build user (work + deck offload here) write the store.
+      trusted-users = ["root" "nixremote"];
     };
     # Use the pinned nixpkgs version that is already used, when using `nix shell nixpkgs#package`
     registry.nixpkgs = {
@@ -466,6 +607,21 @@ in {
       };
       flake = inputs.nixpkgs;
     };
+  };
+
+  # -------------------- Remote builder -------------------- #
+  # work + deck offload builds here over SSH (port 6000), authenticating as the
+  # dedicated `nixremote` user with each machine's key from /pubkeys. nixremote
+  # is a trusted nix user (see nix.settings.trusted-users) so it may populate
+  # the store. WAN/work case needs port 6000 forwarded at the router.
+  users.groups.nixremote = {};
+  users.users.nixremote = {
+    isNormalUser = true;
+    group = "nixremote";
+    openssh.authorizedKeys.keyFiles = [
+      ../../../pubkeys/work.pub
+      ../../../pubkeys/deck-oled.pub
+    ];
   };
 
   boot.loader.systemd-boot.enable = true;
@@ -602,7 +758,12 @@ in {
     firefox
     chromium
     openrgb
-    jellyfin-media-player
+    # plezy: Flutter Plex/Jellyfin client (libmpv), native nixpkgs build — our
+    # Jellyfin client. Dedicated JF desktop clients were dropped: JFv3 (Qt6 CEF)
+    # was buggy here, and the Qt5 jellyfin-media-player (nixpkgs-2405) segfaults
+    # on this stack (mpv can't init OpenGL). The commented jellyfinDesktopV3 let
+    # block above is the JFv3 AppImage wrap if it's ever wanted again.
+    plezy
 
     # Compression
     zip

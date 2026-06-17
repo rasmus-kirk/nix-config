@@ -177,6 +177,10 @@
             };
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
+            # Apps (e.g. KDE setting default handlers) replace HM-managed dotfiles
+            # like mimeapps.list with real files; back them up instead of failing
+            # activation. Matches the work host.
+            home-manager.backupFileExtension = "hm-backup";
           }
         ];
 
