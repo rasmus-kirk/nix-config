@@ -6,6 +6,10 @@
 }:
 with lib; let
   cfg = config.kirk.zsh;
+  todoPath =
+    if cfg.stateDir != null
+    then "${cfg.stateDir}/todo.md"
+    else "~/.local/share/todo.md";
 in {
   options.kirk.zsh = {
     enable = mkEnableOption "zsh configuration.";
@@ -23,51 +27,46 @@ in {
       enable = true;
       autosuggestion.enable = true;
       syntaxHighlighting.enable = true;
-      oh-my-zsh.enable = true;
+      # TODO: Shouldn't be necessary, testing it out
+      # oh-my-zsh.enable = true;
       history = mkIf (cfg.stateDir != null) {
         path = "${cfg.stateDir}/zsh/history";
       };
 
-      profileExtra = ''
+      sessionVariables = {
+        NIXPKGS_ALLOW_UNFREE = "1";
+        TERMINAL = "foot";
+        # TODO: Shouldn't be necessary, testing it out
         # Enable gnome discovery of nix installed programs
-        export XDG_DATA_DIRS="$HOME/.nix-profile/share:$XDG_DATA_DIRS"
-
+        # XDG_DATA_DIRS = "$HOME/.nix-profile/share:$XDG_DATA_DIRS";
         # Fix nix path, see: https://github.com/nix-community/home-manager/issues/2564#issuecomment-994943471
-        export NIX_PATH=''${NIX_PATH:+$NIX_PATH:}$HOME/.nix-defexpr/channels:/nix/var/nix/profiles/per-user/root/channels
-      '';
+        NIX_PATH = "\${NIX_PATH:+$NIX_PATH:}$HOME/.nix-defexpr/channels:/nix/var/nix/profiles/per-user/root/channels";
+      };
 
-      initContent = let
-        todoPath =
-          if cfg.stateDir != null
-          then "${cfg.stateDir}/todo.md"
-          else "~/.local/share/todo.md";
-      in ''
-        alias todo="$EDITOR ${todoPath}"
-        alias g="git"
-        # Fuck ghostscript!
-        alias gs="git status"
+      shellAliases = {
+        todo = "$EDITOR ${todoPath}";
+        g = "git";
+        gs = "git status"; # Fuck ghostscript!
+        t = "$TERMINAL </dev/null &>/dev/null zsh &";
+      };
 
-        # TODO: this is bad, generalize...
-        alias t="foot </dev/null &>/dev/null zsh &"
-
+      initContent = ''
         gc() {
           git clone --recursive $(wl-paste)
         }
-
         ns() {
           nix shell --impure nixpkgs#"$1" "''${@:2}"
         }
-
         nr() {
           nix run --impure nixpkgs#"$1" "''${@:2}"
         }
 
         # What is this?
-        if [[ $1 == eval ]]
-        then
-          "$@"
-        set --
-        fi
+        # if [[ $1 == eval ]]
+        # then
+        #   "$@"
+        # set --
+        # fi
       '';
 
       plugins = [
