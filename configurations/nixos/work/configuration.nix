@@ -274,9 +274,7 @@ in {
   environment.systemPackages = with pkgs; [
     # Misc
     keepassxc
-    thunderbird
     yubioath-flutter
-    ledger-live-desktop
     claude-code
     poppler-utils
     usbutils
@@ -286,6 +284,7 @@ in {
     gptfdisk
     dig
     finamp
+    spotify
 
     # Browsers
     chromium

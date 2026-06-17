@@ -177,7 +177,7 @@ with lib; let
       eval "$(/home/user/.nix-profile/bin/direnv export bash 2>/dev/null)" || true
     fi
     if [ "''${BOX_READ_ONLY:-0}" = "1" ]; then
-      echo "[box --read-only] $PWD is mounted read-only. Broker is unchanged; every op still approved via TUI."
+      echo "[box --read-only] $PWD is mounted read-only; .direnv/.devenv are ephemeral tmpfs. Broker is unchanged; every op still approved via TUI."
     fi
     if [ $# -eq 0 ]; then
       zsh
@@ -236,15 +236,29 @@ with lib; let
       else
         BOX_CWD_TOP="/tmp"
       fi
-      # --read-only flips the caller's $PWD bind from RW to RO. The flag is
-      # read here (in the same shell as extraBwrapArgs) so the bwrap CLI sees
-      # the right mount mode. BOX_READ_ONLY_VAL is the always-defined "0"/"1"
-      # string forwarded into the sandbox via --setenv below.
+      # --read-only mode: caller's $PWD is mounted strict-RO (--ro-bind-try),
+      # but .direnv/ and .devenv/ get fresh tmpfs holes so direnv/devenv can
+      # write their devshell state. Everything else in $PWD hits EROFS, which
+      # is the point: Claude sees a read-only filesystem and learns it can't
+      # mutate source. Direnv re-extracts on every box launch (~3-5s from
+      # already-realized /nix/store paths); the host's cached .direnv/.devenv
+      # is hidden by the tmpfs, not consulted.
+      #
+      # bwrap's --tmpfs needs the args BEFORE its mount point on the cmdline,
+      # and the RO mode needs more args (7) than default (3). extraBwrapArgs
+      # is a static Nix list, so we'd need padding or a second build to fit
+      # both modes through the same slot. Instead: write the variable-arity
+      # arg list to FD 10 as NUL-separated tokens and pass --args 10 to
+      # bwrap, which reads it like any other source. FD 9 is seccomp.
       BOX_READ_ONLY_VAL="''${BOX_READ_ONLY:-0}"
       if [ "$BOX_READ_ONLY_VAL" = "1" ]; then
-        BOX_PWD_BIND_FLAG="--ro-bind-try"
+        exec 10< <(${pkgs.coreutils}/bin/printf '%s\0' \
+          --ro-bind-try "$PWD" "$PWD" \
+          --tmpfs "$PWD/.direnv" \
+          --tmpfs "$PWD/.devenv")
       else
-        BOX_PWD_BIND_FLAG="--bind-try"
+        exec 10< <(${pkgs.coreutils}/bin/printf '%s\0' \
+          --bind-try "$PWD" "$PWD")
       fi
       ${optionalString (cfg.seccompFile != null) ''
         # Open the seccomp BPF program on FD 9; bwrap reads it via --seccomp 9.
@@ -316,9 +330,9 @@ with lib; let
       ++ cfg.extraBwrapArgs
       ++ optionals (cfg.seccompFile != null) ["--seccomp" "9"]
       # Auto-bind the caller's cwd LAST so it survives every mask above.
-      # Writable by default; --read-only flips this to --ro-bind-try via
-      # BOX_PWD_BIND_FLAG (set in extraPreBwrapCmds above).
-      ++ ["$BOX_PWD_BIND_FLAG" "$PWD" "$PWD"];
+      # The $PWD bind args (and any RO-mode tmpfs holes) live on FD 10,
+      # populated by extraPreBwrapCmds above.
+      ++ ["--args" "10"];
   };
 
   # Single entry-point — the FHS env wrapper. When network.enable=true the

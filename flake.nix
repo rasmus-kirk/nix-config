@@ -39,9 +39,6 @@
     submerger.url = "github:rasmus-kirk/submerger";
     submerger.inputs.nixpkgs.follows = "nixpkgs";
 
-    # Private game source — github.com/rasmus-kirk/ballbrawl (private repo).
-    # Fetched over SSH using the YubiKey-SK key at `nix flake update` time;
-    # flake.lock pins the rev so normal builds don't re-fetch.
     ballbrawl = {
       url = "git+ssh://git@github.com/rasmus-kirk/ballbrawl.git";
       inputs.nixpkgs.follows = "nixpkgs";
