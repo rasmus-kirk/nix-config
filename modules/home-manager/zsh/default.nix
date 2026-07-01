@@ -51,6 +51,11 @@ in {
       };
 
       initContent = ''
+        # Required for $(build_prompt) in gruvbox-powerline.zsh-theme to
+        # be evaluated each render. oh-my-zsh used to set this for us;
+        # now that OMZ is off we set it explicitly.
+        setopt PROMPT_SUBST
+
         gc() {
           git clone --recursive $(wl-paste)
         }

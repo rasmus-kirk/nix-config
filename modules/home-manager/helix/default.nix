@@ -95,7 +95,10 @@ in {
             name = "rust";
             auto-format = true;
             roots = ["Cargo.toml" "Cargo.lock"];
-            language-servers = ["rust-analyzer" "harper-ls"];
+            language-servers = [
+              "rust-analyzer"
+              # "harper-ls"
+            ];
           }
           {
             name = "c-sharp";
