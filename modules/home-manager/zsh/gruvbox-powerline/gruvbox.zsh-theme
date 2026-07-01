@@ -242,4 +242,10 @@ build_prompt() {
   prompt_end
 }
 
+# PROMPT uses a $(...) command substitution, so prompt expansion must be on
+# *before* the prompt is first rendered (the in-function `setopt promptsubst`
+# in prompt_git can't bootstrap that — it never runs until $(build_prompt) is
+# already being evaluated). Previously this was set implicitly by NixOS's
+# system /etc/zshrc `promptinit`; set it here so the theme is self-contained.
+setopt prompt_subst
 PROMPT='%{%f%b%k%}$(build_prompt) '

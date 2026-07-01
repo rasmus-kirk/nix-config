@@ -7,6 +7,11 @@
 with lib; let
   cfg = config.kirk.jiten;
 
+  stateDir =
+    if cfg.stateDir != null
+    then cfg.stateDir
+    else config.xdg.stateHome;
+
   word-of-the-day = pkgs.writeShellApplication {
     name = "word-of-the-day";
 
@@ -14,7 +19,7 @@ with lib; let
     inheritPath = false;
 
     text = ''
-      path=${config.xdg.stateHome}/word-of-the-day
+      path=${stateDir}/word-of-the-day
       mkdir -p $path
 
       jiten --colour -v jmdict --romaji -n 1 +random | tail -n +3 > $path/japanese.txt
@@ -31,6 +36,12 @@ in {
       default = true;
       description = "Enable daily japanese word prompt.";
     };
+
+    stateDir = mkOption {
+      type = with types; nullOr path;
+      default = null;
+      description = "Path to store state for the daily word.";
+    };
   };
 
   config = mkIf cfg.enable {
@@ -39,7 +50,7 @@ in {
     programs.zsh.initContent = mkIf cfg.dailyWord ''
       if [[ -z "$ZSH_WORD_DISPLAYED" ]]; then
         export ZSH_WORD_DISPLAYED=true
-        cat ${config.xdg.stateHome}/word-of-the-day/japanese.txt
+        cat ${stateDir}/word-of-the-day/japanese.txt
       fi
     '';
 
