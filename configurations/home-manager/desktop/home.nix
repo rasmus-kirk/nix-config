@@ -2,6 +2,7 @@
 {
   pkgs,
   config,
+  inputs,
   ...
 }: let
   dataDir = "/data";
@@ -16,13 +17,17 @@ in {
     foot.enable = true;
     mpv.enable = true;
     mvi.enable = true;
-    # Keep the LG TV's HDMI audio sink from powering down on silence by
-    # playing a sub-audible 20Hz tone after idle. Defaults; auto-suspend
-    # stays off (minutesUntilSuspend = 0) since this box is also a server.
-    rustle = {
+    # TV liveness over HDMI-CEC, subsuming rustle (no standalone kirk.rustle
+    # here anymore). Always-on box, so the TV follows *activity*, not power:
+    # idle (no /dev/input events AND no real audio) for idleMinutes -> TV
+    # standby; any key/controller/mouse or audio -> wake. While the TV is
+    # awake it emulates rustle: watches the sink monitor (RMS) and, after
+    # ~10 min of silence, plays a 10s sub-audible pulse so the speaker doesn't
+    # hit its EU-mandated standby — reset on real sound, nothing while asleep.
+    cec = {
       enable = true;
-      debug.enable = true; # RUST_LOG=debug + periodic status — diagnosing the speaker drop
-      amplitude = 0.05; # louder keep-alive tone (default 0.01) so the TV registers it as audio
+      sink = "alsa_output.pci-0000_03_00.1.hdmi-stereo-extra2"; # the LG TV (Navi 48 HDMI)
+      keepAwake.debug = true; # TEMP: verify monitor RMS in the journal
     };
     xdgMime.enable = true;
     stateBackup.enable = false;
@@ -39,7 +44,10 @@ in {
       configDir = configDir;
       machine = machine;
     };
-    jiten.enable = true;
+    jiten = {
+      enable = true;
+      stateDir = stateDir;
+    };
     scripts.enable = true;
     yazi = {
       enable = true;
@@ -64,6 +72,14 @@ in {
       stateDir = stateDir;
     };
     fonts.enable = true;
+    box = {
+      enable = true;
+      githubTokenFile = "${secretDir}/github/qms-pat-global-ro";
+      githubPrBroker = {
+        enable = true;
+        writeTokenFile = "${secretDir}/github/qms-pat-pr-rw";
+      };
+    };
     chromiumLaunchers = {
       enable = true;
       stateDir = stateDir;
@@ -101,26 +117,36 @@ in {
     "d ${stateDir}/firefox/config  0755 user users - -"
     "d ${stateDir}/firefox/home    0755 user users - -"
     "d ${stateDir}/chromium        0755 user users - -"
+    # Dedicated Chromium profiles for the game-mode Steam tiles, each its own
+    # Steam-tracked primary instance (so --force-device-scale-factor applies) and
+    # its own logins/YouTube account: the Jellyfin kiosk, plus a per-person
+    # browser tile for Rasmus and his girlfriend (see kirk.steamShortcuts).
+    "d ${stateDir}/jellyfin-web    0700 user users - -"
+    "d ${stateDir}/chromium-rasmus 0700 user users - -"
+    "d ${stateDir}/chromium-naja   0700 user users - -"
     "d ${stateDir}/yubico          0755 user users - -"
     "d ${stateDir}/claude          0755 user users - -"
     "d ${stateDir}/claude/state    0755 user users - -"
-    "d ${stateDir}/steam           0755 user users - -"
-    "d ${stateDir}/steam-compat    0755 user users - -"
+    "d ${stateDir}/steam                 0755 user users - -"
+    "d ${stateDir}/steam/steam           0755 user users - -"
+    "d ${stateDir}/steam/steam-compat    0755 user users - -"
+    "d ${stateDir}/steam/gamescope       0755 user users - -"
+    "d ${stateDir}/steam/steamos-manager 0755 user users - -"
     "d ${stateDir}/plezy           0755 user users - -"
-    "d ${stateDir}/jellyfin-desktop-config 0755 user users - -"
-    "d ${stateDir}/jellyfin-desktop-data   0755 user users - -"
     "d ${stateDir}/jellyfinmediaplayer     0755 user users - -"
     "d ${stateDir}/zsh             0755 user users - -"
     "d ${stateDir}/cosmic          0755 user users - -"
     "d ${stateDir}/cosmic/config   0755 user users - -"
     "d ${stateDir}/cosmic/comp     0755 user users - -"
     "d ${stateDir}/cosmic/local    0755 user users - -"
+    "d ${stateDir}/btop            0755 user users - -"
 
     "L+ ${config.home.homeDirectory}/.thunderbird               - - - - ${stateDir}/thunderbird"
     "L+ ${config.home.homeDirectory}/.mozilla                   - - - - ${stateDir}/firefox/home"
     "L+ ${config.home.homeDirectory}/.config/mozilla            - - - - ${stateDir}/firefox/config"
     "L+ ${config.home.homeDirectory}/.config/chromium           - - - - ${stateDir}/chromium"
     "L+ ${config.home.homeDirectory}/.config/Yubico             - - - - ${stateDir}/yubico"
+    "L+ ${config.home.homeDirectory}/.config/btop/btop.conf     - - - - ${stateDir}/btop/btop.conf"
 
     "L+ ${config.home.homeDirectory}/.config/cosmic             - - - - ${stateDir}/cosmic/config"
     "L+ ${config.home.homeDirectory}/.local/state/cosmic        - - - - ${stateDir}/cosmic/local"
@@ -129,16 +155,18 @@ in {
     "L+ ${config.home.homeDirectory}/.claude                    - - - - ${stateDir}/claude/state"
     "L+ ${config.home.homeDirectory}/.claude.json               - - - - ${stateDir}/claude/claude.json"
 
-    "L+ ${config.home.homeDirectory}/.local/share/Steam         - - - - ${stateDir}/steam"
-    "L+ ${config.home.homeDirectory}/.steam                     - - - - ${stateDir}/steam-compat"
+    "L+ ${config.home.homeDirectory}/.local/share/Steam         - - - - ${stateDir}/steam/steam"
+    "L+ ${config.home.homeDirectory}/.steam                     - - - - ${stateDir}/steam/steam-compat"
+    # jovian/gamescope gaming-mode settings live OUTSIDE the Steam root, so
+    # they need explicit persistence or the @root rollback resets them every
+    # boot: gamescope display modes/EDID + steamos-manager state.
+    "L+ ${config.home.homeDirectory}/.config/gamescope          - - - - ${stateDir}/steam/gamescope"
+    "L+ ${config.home.homeDirectory}/.config/steamos-manager    - - - - ${stateDir}/steam/steamos-manager"
 
-    # Jellyfin client state, persisted across the @root rollback:
-    #   - JFv3 (AppImage): login/cookies in ~/.config/jellyfin-desktop, data in
-    #     ~/.local/share/jellyfin-desktop. ~/.cache/jellyfin-desktop is
-    #     regenerable, so left ephemeral.
+    # Jellyfin client state, persisted across the @root rollback. The native
+    # jellyfin-desktop client was removed (can't run under gamescope); the web UI
+    # runs in a Chromium kiosk whose profile lives under ${stateDir}/jellyfin-web.
     #   - Plezy (Flutter, nixpkgs): ~/.local/share/com.edde746.plezy.
-    "L+ ${config.home.homeDirectory}/.config/jellyfin-desktop       - - - - ${stateDir}/jellyfin-desktop-config"
-    "L+ ${config.home.homeDirectory}/.local/share/jellyfin-desktop  - - - - ${stateDir}/jellyfin-desktop-data"
     # Old Qt5 JMP (jellyfin-media-player from nixpkgs-2405) — its login/config.
     "L+ ${config.home.homeDirectory}/.local/share/jellyfinmediaplayer - - - - ${stateDir}/jellyfinmediaplayer"
     "L+ ${config.home.homeDirectory}/.local/share/com.edde746.plezy - - - - ${stateDir}/plezy"
@@ -157,6 +185,12 @@ in {
 
   programs.zsh.profileExtra = ''
     export TERM=foot
+    # GitHub PAT for the github MCP plugin when Claude Code runs on host.
+    # In the box, this token is exported via the sandbox initScript; this
+    # mirrors that behaviour for host shells.
+    if [ -r ${secretDir}/github/qms-pat-global-ro ]; then
+      export GITHUB_PERSONAL_ACCESS_TOKEN="$(tr -d '[:space:]' < ${secretDir}/github/qms-pat-global-ro)"
+    fi
   '';
 
   programs.direnv = {
@@ -177,5 +211,30 @@ in {
     First Use=false
   '';
 
-  home.packages = with pkgs; [];
+  # box-approver is launched manually by the user from a terminal. We wrap
+  # it in a small shell script that hard-codes all the BOX_* env vars (PAT
+  # paths, notify binaries, sound file) so launches survive stale shells /
+  # non-shell launchers — no reliance on home.sessionVariables. Mirrors the
+  # work machine; uses the same QMS PAT/Linear secrets.
+  home.packages = let
+    boxBrokerPkg = inputs.self.packages.${pkgs.system}.box-broker;
+    boxApproverWrapped = pkgs.writeShellApplication {
+      name = "box-approver";
+      runtimeInputs = [];
+      inheritPath = true;
+      text = ''
+        export BOX_GH_PAT_FILE="${secretDir}/github/qms-pat-pr-rw"
+        export BOX_LINEAR_PAT_FILE="${secretDir}/linear/pat"
+        export BOX_NOTIFY_BIN="${pkgs.libnotify}/bin/notify-send"
+        export BOX_PW_CAT_BIN="${pkgs.pipewire}/bin/pw-cat"
+        export BOX_NOTIFY_SOUND="${pkgs.sound-theme-freedesktop}/share/sounds/freedesktop/stereo/message.oga"
+        exec ${boxBrokerPkg}/bin/box-approver "$@"
+      '';
+    };
+  in
+    with pkgs; [
+      bubblewrap
+      socat
+      boxApproverWrapped
+    ];
 }

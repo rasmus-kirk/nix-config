@@ -13,6 +13,42 @@
   stateDir = "${dataDir}/.state";
   transmissionPort = 33915;
 
+  # Chromium-based non-Steam tiles run as launcher SCRIPTS, not raw `chromium` +
+  # launch options, for two reasons that bite every Chromium/Electron app started
+  # from Steam game mode:
+  #   1. Steam's %command% expands to EMPTY for non-Steam shortcuts, so a
+  #      launch-options command line loses its exe (/bin/sh then runs the first
+  #      flag as a program). The args must live in the script.
+  #   2. Steam injects its overlay via LD_PRELOAD=gameoverlayrenderer.so, which
+  #      crashes Chromium's zygote/sandbox (SIGABRT in ZygoteHostImpl::
+  #      LaunchZygote, gameoverlayrenderer.so frames on the stack); Steam then
+  #      limps up only after retrying — the long startup. Unsetting LD_PRELOAD
+  #      drops the overlay from chromium and its subprocesses and KEEPS the
+  #      sandbox intact (unlike --no-sandbox). --ozone-platform=x11 uses
+  #      gamescope's XWayland.
+  mkChromiumTile = name: args:
+    pkgs.writeShellScriptBin name ''
+      unset LD_PRELOAD
+      exec ${pkgs.chromium}/bin/chromium --ozone-platform=x11 ${args} "$@"
+    '';
+  # Jellyfin web UI: fullscreen kiosk on its own profile (independent instance,
+  # never attaches to the plain Chromium tile).
+  jellyfin-kiosk = mkChromiumTile "jellyfin-kiosk"
+    "--user-data-dir=${stateDir}/user/jellyfin-web --app=http://localhost:8096 --kiosk --no-first-run --window-size=3840,2160 --force-device-scale-factor=2.0";
+  # Per-person Chromium browser tiles, fullscreen + scaled for the 4K TV. Each
+  # has its OWN --user-data-dir so each person gets their own logins/YouTube
+  # account. Use --start-fullscreen, NOT --window-size: Chromium treats
+  # --window-size as LOGICAL px and multiplies by the device scale, so
+  # --window-size=3840,2160 + scale 2.0 makes a 7680x4320 window that gamescope
+  # then downscales 0.5x to fit the output — cancelling the scale (looked 1x).
+  # Fullscreen sizes the window to the output, so scale 2.0 renders cleanly (this
+  # is why the --kiosk JF tile scaled fine and the windowed browser didn't).
+  mkChromiumBrowser = name: profile:
+    mkChromiumTile name
+    "--user-data-dir=${stateDir}/user/${profile} --window-size=3840,2160 --start-fullscreen --force-device-scale-factor=2.0";
+  chromium-rasmus = mkChromiumBrowser "chromium-rasmus" "chromium-rasmus";
+  chromium-naja = mkChromiumBrowser "chromium-naja" "chromium-naja";
+
   # JFv3 — the new CEF/mpv Jellyfin Desktop client, wrapped from its prebuilt
   # nightly AppImage. nixpkgs only ships the old Qt 2.0.0 (broken by qtwebengine
   # 6.11.0, nixpkgs#519073), and v3 has no versioned release to package from
@@ -157,6 +193,18 @@ in {
   systemd.services.radarr-sync-config.enable = false;
   systemd.services.sonarr-sync-config.enable = false;
 
+  # Syncthing creates dirs 750 / files 640 (group `sync` read-only). See
+  # services.syncthing.group above.
+  systemd.services.syncthing.serviceConfig.UMask = "0027";
+
+  # nixarr runs audiobookshelf with ProtectSystem=strict and only its state
+  # dir in ReadWritePaths, so /data/media is read-only to it. Fine for
+  # audiobooks (playback only reads), but it breaks PODCASTS, which need ABS to
+  # write episodes into the library -> "ENOENT mkdir .../podcasts/<show>".
+  # Grant the podcasts library write access. TODO: fix upstream in nixarr.
+  systemd.services.audiobookshelf.serviceConfig.ReadWritePaths =
+    lib.mkForce ["/data/.state/nixarr/audiobookshelf" "/data/media/library/podcasts"];
+
   # -------------------- Ballbrawl -------------------- #
   # game.<bare-domain> served by the ballbrawl flake module. The DDNS
   # entry (nixarr.ddns.nineteenEightyFour) already keeps subdomains of
@@ -279,21 +327,35 @@ in {
   };
 
   # Declarative non-Steam shortcuts (kirk.steamShortcuts, modules/nixos). A
-  # oneshot runs before the display manager — before Jovian autostarts Steam —
-  # and adds any missing entries to shortcuts.vdf, so the Jellyfin/Plezy clients
-  # are in the library + game-mode without manual fiddling. steamRoot is the
-  # persisted real dir (~/.local/share/Steam is a symlink to it).
+  # per-user oneshot runs before Jovian's steam-launcher (re)starts Steam — on
+  # every game-mode entry, so it applies on desktop<->game-mode switches without
+  # a reboot — and reconciles shortcuts.vdf to the declared set.
+  #
+  # steamRoot MUST be the real Steam data dir that ~/.local/share/Steam resolves
+  # to. home.nix persists that at ${stateDir}/steam/steam (the /steam container
+  # also holds steam-compat/gamescope/steamos-manager siblings), so it's nested
+  # one level under ${stateDir}/steam. Pointing steamRoot at the parent writes to
+  # a phantom userdata/ tree Steam never reads (the long-standing "shortcuts
+  # never apply" bug) — it needs the trailing /steam.
   kirk.steamShortcuts = {
     enable = true;
     user = "user";
-    steamRoot = "/data/.state/user/steam";
+    steamRoot = "/data/.state/user/steam/steam";
     # Authoritative: any non-Steam shortcut NOT declared here is removed.
     pruneUnmanaged = true;
     shortcuts = {
-      # Plezy is the Jellyfin/Plex client (the dedicated JF desktop clients
-      # didn't pan out), wearing the Jellyfin artwork.
-      "Plezy" = {
-        exe = "/run/current-system/sw/bin/plezy";
+      # Jellyfin tile = the JF web UI in a Chromium kiosk. The native
+      # xaltsc/jellyfin-desktop client was dropped: it CANNOT run under gamescope
+      # (its renderer composites mpv as a wayland subsurface sized via
+      # wp_viewporter over a single_pixel_buffer backdrop, and gamescope
+      # implements none of wl_subcompositor / wp_viewporter /
+      # wp_single_pixel_buffer_manager_v1; its x11 backend dies with a wgpu
+      # swapchain DEVICE LOST). Chromium renders fine under gamescope, so the tile
+      # opens the web client — and it works identically in desktop mode. Dedicated
+      # --user-data-dir (own persisted profile, see home.nix tmpfiles) so it's a
+      # tracked standalone process and never attaches to the Chromium tile.
+      "Jellyfin" = {
+        exe = "${jellyfin-kiosk}/bin/jellyfin-kiosk";
         portrait = ../../../images/steam/jellyfin-portrait.png; # 600x900 library capsule
         landscape = ../../../images/steam/jellyfin-landscape.png; # 920x430 big grid
         hero = ../../../images/steam/jellyfin-hero.png; # 1920x620 banner
@@ -309,14 +371,25 @@ in {
         icon = ../../../images/steam/firefox-icon.png; # 1024x1024
       };
       "Chromium" = {
-        exe = "/run/current-system/sw/bin/chromium";
-        # Fill the 4K TV with a readable UI (no gamescope nesting needed).
-        launchOptions = "%command% --window-size=3840,2160 --force-device-scale-factor=1.5";
+        # Wrapper (strips Steam's overlay LD_PRELOAD, fills the 4K TV, own
+        # profile); raw chromium + %command% launch options fails from game mode.
+        exe = "${chromium-rasmus}/bin/chromium-rasmus";
         portrait = ../../../images/steam/chromium-portrait.png; # 600x900
         landscape = ../../../images/steam/chromium-landscape.png; # 920x430
         hero = ../../../images/steam/chromium-hero.png; # 1920x620
         logo = ../../../images/steam/chromium-logo.png; # 4315x1024
         icon = ../../../images/steam/chromium-icon.png; # 256x256
+      };
+      # Naja's browser — separate profile (own logins/YouTube). Uses Google
+      # Chrome artwork (chrome-*, from SteamGridDB) so it's visually distinct from
+      # Rasmus's Chromium tile above.
+      "Chromium (Naja)" = {
+        exe = "${chromium-naja}/bin/chromium-naja";
+        portrait = ../../../images/steam/chrome-portrait.png; # 600x900
+        landscape = ../../../images/steam/chrome-landscape.png; # 920x430
+        hero = ../../../images/steam/chrome-hero.png; # 1920x620
+        logo = ../../../images/steam/chrome-logo.png; # 1271x337
+        icon = ../../../images/steam/chrome-icon.png; # 256x256
       };
     };
   };
@@ -423,6 +496,11 @@ in {
     # dir must be user-owned. (/persist/monero is created+owned by the monero
     # module's createHome, so it needs no rule.)
     "d /persist/ai                  0755 user users -"
+
+    # Steam libraries: parent + the samsung dir (a plain dir on the root NVMe).
+    # /persist/games/sandisk is a mountpoint (the SanDisk), handled by fileSystems.
+    "d /persist/games               0755 user users -"
+    "d /persist/games/samsung       0755 user users -"
   ];
 
   # -------------------- Server Defaults -------------------- #
@@ -450,12 +528,20 @@ in {
 
   # cosmic-greeter handles login; no getty auto-login.
   services.logind.settings.Login.HandleLidSwitch = "ignore";
+  # Always-on server: the suspend/sleep key must never suspend it. This also
+  # frees that key to be repurposed as a "wake TV" button (see kirk.cec).
+  services.logind.settings.Login.HandleSuspendKey = "ignore";
+  services.logind.settings.Login.HandleSuspendKeyLongPress = "ignore";
 
   # -------------------- Syncthing -------------------- #
 
   services = {
     syncthing = {
       enable = true;
+      # Run as group `sync` (which `user` is in) so synced data is
+      # group-readable. UMask 0027 -> new dirs 750, files 640: the sync group
+      # can enter/read but not write (see systemd.services.syncthing below).
+      group = "sync";
       configDir = "${stateDir}/syncthing";
       dataDir = "${dataDir}/sync";
       guiAddress = "0.0.0.0:8384";
@@ -630,20 +716,50 @@ in {
   # -------------------- Machine Specific -------------------- #
 
   users.mutableUsers = false;
+  # Shared group for syncthing data: `user` is a member (extraGroups below)
+  # and syncthing runs as this group, so synced files are group-readable.
+  users.groups.sync = {};
+  users.groups.cectv = {};
+
+  # The CEC daemon's narrow access: the CEC adapter + the keystroke-free
+  # "System Control" node (the remote's sleep key, hijacked as a wake button).
+  # Nothing in `input`/`video` — so no user process can read keyboards.
+  services.udev.extraRules = ''
+    SUBSYSTEM=="cec", KERNEL=="cec[0-9]*", GROUP="cectv", MODE="0660"
+    SUBSYSTEM=="input", KERNEL=="event[0-9]*", ATTRS{name}=="*System Control*", GROUP="cectv", MODE="0660"
+    SUBSYSTEM=="input", KERNEL=="event[0-9]*", ATTRS{name}=="*Consumer Control*", GROUP="cectv", MODE="0660"
+  '';
   users.users."user" = {
-    shell = pkgs.zsh;
     isNormalUser = true;
     hashedPasswordFile = config.age.secrets.user.path;
-    extraGroups = ["networkmanager" "wheel" "render"];
+    # cectv is the CEC TV-liveness daemon's entire privileged surface: a udev
+    # rule (below) puts /dev/cec0 and the keystroke-free "System Control"
+    # sleep-key node into it, and nothing else. Deliberately NOT in `input`
+    # (no keyboard access -> no keylogging), `video` (no screen/scanout or
+    # webcam), or `render`. sync: syncthing data access.
+    extraGroups = ["networkmanager" "wheel" "sync" "cectv"];
   };
 
   hardware.graphics.enable = true; # Wayland / Cosmic / Vulkan
+  # Intel iGPU (0x7d67) media stack, for Jellyfin hardware transcoding on the
+  # render node (renderD129) — keeps the AMD dGPU free for gaming. Without these
+  # only the AMD radeonsi VA-API driver is present (no iHD), so the iGPU can't
+  # transcode. intel-media-driver = iHD VA-API; vpl-gpu-rt = oneVPL runtime for
+  # Jellyfin's preferred Intel QSV path.
+  hardware.graphics.extraPackages = with pkgs; [
+    intel-media-driver
+    vpl-gpu-rt
+  ];
   networking = {
     hostName = machine;
     networkmanager.enable = true;
   };
 
-  programs.zsh.enable = true;
+  # Intentionally no system `programs.zsh` (matches work). Login shell is
+  # bash -> `exec zsh` (home-manager), so /etc/zsh* aren't needed. Enabling
+  # it generates /etc/zshenv|zshrc|zprofile, which buildFHSEnv then symlinks
+  # into the `box` sandbox (its hardcoded /etc list) where the host's
+  # `prompt suse` + `hostname --fqdn` break the box shell.
 
   # -------------------- YubiKey (U2F) -------------------- #
   # Touch-to-authenticate for local sudo, TTY login, and the Cosmic
@@ -738,6 +854,24 @@ in {
     ];
   };
 
+  # Steam libraries, to keep games off the 8TB /data pool:
+  #  - /persist/games/sandisk: the dedicated SanDisk SSD (unencrypted btrfs,
+  #    label "games", @games subvol). Loaded late (not neededForBoot).
+  #  - /persist/games/samsung: a plain dir on the root NVMe's free space
+  #    (encrypted via cryptroot) -- no separate device, just declared below.
+  fileSystems."/persist/games/sandisk" = {
+    device = "/dev/disk/by-label/games";
+    fsType = "btrfs";
+    options = [
+      "defaults"
+      "noatime"
+      "nodiratime"
+      "compress=zstd"
+      "discard=async"
+      "subvol=@games"
+    ];
+  };
+
   # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
 
@@ -758,11 +892,12 @@ in {
     firefox
     chromium
     openrgb
-    # plezy: Flutter Plex/Jellyfin client (libmpv), native nixpkgs build — our
-    # Jellyfin client. Dedicated JF desktop clients were dropped: JFv3 (Qt6 CEF)
-    # was buggy here, and the Qt5 jellyfin-media-player (nixpkgs-2405) segfaults
-    # on this stack (mpv can't init OpenGL). The commented jellyfinDesktopV3 let
-    # block above is the JFv3 AppImage wrap if it's ever wanted again.
+    v4l-utils # cec-ctl: HDMI-CEC control (TV power/input over /dev/cec0)
+    # No native Jellyfin desktop client. xaltsc/jellyfin-desktop can't run under
+    # gamescope game mode (its wgpu/subsurface renderer needs wl_subcompositor /
+    # wp_viewporter, which gamescope lacks; its x11 backend dies with a wgpu
+    # DEVICE LOST), so the JF web UI in a Chromium kiosk is used for both game
+    # and desktop mode (see kirk.steamShortcuts). plezy kept as a light fallback.
     plezy
 
     # Compression

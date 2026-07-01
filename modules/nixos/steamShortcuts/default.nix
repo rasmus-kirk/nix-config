@@ -1,9 +1,10 @@
 # Declaratively manage non-Steam shortcuts (shortcuts.vdf) and their SteamGridDB
-# artwork. A oneshot runs before the display manager — i.e. before Jovian
-# autostarts Steam — and adds any missing entries + installs artwork into
-# userdata/<id>/config/grid/. Steam reads shortcuts.vdf at startup and rewrites
-# it on exit, so editing it before Steam launches is the safe window; the worker
-# also refuses to run while Steam is up.
+# artwork. A per-user oneshot runs just before Steam launches in the gamescope
+# session — i.e. before Jovian's steam-launcher.service starts Steam — and adds
+# any missing entries + installs artwork into userdata/<id>/config/grid/. Steam
+# reads shortcuts.vdf at startup and rewrites it on exit, so editing it before
+# Steam launches is the safe window; the worker also refuses to run while Steam
+# is up.
 {
   config,
   pkgs,
@@ -128,17 +129,22 @@ in {
   };
 
   config = mkIf cfg.enable {
-    systemd.services.steam-shortcuts = {
+    # A *user* service, not a system one. On Jovian the desktop<->gaming switch
+    # never restarts display-manager.service (SDDM is a persistent greeter; every
+    # session logs in under it), so hooking the system DM never re-fired. The
+    # gamescope game-mode session is driven entirely by the user's systemd
+    # instance, where steam-launcher.service starts Steam. We pull this oneshot
+    # into that unit and order it first, so it runs on every gaming-session entry
+    # -- exactly the window Steam is down and shortcuts.vdf is safe to rewrite.
+    # Wants (not Requires), so a sync failure never blocks Steam from launching.
+    # No RemainAfterExit, so it goes inactive and re-runs each session.
+    systemd.user.services.steam-shortcuts = {
       description = "Apply declarative non-Steam shortcuts + artwork to Steam";
-      wantedBy = ["multi-user.target"];
-      # Land before Jovian autostarts Steam (Steam clobbers shortcuts.vdf on exit).
-      before = ["display-manager.service"];
-      after = ["local-fs.target"];
-      unitConfig.RequiresMountsFor = [cfg.steamRoot];
+      wantedBy = ["steam-launcher.service"];
+      before = ["steam-launcher.service"];
       path = [pkgs.procps]; # pgrep, for the "is Steam running?" guard
       serviceConfig = {
         Type = "oneshot";
-        User = cfg.user;
         ExecStart = "${pyEnv}/bin/python3 ${./apply-steam-shortcuts.py} ${desiredFile} ${cfg.steamRoot}";
       };
     };

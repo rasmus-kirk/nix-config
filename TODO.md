@@ -147,3 +147,30 @@ provides them on the target machine?** Defaults to "assume" probably,
 with documentation that ports work but LSP/preview features need the
 user to have those tools installed. For tools where the runtime deps
 are tiny (mvi's mpv plugins) — bundle. For helix-with-LSPs — don't.
+
+## Upstream nixarr: audiobookshelf can't write the media library (podcasts)
+
+**Problem:** nixarr's `audiobookshelf` module runs the service with
+`ProtectSystem=strict` and `ReadWritePaths` set to only its state dir
+(`/data/.state/nixarr/audiobookshelf`). That makes `/data/media`
+**read-only** inside the service's mount namespace. Fine for audiobooks
+(playback only reads; metadata goes to the rw state dir), but it breaks
+**podcasts** — ABS must write episodes into the podcast library, so adding
+a podcast fails with `ENOENT/EROFS mkdir /data/media/library/podcasts/<show>`
+and the scanner logs `Root path has no media folders`.
+
+**Local workaround** (in `configurations/nixos/desktop/configuration.nix`):
+
+```nix
+systemd.services.audiobookshelf.serviceConfig.ReadWritePaths =
+  lib.mkForce ["/data/.state/nixarr/audiobookshelf" "/data/media/library/podcasts"];
+```
+
+**Upstream fix:** when audiobookshelf is enabled, nixarr should add the
+podcast library path (or the media library dir) to the service's
+`ReadWritePaths` so ABS can write episodes — otherwise podcast support is
+silently broken out of the box. Likely wants a module option for which
+library subdirs ABS may write, defaulting to the podcast dir. Related:
+the `StateDirectory=` is also set to an absolute path, which systemd
+ignores (`StateDirectory= path is absolute, ignoring`) — worth cleaning
+up in the same pass.
