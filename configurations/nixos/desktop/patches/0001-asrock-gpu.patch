@@ -1,0 +1,540 @@
+From a94eafcd4b42d61593067ca103a8b6140677303b Mon Sep 17 00:00:00 2001
+From: C0mpanionii <c0mpanionii@users.noreply.github.com>
+Date: Tue, 4 Nov 2025 14:19:44 -0500
+Subject: [PATCH] Add ASRock GPU RGB controller support
+
+- Add support for ASRock GPU RGB controllers (tested on RX 9070 XT Steel Legend)
+- Implements I2C protocol reverse-engineered from SignalRGB
+- Detects device at address 0x36 on AMD GPU I2C buses
+- Supports 3 RGB zones: ARGB Header, Top Side, and Fan
+- Uses pure I2C block read/write (not SMBus)
+- Tested and working on ASRock RX 9070 XT Steel Legend 16GB (PCI ID 1002:7550, SubVendor 1849:5403)
+---
+ .../ASRockGPUSMBusController.cpp              | 195 ++++++++++++++++++
+ .../ASRockGPUSMBusController.h                |  55 +++++
+ .../RGBController_ASRockGPUSMBus.cpp          | 127 ++++++++++++
+ .../RGBController_ASRockGPUSMBus.h            |  34 +++
+ .../ASRockSMBusControllerDetect.cpp           |  59 ++++++
+ 5 files changed, 470 insertions(+)
+ create mode 100644 Controllers/ASRockSMBusController/ASRockGPUSMBusController/ASRockGPUSMBusController.cpp
+ create mode 100644 Controllers/ASRockSMBusController/ASRockGPUSMBusController/ASRockGPUSMBusController.h
+ create mode 100644 Controllers/ASRockSMBusController/ASRockGPUSMBusController/RGBController_ASRockGPUSMBus.cpp
+ create mode 100644 Controllers/ASRockSMBusController/ASRockGPUSMBusController/RGBController_ASRockGPUSMBus.h
+
+diff --git a/Controllers/ASRockSMBusController/ASRockGPUSMBusController/ASRockGPUSMBusController.cpp b/Controllers/ASRockSMBusController/ASRockGPUSMBusController/ASRockGPUSMBusController.cpp
+new file mode 100644
+index 00000000..b9b9acea
+--- /dev/null
++++ b/Controllers/ASRockSMBusController/ASRockGPUSMBusController/ASRockGPUSMBusController.cpp
+@@ -0,0 +1,195 @@
++/*---------------------------------------------------------*\
++| ASRockGPUSMBusController.cpp                              |
++|                                                           |
++|   Driver for ASRock GPU RGB controllers                   |
++|                                                           |
++|   Based on SignalRGB ASRock GPU.js plugin                 |
++|                                                           |
++|   This file is part of the OpenRGB project                |
++|   SPDX-License-Identifier: GPL-2.0-or-later               |
++\*---------------------------------------------------------*/
++
++#include "ASRockGPUSMBusController.h"
++#include "LogManager.h"
++#include <cstring>
++#include <chrono>
++#include <thread>
++
++using namespace std::chrono_literals;
++
++ASRockGPUSMBusController::ASRockGPUSMBusController(i2c_smbus_interface* bus, asrock_gpu_dev_id dev)
++{
++    this->bus = bus;
++    this->dev = dev;
++    this->num_channels = 0;
++    
++    memset(enabled_channels, 0, sizeof(enabled_channels));
++    memset(led_counts, 0, sizeof(led_counts));
++    
++    device_name = "ASRock GPU";
++}
++
++ASRockGPUSMBusController::~ASRockGPUSMBusController()
++{
++}
++
++std::string ASRockGPUSMBusController::GetDeviceLocation()
++{
++    std::string return_string(bus->device_name);
++    char addr[5];
++    snprintf(addr, 5, "0x%02X", dev);
++    return_string.append(", address ");
++    return_string.append(addr);
++    return("I2C: " + return_string);
++}
++
++std::string ASRockGPUSMBusController::GetDeviceName()
++{
++    return device_name;
++}
++
++bool ASRockGPUSMBusController::WriteBlock(uint8_t command, uint8_t subcommand, const uint8_t* data, uint8_t len)
++{
++    /*-----------------------------------------------------*\
++    | SignalRGB packet format: [command, 0, subcommand, data...]
++    | Use pure I2C, not SMBus
++    \*-----------------------------------------------------*/
++    uint8_t packet[12];
++    memset(packet, 0, sizeof(packet));
++    
++    packet[0] = command;
++    packet[1] = 0x00;
++    packet[2] = subcommand;
++    
++    if(data != nullptr && len > 0)
++    {
++        uint8_t copy_len = (len > 9) ? 9 : len;  // Max 9 bytes of data (12 - 3 header)
++        memcpy(&packet[3], data, copy_len);
++    }
++    
++    /*-----------------------------------------------------*\
++    | Write 12 bytes using I2C block write
++    \*-----------------------------------------------------*/
++    int size = 12;
++    int result = bus->i2c_write_block(dev, size, packet);
++    
++    if(result < 0)
++    {
++        LOG_DEBUG("[ASRock GPU] Write block failed: %d", result);
++        return false;
++    }
++    
++    return true;
++}
++
++bool ASRockGPUSMBusController::ReadBlock(uint8_t* response, uint8_t len)
++{
++    memset(response, 0, len);
++    int size = len;
++    int result = bus->i2c_read_block(dev, &size, response);
++    
++    if(result < 0)
++    {
++        LOG_DEBUG("[ASRock GPU] Read block failed: %d", result);
++        return false;
++    }
++    
++    LOG_DEBUG("[ASRock GPU] Read %d bytes", size);
++    return true;
++}
++
++bool ASRockGPUSMBusController::DetectChannels()
++{
++    /*-----------------------------------------------------*\
++    | Get enabled channels (0x14, 0x01 from SignalRGB)
++    \*-----------------------------------------------------*/
++    if(!WriteBlock(0x14, 0x01, nullptr, 0))
++    {
++        LOG_WARNING("[ASRock GPU] Failed to request enabled channels");
++        return false;
++    }
++    
++    std::this_thread::sleep_for(20ms);
++    
++    uint8_t response[I2C_SMBUS_BLOCK_MAX];
++    if(!ReadBlock(response, sizeof(response)))
++    {
++        LOG_WARNING("[ASRock GPU] Failed to read enabled channels");
++        return false;
++    }
++    
++    LOG_INFO("[ASRock GPU] Enabled channels response: %02X %02X %02X %02X %02X %02X", 
++             response[0], response[1], response[2], response[3], response[4], response[5]);
++    
++    /*-----------------------------------------------------*\
++    | Response format: [?, ?, ?, ?, LSB, MSB, ...]
++    | Bytes 4-5 contain channel bitmap
++    \*-----------------------------------------------------*/
++    uint16_t channel_bits = response[4] | (response[5] << 8);
++    LOG_INFO("[ASRock GPU] Channel bits: 0x%04X", channel_bits);
++    
++    /*-----------------------------------------------------*\
++    | Get LED counts (0x14, 0x02 from SignalRGB)
++    \*-----------------------------------------------------*/
++    if(!WriteBlock(0x14, 0x02, nullptr, 0))
++    {
++        LOG_WARNING("[ASRock GPU] Failed to request LED counts");
++        return false;
++    }
++    
++    std::this_thread::sleep_for(20ms);
++    
++    if(!ReadBlock(response, sizeof(response)))
++    {
++        LOG_WARNING("[ASRock GPU] Failed to read LED counts");
++        return false;
++    }
++    
++    /*-----------------------------------------------------*\
++    | Extract enabled channels and their LED counts
++    \*-----------------------------------------------------*/
++    num_channels = 0;
++    for(int i = 0; i < 16; i++)
++    {
++        if(channel_bits & (1 << i))
++        {
++            enabled_channels[num_channels] = i;
++            led_counts[num_channels] = response[4 + i];
++            
++            const char* name = "Unknown";
++            if(i == ASROCK_GPU_CHANNEL_ARGB_HEADER) name = "ARGB Header";
++            else if(i == ASROCK_GPU_CHANNEL_TOP_SIDE) name = "Top Side";
++            else if(i == ASROCK_GPU_CHANNEL_FAN) name = "Fan";
++            
++            LOG_DEBUG("[ASRock GPU] Channel %d (%s) active with %d LEDs", i, name, response[4 + i]);
++            num_channels++;
++        }
++    }
++    
++    LOG_INFO("[ASRock GPU] Found %d active channels", num_channels);
++    return (num_channels > 0);
++}
++
++void ASRockGPUSMBusController::SetChannelColor(uint8_t channel_idx, uint8_t red, uint8_t green, uint8_t blue)
++{
++    /*-----------------------------------------------------*\
++    | SignalRGB color packet from ASRock GPU.js line 374-383
++    | Command 0x10, subcommand = channel_idx
++    | Data: [1, red, green, blue, 128, 255, 0, 26]
++    \*-----------------------------------------------------*/
++    uint8_t data[8] = {
++        0x01,  // Mode: direct/static
++        red,
++        green,
++        blue,
++        0x80,  // Brightness (128)
++        0xFF,  // Effect speed (255)
++        0x00,  // Effect direction (0)
++        0x1A   // Unknown constant (26)
++    };
++    
++    if(!WriteBlock(0x10, channel_idx, data, sizeof(data)))
++    {
++        LOG_WARNING("[ASRock GPU] Failed to set color for channel %d", channel_idx);
++    }
++}
+diff --git a/Controllers/ASRockSMBusController/ASRockGPUSMBusController/ASRockGPUSMBusController.h b/Controllers/ASRockSMBusController/ASRockGPUSMBusController/ASRockGPUSMBusController.h
+new file mode 100644
+index 00000000..3192bc4e
+--- /dev/null
++++ b/Controllers/ASRockSMBusController/ASRockGPUSMBusController/ASRockGPUSMBusController.h
+@@ -0,0 +1,55 @@
++/*---------------------------------------------------------*\
++| ASRockGPUSMBusController.h                                |
++|                                                           |
++|   Driver for ASRock GPU RGB controllers                   |
++|                                                           |
++|   Based on SignalRGB ASRock GPU.js plugin                 |
++|                                                           |
++|   This file is part of the OpenRGB project                |
++|   SPDX-License-Identifier: GPL-2.0-or-later               |
++\*---------------------------------------------------------*/
++
++#pragma once
++
++#include <string>
++#include "i2c_smbus.h"
++
++typedef uint8_t asrock_gpu_dev_id;
++
++#define ASROCK_GPU_CONTROLLER_NAME   "ASRock GPU SMBus Controller"
++#define ASROCK_GPU_SMBUS_ADDRESS     0x36
++
++/*-----------------------------------------------------*\
++| ASRock GPU Channel Names (from SignalRGB)             |
++\*-----------------------------------------------------*/
++enum
++{
++    ASROCK_GPU_CHANNEL_ARGB_HEADER  = 3,
++    ASROCK_GPU_CHANNEL_TOP_SIDE     = 6,
++    ASROCK_GPU_CHANNEL_FAN          = 7,
++};
++
++class ASRockGPUSMBusController
++{
++public:
++    ASRockGPUSMBusController(i2c_smbus_interface* bus, asrock_gpu_dev_id dev);
++    ~ASRockGPUSMBusController();
++
++    std::string GetDeviceLocation();
++    std::string GetDeviceName();
++    
++    void        SetChannelColor(uint8_t channel_idx, uint8_t red, uint8_t green, uint8_t blue);
++    bool        DetectChannels();
++    
++    uint8_t     enabled_channels[16];
++    uint8_t     led_counts[16];
++    uint8_t     num_channels;
++
++private:
++    i2c_smbus_interface* bus;
++    asrock_gpu_dev_id    dev;
++    std::string          device_name;
++    
++    bool        WriteBlock(uint8_t command, uint8_t subcommand, const uint8_t* data, uint8_t len);
++    bool        ReadBlock(uint8_t* response, uint8_t len);
++};
+diff --git a/Controllers/ASRockSMBusController/ASRockGPUSMBusController/RGBController_ASRockGPUSMBus.cpp b/Controllers/ASRockSMBusController/ASRockGPUSMBusController/RGBController_ASRockGPUSMBus.cpp
+new file mode 100644
+index 00000000..178c8180
+--- /dev/null
++++ b/Controllers/ASRockSMBusController/ASRockGPUSMBusController/RGBController_ASRockGPUSMBus.cpp
+@@ -0,0 +1,127 @@
++/*---------------------------------------------------------*\
++| RGBController_ASRockGPUSMBus.cpp                          |
++|                                                           |
++|   RGBController for ASRock GPU RGB controllers            |
++|                                                           |
++|   Based on SignalRGB ASRock GPU.js plugin                 |
++|                                                           |
++|   This file is part of the OpenRGB project                |
++|   SPDX-License-Identifier: GPL-2.0-or-later               |
++\*---------------------------------------------------------*/
++
++#include "RGBController_ASRockGPUSMBus.h"
++
++RGBController_ASRockGPUSMBus::RGBController_ASRockGPUSMBus(ASRockGPUSMBusController* controller_ptr)
++{
++    controller  = controller_ptr;
++
++    name        = controller->GetDeviceName();
++    vendor      = "ASRock";
++    type        = DEVICE_TYPE_GPU;
++    description = "ASRock GPU RGB Controller";
++    location    = controller->GetDeviceLocation();
++
++    mode Direct;
++    Direct.name       = "Direct";
++    Direct.value      = 0;
++    Direct.flags      = MODE_FLAG_HAS_PER_LED_COLOR;
++    Direct.color_mode = MODE_COLORS_PER_LED;
++    modes.push_back(Direct);
++
++    SetupZones();
++}
++
++RGBController_ASRockGPUSMBus::~RGBController_ASRockGPUSMBus()
++{
++    delete controller;
++}
++
++void RGBController_ASRockGPUSMBus::SetupZones()
++{
++    /*-----------------------------------------------------*\
++    | Set up zones - one zone per channel                   |
++    \*-----------------------------------------------------*/
++    for(unsigned int i = 0; i < controller->num_channels; i++)
++    {
++        uint8_t channel_idx = controller->enabled_channels[i];
++        
++        zone new_zone;
++        new_zone.type = ZONE_TYPE_SINGLE;
++        new_zone.leds_min = 1;
++        new_zone.leds_max = 1;
++        new_zone.leds_count = 1;
++        
++        /*-----------------------------------------------------*\
++        | Channel names from SignalRGB                          |
++        \*-----------------------------------------------------*/
++        if(channel_idx == ASROCK_GPU_CHANNEL_ARGB_HEADER)
++        {
++            new_zone.name = "ARGB Header";
++        }
++        else if(channel_idx == ASROCK_GPU_CHANNEL_TOP_SIDE)
++        {
++            new_zone.name = "Top Side";
++        }
++        else if(channel_idx == ASROCK_GPU_CHANNEL_FAN)
++        {
++            new_zone.name = "Fan";
++        }
++        else
++        {
++            new_zone.name = "Channel " + std::to_string(channel_idx);
++        }
++        
++        zones.push_back(new_zone);
++        
++        /*-----------------------------------------------------*\
++        | Set up LED for this zone                              |
++        \*-----------------------------------------------------*/
++        led new_led;
++        new_led.name = new_zone.name;
++        leds.push_back(new_led);
++    }
++
++    SetupColors();
++}
++
++void RGBController_ASRockGPUSMBus::ResizeZone(int /*zone*/, int /*new_size*/)
++{
++    /*-----------------------------------------------------*\
++    | This device does not support resizing zones           |
++    \*-----------------------------------------------------*/
++}
++
++void RGBController_ASRockGPUSMBus::DeviceUpdateLEDs()
++{
++    for(unsigned int i = 0; i < controller->num_channels; i++)
++    {
++        uint8_t channel_idx = controller->enabled_channels[i];
++        RGBColor color = colors[i];
++        
++        controller->SetChannelColor(channel_idx, 
++                                    RGBGetRValue(color),
++                                    RGBGetGValue(color),
++                                    RGBGetBValue(color));
++    }
++}
++
++void RGBController_ASRockGPUSMBus::UpdateZoneLEDs(int zone)
++{
++    uint8_t channel_idx = controller->enabled_channels[zone];
++    RGBColor color = colors[zone];
++    
++    controller->SetChannelColor(channel_idx,
++                                RGBGetRValue(color),
++                                RGBGetGValue(color),
++                                RGBGetBValue(color));
++}
++
++void RGBController_ASRockGPUSMBus::UpdateSingleLED(int led)
++{
++    UpdateZoneLEDs(led);
++}
++
++void RGBController_ASRockGPUSMBus::DeviceUpdateMode()
++{
++    DeviceUpdateLEDs();
++}
+diff --git a/Controllers/ASRockSMBusController/ASRockGPUSMBusController/RGBController_ASRockGPUSMBus.h b/Controllers/ASRockSMBusController/ASRockGPUSMBusController/RGBController_ASRockGPUSMBus.h
+new file mode 100644
+index 00000000..f13f01fc
+--- /dev/null
++++ b/Controllers/ASRockSMBusController/ASRockGPUSMBusController/RGBController_ASRockGPUSMBus.h
+@@ -0,0 +1,34 @@
++/*---------------------------------------------------------*\
++| RGBController_ASRockGPUSMBus.h                            |
++|                                                           |
++|   RGBController for ASRock GPU RGB controllers            |
++|                                                           |
++|   Based on SignalRGB ASRock GPU.js plugin                 |
++|                                                           |
++|   This file is part of the OpenRGB project                |
++|   SPDX-License-Identifier: GPL-2.0-or-later               |
++\*---------------------------------------------------------*/
++
++#pragma once
++
++#include "RGBController.h"
++#include "ASRockGPUSMBusController.h"
++
++class RGBController_ASRockGPUSMBus : public RGBController
++{
++public:
++    RGBController_ASRockGPUSMBus(ASRockGPUSMBusController* controller_ptr);
++    ~RGBController_ASRockGPUSMBus();
++
++    void        SetupZones();
++    void        ResizeZone(int zone, int new_size);
++
++    void        DeviceUpdateLEDs();
++    void        UpdateZoneLEDs(int zone);
++    void        UpdateSingleLED(int led);
++
++    void        DeviceUpdateMode();
++
++private:
++    ASRockGPUSMBusController* controller;
++};
+diff --git a/Controllers/ASRockSMBusController/ASRockSMBusControllerDetect.cpp b/Controllers/ASRockSMBusController/ASRockSMBusControllerDetect.cpp
+index 592d8606..887435c6 100644
+--- a/Controllers/ASRockSMBusController/ASRockSMBusControllerDetect.cpp
++++ b/Controllers/ASRockSMBusController/ASRockSMBusControllerDetect.cpp
+@@ -15,10 +15,12 @@
+ #include "ASRockASRRGBSMBusController.h"
+ #include "ASRockPolychromeV1SMBusController.h"
+ #include "ASRockPolychromeV2SMBusController.h"
++#include "ASRockGPUSMBusController/ASRockGPUSMBusController.h"
+ #include "LogManager.h"
+ #include "RGBController_ASRockASRRGBSMBus.h"
+ #include "RGBController_ASRockPolychromeV1SMBus.h"
+ #include "RGBController_ASRockPolychromeV2SMBus.h"
++#include "ASRockGPUSMBusController/RGBController_ASRockGPUSMBus.h"
+ #include "i2c_smbus.h"
+ #include "pci_ids.h"
+ 
+@@ -174,4 +176,61 @@ void DetectASRockSMBusControllers(std::vector<i2c_smbus_interface*>& busses)
+ 
+ }   /* DetectSMBusPolychromeControllers() */
+ 
++/******************************************************************************************\
++*                                                                                          *
++*   DetectASRockGPUSMBusControllers                                                        *
++*                                                                                          *
++*       Detect ASRock GPU RGB controllers on AMD GPU I2C buses at address 0x36             *
++*       Based on SignalRGB ASRock GPU.js plugin                                            *
++*                                                                                          *
++\******************************************************************************************/
++
++void DetectASRockGPUSMBusControllers(std::vector<i2c_smbus_interface*>& busses)
++{
++    for(unsigned int bus = 0; bus < busses.size(); bus++)
++    {
++        /*-----------------------------------------------------*\
++        | Check if this is an AMD GPU bus (from SignalRGB)      |
++        \*-----------------------------------------------------*/
++        if(busses[bus]->pci_vendor == AMD_GPU_VEN)
++        {
++            /*-----------------------------------------------------*\
++            | Check if it's an ASRock card (SubVendor 0x1849)       |
++            \*-----------------------------------------------------*/
++            if(busses[bus]->pci_subsystem_vendor == ASROCK_SUB_VEN)
++            {
++                LOG_DEBUG("[ASRock GPU] Checking AMD GPU bus %d for ASRock RGB controller at 0x%02X", bus, ASROCK_GPU_SMBUS_ADDRESS);
++                
++                /*-----------------------------------------------------*\
++                | Test for device at 0x36 (from SignalRGB)              |
++                \*-----------------------------------------------------*/
++                int res = busses[bus]->i2c_smbus_write_quick(ASROCK_GPU_SMBUS_ADDRESS, I2C_SMBUS_WRITE);
++                
++                if(res >= 0)
++                {
++                    LOG_DEBUG("[ASRock GPU] Device responded at 0x%02X, creating controller", ASROCK_GPU_SMBUS_ADDRESS);
++                    
++                    ASRockGPUSMBusController* controller = new ASRockGPUSMBusController(busses[bus], ASROCK_GPU_SMBUS_ADDRESS);
++                    
++                    if(controller->DetectChannels())
++                    {
++                        RGBController_ASRockGPUSMBus* rgb_controller = new RGBController_ASRockGPUSMBus(controller);
++                        ResourceManager::get()->RegisterRGBController(rgb_controller);
++                    }
++                    else
++                    {
++                        LOG_WARNING("[ASRock GPU] No active channels found, device not registered");
++                        delete controller;
++                    }
++                }
++                else
++                {
++                    LOG_DEBUG("[ASRock GPU] No response at address 0x%02X", ASROCK_GPU_SMBUS_ADDRESS);
++                }
++            }
++        }
++    }
++}   /* DetectASRockGPUSMBusControllers() */
++
+ REGISTER_I2C_DETECTOR("ASRock Motherboard SMBus Controllers", DetectASRockSMBusControllers);
++REGISTER_I2C_DETECTOR("ASRock GPU SMBus Controllers", DetectASRockGPUSMBusControllers);
+-- 
+2.51.0
+

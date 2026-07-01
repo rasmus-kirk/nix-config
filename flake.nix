@@ -5,9 +5,9 @@
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
     nixpkgs-2405.url = "github:nixos/nixpkgs/nixos-24.05";
 
-    nixarr.url = "github:nix-media-server/nixarr/kirk/1984";
+    nixarr.url = "github:nix-media-server/nixarr";
     nixarr.inputs.nixpkgs.follows = "nixpkgs";
-    nixarr.inputs.vpnconfinement.follows = "nixpkgs";
+    nixarr.inputs.vpnconfinement.follows = "vpnconfinement";
 
     vpnconfinement.url = "github:Maroka-chan/VPN-Confinement";
 
@@ -39,6 +39,8 @@
     submerger.url = "github:rasmus-kirk/submerger";
     submerger.inputs.nixpkgs.follows = "nixpkgs";
 
+    impermanence.url = "github:nix-community/impermanence";
+
     ballbrawl = {
       url = "git+ssh://git@github.com/rasmus-kirk/ballbrawl.git";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -56,6 +58,7 @@
     vpnconfinement,
     hosts,
     nix-index-database,
+    impermanence,
     ...
   }: let
     # Systems supported
@@ -147,25 +150,31 @@
     formatter = forAllSystems ({pkgs}: pkgs.alejandra);
 
     nixosConfigurations = {
-      server = nixpkgs.lib.nixosSystem rec {
+      desktop = nixpkgs.lib.nixosSystem rec {
         system = "x86_64-linux";
 
         modules = [
-          ./configurations/nixos/server/configuration.nix
+          ./configurations/nixos/desktop/configuration.nix
           agenix.nixosModules.default
           self.nixosModules.default
           nixarr.nixosModules.default
+          impermanence.nixosModules.impermanence
+          jovian.nixosModules.default
           home-manager.nixosModules.home-manager
           {
             home-manager.users.user = {
               imports = [
-                ./configurations/home-manager/server/home.nix
+                ./configurations/home-manager/desktop/home.nix
                 self.homeManagerModules.default
               ];
               config.home.packages = [home-manager.packages."${system}".default];
             };
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
+            # Apps (e.g. KDE setting default handlers) replace HM-managed dotfiles
+            # like mimeapps.list with real files; back them up instead of failing
+            # activation. Matches the work host.
+            home-manager.backupFileExtension = "hm-backup";
           }
         ];
 

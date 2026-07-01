@@ -35,11 +35,11 @@
         "systems": "systems_2"
       },
       "locked": {
-        "lastModified": 1780146820,
-        "narHash": "sha256-CUdzRKJHL4pl1Ugmzx98lzehmz6ZIujV0rpv3QlhGP4=",
+        "lastModified": 1781112825,
+        "narHash": "sha256-m9tVGXOOTw4GfrJuqDFMgHmkLG95GmOG0xax8IjX84M=",
         "ref": "refs/heads/main",
-        "rev": "e47a2499251ed50d8c57ea8d5296f529101c5d64",
-        "revCount": 13,
+        "rev": "30e028017b0596741b59046e02487648bdbbe7e8",
+        "revCount": 88,
         "type": "git",
         "url": "ssh://git@github.com/rasmus-kirk/ballbrawl.git"
       },
@@ -294,6 +294,27 @@
         "type": "github"
       }
     },
+    "home-manager_2": {
+      "inputs": {
+        "nixpkgs": [
+          "impermanence",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1768598210,
+        "narHash": "sha256-kkgA32s/f4jaa4UG+2f8C225Qvclxnqs76mf8zvTVPg=",
+        "owner": "nix-community",
+        "repo": "home-manager",
+        "rev": "c47b2cc64a629f8e075de52e4742de688f930dc6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "home-manager",
+        "type": "github"
+      }
+    },
     "hosts": {
       "inputs": {
         "nixpkgs": [
@@ -311,6 +332,25 @@
       "original": {
         "owner": "StevenBlack",
         "repo": "hosts",
+        "type": "github"
+      }
+    },
+    "impermanence": {
+      "inputs": {
+        "home-manager": "home-manager_2",
+        "nixpkgs": "nixpkgs_2"
+      },
+      "locked": {
+        "lastModified": 1769548169,
+        "narHash": "sha256-03+JxvzmfwRu+5JafM0DLbxgHttOQZkUtDWBmeUkN8Y=",
+        "owner": "nix-community",
+        "repo": "impermanence",
+        "rev": "7b1d382faf603b6d264f58627330f9faa5cba149",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "impermanence",
         "type": "github"
       }
     },
@@ -359,7 +399,7 @@
     "klfc": {
       "inputs": {
         "flake-utils": "flake-utils",
-        "nixpkgs": "nixpkgs_2"
+        "nixpkgs": "nixpkgs_3"
       },
       "locked": {
         "lastModified": 1742909524,
@@ -470,21 +510,20 @@
         ],
         "treefmt-nix": "treefmt-nix_2",
         "vpnconfinement": [
-          "nixpkgs"
+          "vpnconfinement"
         ],
         "website-builder": "website-builder"
       },
       "locked": {
-        "lastModified": 1777494023,
-        "narHash": "sha256-mSqS52jxpVg6kbuflXqFKpTV5d21dp2fPyp9u5EcLZQ=",
+        "lastModified": 1781086949,
+        "narHash": "sha256-Ap3qA/MJOHgQEoO0jcRi4k16wYVgj2HpuIpxaQjctLc=",
         "owner": "nix-media-server",
         "repo": "nixarr",
-        "rev": "f4fbb66e95fa8dac414acda594f194c8dc663562",
+        "rev": "10c7ce9b6819e66b002a54d1a4e871e67a28bbe2",
         "type": "github"
       },
       "original": {
         "owner": "nix-media-server",
-        "ref": "kirk/1984",
         "repo": "nixarr",
         "type": "github"
       }
@@ -571,6 +610,22 @@
     },
     "nixpkgs_2": {
       "locked": {
+        "lastModified": 1768564909,
+        "narHash": "sha256-Kell/SpJYVkHWMvnhqJz/8DqQg2b6PguxVWOuadbHCc=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "e4bae1bd10c9c57b2cf517953ab70060a828ee6f",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs_3": {
+      "locked": {
         "lastModified": 1742908014,
         "narHash": "sha256-XWyDhyhF2gS3sQIK/xcTGUQrsdWZxWNAu9euUt5eT+Y=",
         "owner": "NixOS",
@@ -584,7 +639,7 @@
         "type": "github"
       }
     },
-    "nixpkgs_3": {
+    "nixpkgs_4": {
       "locked": {
         "lastModified": 1780749050,
         "narHash": "sha256-3av0pIjlOWQ6rDbNOmpUSvbNnJkGORQKKjb4LtCZsIY=",
@@ -606,11 +661,12 @@
         "ballbrawl": "ballbrawl",
         "home-manager": "home-manager",
         "hosts": "hosts",
+        "impermanence": "impermanence",
         "jovian": "jovian",
         "keyboard-layout": "keyboard-layout",
         "nix-index-database": "nix-index-database",
         "nixarr": "nixarr",
-        "nixpkgs": "nixpkgs_3",
+        "nixpkgs": "nixpkgs_4",
         "nixpkgs-2405": "nixpkgs-2405",
         "rustle": "rustle",
         "submerger": "submerger",

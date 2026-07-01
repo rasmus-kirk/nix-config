@@ -14,6 +14,7 @@
     ./mvi
     ./rustle
     ./box
+    ./cec
     ./scripts
     ./ssh
     ./terminalTools
