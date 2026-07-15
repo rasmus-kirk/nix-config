@@ -33,9 +33,6 @@
     keyboard-layout.url = "github:rasmus-kirk/keyboard-layout";
     keyboard-layout.inputs.nixpkgs.follows = "nixpkgs";
 
-    rustle.url = "github:rasmus-kirk/rustle";
-    rustle.inputs.nixpkgs.follows = "nixpkgs";
-
     submerger.url = "github:rasmus-kirk/submerger";
     submerger.inputs.nixpkgs.follows = "nixpkgs";
 

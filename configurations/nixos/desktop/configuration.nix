@@ -13,6 +13,18 @@
   stateDir = "${dataDir}/.state";
   transmissionPort = 33915;
 
+  # ExecStart for the systemd-{suspend,hibernate,hybrid-sleep} drop-ins below:
+  # on this always-on box a suspend request (notably Steam's power-menu "Sleep")
+  # must not actually suspend, so signal the CEC daemon (SIGUSR1) to put the TV
+  # to standby instead. The empty first entry resets systemd's ExecStart; the
+  # second is ours.
+  sleepToTv = [
+    ""
+    "${pkgs.writeShellScript "sleep-to-tv-standby" ''
+      ${pkgs.procps}/bin/pkill -USR1 -f cec-tv-liveness || true
+    ''}"
+  ];
+
   # Chromium-based non-Steam tiles run as launcher SCRIPTS, not raw `chromium` +
   # launch options, for two reasons that bite every Chromium/Electron app started
   # from Steam game mode:
@@ -394,6 +406,28 @@ in {
     };
   };
 
+  # Console emulation (kirk.emulation, modules/nixos). Games declared below are
+  # auto-registered as game-mode tiles via kirk.steamShortcuts above (they merge
+  # into its shortcut set). Everything needed to play lives in one syncable tree
+  # under /data/.state/games/<system> (ROMs + BIOS + saves), so Syncthing'ing it
+  # mirrors the library and saves to the Steam Deck.
+  kirk.emulation = {
+    enable = true;
+    ps1.enable = true;
+    switch.enable = true;
+    # Declare games here to get a tile each (rom + SteamGridDB artwork); same
+    # shape for both systems, e.g.:
+    #   ps1.games."Final Fantasy VII" = {
+    #     rom = "Final Fantasy VII (Disc 1).m3u";   # under /data/.state/games/ps1/games
+    #     portrait = ../../../images/steam/ff7-portrait.png;
+    #     landscape = ../../../images/steam/ff7-landscape.png;
+    #   };
+    #   switch.games."Tears of the Kingdom" = {
+    #     rom = "totk.nsp";                          # under /data/.state/games/switch/games
+    #     portrait = ../../../images/steam/totk-portrait.png;
+    #   };
+  };
+
   hardware.enableRedistributableFirmware = true;
   hardware.bluetooth = {
     enable = true;
@@ -532,6 +566,44 @@ in {
   # frees that key to be repurposed as a "wake TV" button (see kirk.cec).
   services.logind.settings.Login.HandleSuspendKey = "ignore";
   services.logind.settings.Login.HandleSuspendKeyLongPress = "ignore";
+
+  # Steam's power-menu "Sleep" issues a *software* suspend (login1 Suspend ->
+  # systemd-suspend.service), which HandleSuspendKey=ignore does NOT catch (that
+  # only covers the hardware key). This box must never actually suspend, so
+  # replace the suspend action (and hibernate/hybrid) with sleepToTv -> a SIGUSR1
+  # to the CEC daemon, which standbys the TV. Drop-ins (systemd ships the units).
+  systemd.services.systemd-suspend.serviceConfig.ExecStart = lib.mkForce sleepToTv;
+  systemd.services.systemd-hibernate.serviceConfig.ExecStart = lib.mkForce sleepToTv;
+  systemd.services.systemd-hybrid-sleep.serviceConfig.ExecStart = lib.mkForce sleepToTv;
+
+  # Power button -> restart Steam game mode. Out-of-band recovery for when Steam
+  # or gamescope wedges and the in-Steam power menu is unreachable, so a hung
+  # session can be fixed *physically* (e.g. by Naja) without SSH. acpid reads the
+  # power-button evdev directly at the system level, so it works even when the
+  # user session is frozen; the restart drives the user's steam-launcher unit via
+  # `-M user@.host`. Jovian's steamos-powerbuttond (short-press suspend /
+  # long-press Steam menu) is neutered so it can't also fire, and logind ignores
+  # the key so nothing races. Trade-off (chosen): the power button no longer
+  # sleeps — sleep is now STEAM -> Power -> Sleep on the controller, which still
+  # standbys the TV via the systemd-suspend hook above.
+  #
+  # Neuter powerbuttond by overriding its ExecStart to a no-op (a plain
+  # enable=false won't mask it — Jovian ships it via a package, not
+  # systemd.user.services, so the /etc/systemd/user symlink still points at the
+  # real unit). ExecStart="" resets the package's line; `true` exits 0 so it
+  # never reads the power-button evdev. Drop-in, like the systemd-suspend override.
+  systemd.user.services.steamos-powerbuttond.serviceConfig.ExecStart =
+    lib.mkForce ["" "${pkgs.coreutils}/bin/true"];
+  services.logind.settings.Login.HandlePowerKey = "ignore";
+  services.logind.settings.Login.HandlePowerKeyLongPress = "ignore";
+  services.acpid = {
+    enable = true;
+    handlers.restart-steam = {
+      event = "button/power.*";
+      action = "${pkgs.systemd}/bin/systemctl --user -M user@.host restart steam-launcher.service";
+    };
+  };
+
 
   # -------------------- Syncthing -------------------- #
 

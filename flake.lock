@@ -668,7 +668,6 @@
         "nixarr": "nixarr",
         "nixpkgs": "nixpkgs_4",
         "nixpkgs-2405": "nixpkgs-2405",
-        "rustle": "rustle",
         "submerger": "submerger",
         "vpnconfinement": "vpnconfinement",
         "website-builder": "website-builder_2"
@@ -714,26 +713,6 @@
       "original": {
         "owner": "oxalica",
         "repo": "rust-overlay",
-        "type": "github"
-      }
-    },
-    "rustle": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1762327406,
-        "narHash": "sha256-gxZ1fYva2ZJNw8OFkE2SSCGC+GZF6mOnOAhjBkv14PU=",
-        "owner": "rasmus-kirk",
-        "repo": "rustle",
-        "rev": "1a2cb1e1937b796c269cfea151df1316a2d50735",
-        "type": "github"
-      },
-      "original": {
-        "owner": "rasmus-kirk",
-        "repo": "rustle",
         "type": "github"
       }
     },

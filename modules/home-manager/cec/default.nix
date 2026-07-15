@@ -46,6 +46,7 @@ with lib; let
     import os
     import re
     import select
+    import signal
     import struct
     import subprocess
     import threading
@@ -74,13 +75,24 @@ with lib; let
     DEBUG = os.environ.get("DEBUG", "0") == "1"
     TONE_NAME = "cec-keepalive"
 
+    # Controller-volume-to-AVR relay (see volume_monitor). The Steam controller's
+    # volume keys only reach the system (gamescope) volume on the TV sink, never
+    # our evdev path -- so hold the sink at REF_PCT and translate any deviation
+    # into CEC volume steps on the AVR. REF_PCT<100 leaves headroom to see a
+    # volume-UP (which raises the sink) as well as a down.
+    VOL_RELAY = os.environ.get("VOL_RELAY", "0") == "1"
+    REF_PCT = int(os.environ.get("REF_PCT", "75"))
+    STEP_PCT = max(1, int(os.environ.get("STEP_PCT", "5")))
+    PACTL = os.environ.get("PACTL", "pactl")
+
     POLL = 1.0
     RESCAN = 5.0
     RATE = 8000
     PWR_POLL = 5.0   # how often to read the TV's real power state
     EV_KEY = 1
     KEY_SLEEP = 142
-    KEY_POWER = 116
+    # KEY_POWER (116) intentionally not handled: the power button is acpid's
+    # (restart Steam game mode), not a TV toggle. See the key loop below.
     KEY_VOLUMEUP = 115
     KEY_VOLUMEDOWN = 114
     KEY_MUTE = 113
@@ -97,6 +109,10 @@ with lib; let
     g_last_ctrl = 0.0  # monotonic time of the last Steam-Controller hidraw data
     CTRL_TIMEOUT = 3.0  # no controller hidraw data for this long => it's off
     udev_w = -1      # write end of the self-pipe poked on input add/remove
+    # Set by SIGUSR1 (the system suspend action is overridden to signal us --
+    # e.g. Steam's UI "Sleep") instead of suspending the always-on box; handled
+    # as a sleep-button press.
+    g_sleep_req = False
 
     def log(msg):
         if DEBUG:
@@ -106,6 +122,14 @@ with lib; let
         # Operational, always-on, content-free: which response key fired and
         # what the TV was told. Only ever called for sleep/power/volume/mute.
         print("[cec] " + msg, flush=True)
+
+    def on_sleep_signal(signum, frame):
+        # The system suspend action is replaced (systemd-suspend override in
+        # configuration.nix) with a SIGUSR1 to us, so a suspend request -- e.g.
+        # Steam's power-menu "Sleep" -- toggles the TV instead of suspending the
+        # always-on box.
+        global g_sleep_req
+        g_sleep_req = True
 
     def cec(*args):
         # No args -> (re)register our Playback logical address. This runs the
@@ -159,6 +183,57 @@ with lib; let
                 "--to", AUDIO_LA, "--user-control-released")
         if log_it:
             note("%s: %s" % (ui_cmd, cec_result(p)))
+
+    def sink_state():
+        # (volume %, muted bool) for the TV sink, or None if unreadable.
+        if not SINK:
+            return None
+        try:
+            v = subprocess.run([PACTL, "get-sink-volume", SINK],
+                               capture_output=True, text=True, timeout=2).stdout
+            m = subprocess.run([PACTL, "get-sink-mute", SINK],
+                               capture_output=True, text=True, timeout=2).stdout
+        except Exception:
+            return None
+        mm = re.search(r"(\d+)%", v)
+        if not mm:
+            return None
+        return int(mm.group(1)), ("yes" in m)
+
+    def set_sink(pct):
+        try:
+            subprocess.run([PACTL, "set-sink-volume", SINK, "%d%%" % pct],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                           timeout=2)
+        except Exception:
+            pass
+
+    def volume_monitor():
+        # Hold the TV sink at REF_PCT and relay any deviation to the AVR over CEC.
+        # A controller/system volume press moves the sink off REF_PCT (the only
+        # way that input reaches us -- it never hits evdev); we send the matching
+        # number of CEC volume steps to the AVR (each STEP_PCT of change == one
+        # step) and snap the sink back to REF_PCT, so the AVR does the real
+        # attenuation while the box stays put. Mute is left alone (a box mute is
+        # already silence). Our own snap-back reads as delta 0 -> no feedback.
+        set_sink(REF_PCT)
+        while True:
+            time.sleep(0.3)
+            st = sink_state()
+            if st is None:
+                continue
+            vol, muted = st
+            if muted:
+                continue
+            delta = vol - REF_PCT
+            if abs(delta) >= 1:
+                steps = max(1, int(round(abs(delta) / float(STEP_PCT))))
+                cmd = "volume-up" if delta > 0 else "volume-down"
+                for _ in range(steps):
+                    cec_vol(cmd, False)
+                note("controller volume %s x%d -> AVR (sink was %d%%)"
+                     % (cmd, steps, vol))
+                set_sink(REF_PCT)
 
     def dev_power(la):
         with cec_lock:
@@ -436,7 +511,8 @@ with lib; let
             time.sleep(0.2)
 
     def main():
-        global wav_path, g_tv_on, udev_w
+        global wav_path, g_tv_on, udev_w, g_sleep_req
+        signal.signal(signal.SIGUSR1, on_sleep_signal)
         configure()
         read_phys()
         st = dev_power(TV)
@@ -450,6 +526,8 @@ with lib; let
             threading.Thread(target=audio_monitor, daemon=True).start()
         threading.Thread(target=power_monitor, daemon=True).start()
         threading.Thread(target=controller_monitor, daemon=True).start()
+        if VOL_RELAY:
+            threading.Thread(target=volume_monitor, daemon=True).start()
         udev_r, udev_w = os.pipe()
         os.set_blocking(udev_r, False)
         threading.Thread(target=udev_monitor, daemon=True).start()
@@ -492,8 +570,12 @@ with lib; let
                             continue
                         # Act on (and log) only these response keys; every
                         # other key -- letters included -- is ignored silently
-                        # and never logged.
-                        if ev.code in (KEY_SLEEP, KEY_POWER):
+                        # and never logged. KEY_POWER is deliberately NOT here:
+                        # the physical power button is owned by acpid, which
+                        # restarts Steam game mode (see configuration.nix) -- so
+                        # only the sleep key (or Steam's Sleep via SIGUSR1)
+                        # toggles the TV, never the power button.
+                        if ev.code == KEY_SLEEP:
                             if ev.value == 1:
                                 sleep_pressed = True       # toggle TV power
                         elif ev.code == KEY_VOLUMEUP:
@@ -504,6 +586,13 @@ with lib; let
                             cec_vol("mute", True)
                 except OSError:
                     devs.pop(d.path, None)
+
+            # A SIGUSR1 (the system suspend action is overridden to signal us --
+            # e.g. Steam's power-menu "Sleep") is handled as a sleep-button
+            # press: toggle the TV instead of suspending the box.
+            if g_sleep_req:
+                g_sleep_req = False
+                sleep_pressed = True
 
             if udev_event or now - last_rescan >= RESCAN:
                 refresh_devices(devs)
@@ -623,6 +712,28 @@ in {
       description = "Treat real audio on the TV sink (monitor RMS) as activity.";
     };
 
+    controllerVolume = {
+      enable = mkEnableOption ''
+        relaying volume changes on the TV sink to the AVR over CEC. The Steam
+        controller's volume keys only reach the system/gamescope volume (never
+        this daemon's evdev path), so the sink is held at referencePercent and
+        any deviation is translated into CEC volume steps on the AVR -- giving
+        controller-driven AVR volume. Requires `sink` to be set'';
+      referencePercent = mkOption {
+        type = types.ints.between 1 99;
+        default = 75;
+        description = ''
+          Percent the TV sink is held at (the AVR does the real attenuation).
+          Must be <100 so a volume-UP -- which raises the sink -- is detectable.
+        '';
+      };
+      stepPercent = mkOption {
+        type = types.ints.positive;
+        default = 5;
+        description = "TV-sink % change that maps to one CEC volume step to the AVR.";
+      };
+    };
+
     keepAwake = {
       enable = mkOption {
         type = types.bool;
@@ -716,6 +827,14 @@ in {
             then "1"
             else "0"
           }"
+          "VOL_RELAY=${
+            if cfg.controllerVolume.enable
+            then "1"
+            else "0"
+          }"
+          "REF_PCT=${toString cfg.controllerVolume.referencePercent}"
+          "STEP_PCT=${toString cfg.controllerVolume.stepPercent}"
+          "PACTL=${pkgs.pulseaudio}/bin/pactl"
         ];
         Restart = "always";
         RestartSec = 5;

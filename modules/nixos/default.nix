@@ -3,6 +3,7 @@
     ./nixosScripts
     ./youtubeDownloader
     ./steamShortcuts
+    ./emulation
     ./keyboardLayout
   ];
 }

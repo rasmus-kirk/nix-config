@@ -12,7 +12,6 @@
     ./monero
     ./mpv
     ./mvi
-    ./rustle
     ./box
     ./cec
     ./scripts

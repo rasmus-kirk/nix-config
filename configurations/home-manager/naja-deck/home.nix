@@ -31,7 +31,6 @@ in {
     zathura.enable = true;
     zsh.enable = true;
     fonts.enable = true;
-    rustle.enable = true;
   };
 
   home.username = username;
