@@ -257,6 +257,86 @@ with lib; let
     '';
   };
 
+  desktop-run = pkgs.writeShellApplication {
+    name = "desktop-run";
+    runtimeInputs = with pkgs; [ coreutils rsync openssh git gnused ];
+    inheritPath = false;
+    text = ''
+      set -euo pipefail
+
+      usage() {
+        cat >&2 <<'EOF'
+      usage: desktop-run <command...>
+
+      rsyncs $PWD to /persist/work$PWD on the desktop, then runs
+      <command...> inside 'nix develop --impure --command' on that dir.
+
+      The 'desktop' alias must be defined in your ssh config (e.g. in
+      /data/.state/ssh/remotes/desktop.conf) with HostName/User/Port/etc.
+
+      Anything git ignores is excluded (.gitignore, .git/info/exclude and
+      the global excludesfile). Outside a work tree, falls back to
+      excluding target/, .direnv/, .devenv/. Uses --delete so the remote
+      mirror stays in lockstep with $PWD.
+      EOF
+        exit 1
+      }
+
+      [ $# -ge 1 ] || usage
+
+      LOCAL="$PWD"
+      REMOTE="/persist/work$LOCAL"
+
+      EXCLUDE_ARGS=(--exclude=target/ --exclude=.direnv/ --exclude=.devenv/)
+
+      if git -C "$LOCAL" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        # Let git decide what to skip so the remote mirror matches the work
+        # tree. Enumerating the ignored paths (rather than pointing rsync at
+        # .gitignore via a dir-merge filter) keeps git's own semantics:
+        # negations, .git/info/exclude and core.excludesfile all apply, and
+        # rsync never has to parse a syntax it only half shares.
+        #
+        # --directory collapses a fully-ignored dir to one entry, so big
+        # trees like target/ cost a single pattern instead of one per file.
+        # sed anchors each path to the transfer root, otherwise an ignored
+        # ./foo.log would also exclude src/foo.log.
+        EXCLUDE_FILE=$(mktemp)
+        trap 'rm -f "$EXCLUDE_FILE"' EXIT
+        git -C "$LOCAL" ls-files -z --others --ignored --exclude-standard --directory \
+          | sed -z 's|^|/|' > "$EXCLUDE_FILE"
+        # --from0 must precede --exclude-from: it only changes how rsync
+        # parses files named after it.
+        EXCLUDE_ARGS=(--from0 --exclude-from="$EXCLUDE_FILE")
+      fi
+
+      # --no-inc-recursive: index the whole tree before transfer so
+      # --info=progress2 has an accurate total from the start (percentage
+      # doesn't jump around as new files are discovered mid-transfer).
+      # Costs a few seconds of pre-walk on large trees like lighthouse.
+      #
+      # --mkpath: rsync creates missing dest parent dirs itself, folding
+      # what would have been a separate `ssh desktop mkdir -p …` into this
+      # same connection (saves one YubiKey touch per invocation).
+      #
+      # Build dirs stay excluded: even with identical nix-pinned rustc, the
+      # transfer cost (~30 min for lighthouse's target) dominates any
+      # cache-hit savings. If you ever want cross-machine cargo caching,
+      # sccache (or nix-store copy of built derivations) is the right
+      # tool, not rsync.
+      rsync -azh --delete --info=progress2,stats2 --no-inc-recursive --mkpath \
+        "''${EXCLUDE_ARGS[@]}" \
+        "$LOCAL/" "desktop:$REMOTE/"
+
+      # printf %q escapes each arg so `desktop-run cargo run -- --foo "bar baz"`
+      # reaches nix intact with word boundaries preserved. Same local-expansion
+      # intent as above.
+      CMD_QUOTED=$(printf ' %q' "$@")
+      # shellcheck disable=SC2029
+      exec ssh -t desktop \
+        "cd $(printf '%q' "$REMOTE") && nix develop --impure --command$CMD_QUOTED"
+    '';
+  };
+
   weather = pkgs.writeShellApplication {
     name = "weather";
     runtimeInputs = with pkgs; [curl coreutils gnused];
@@ -274,6 +354,7 @@ in {
 
   config = mkIf cfg.enable {
     home.packages = [
+      desktop-run
       ff-cut
       ff-compress
       git-sign-range

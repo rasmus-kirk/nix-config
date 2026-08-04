@@ -166,6 +166,14 @@ struct LinearIssueCreateArgs {
     #[arg(long = "description-file", value_name = "FILE")] description_file: Option<PathBuf>,
     /// Linear priority 0–4 (0 = no priority, 1 = urgent, 4 = low).
     #[arg(long)] priority: Option<u8>,
+    /// Parent issue identifier, e.g. "QMS-84". Set ⇒ created as a subtask.
+    #[arg(long)] parent: Option<String>,
+    /// Assignee: "me", an email, or a user name (host resolves to a UUID).
+    #[arg(long)] assignee: Option<String>,
+    /// Project name (host resolves to a UUID).
+    #[arg(long)] project: Option<String>,
+    /// Milestone name; requires --project (host resolves to a UUID).
+    #[arg(long)] milestone: Option<String>,
 }
 
 #[derive(Args)]
@@ -179,6 +187,14 @@ struct LinearIssueUpdateArgs {
     #[arg(long)] description: Option<String>,
     #[arg(long = "description-file", value_name = "FILE")] description_file: Option<PathBuf>,
     #[arg(long)] priority: Option<u8>,
+    /// Reparent under this issue identifier, e.g. "QMS-79".
+    #[arg(long)] parent: Option<String>,
+    /// New assignee: "me", an email, or a user name (host resolves to a UUID).
+    #[arg(long)] assignee: Option<String>,
+    /// New project name (host resolves to a UUID).
+    #[arg(long)] project: Option<String>,
+    /// New milestone name; requires --project (host resolves to a UUID).
+    #[arg(long)] milestone: Option<String>,
 }
 
 #[derive(Args)]
@@ -399,32 +415,55 @@ async fn cmd_gh_pr_review_append(args: GhPrReviewAppendArgs) -> Result<Outcome> 
 // ─── linear issue create ───────────────────────────────────────────────
 
 async fn cmd_linear_issue_create(args: LinearIssueCreateArgs) -> Result<Outcome> {
+    if args.milestone.is_some() && args.project.is_none() {
+        bail!("--milestone requires --project");
+    }
     let description = resolve_body(args.description, args.description_file)
         .await?
         .unwrap_or_default();
     let preview = description.lines().next().unwrap_or("").chars().take(140).collect::<String>();
+    let project_bit = match (&args.project, &args.milestone) {
+        (Some(pr), Some(m)) => format!(", project {pr}/{m}"),
+        (Some(pr), None) => format!(", project {pr}"),
+        _ => String::new(),
+    };
     let summary = format!(
-        "Create Linear issue in team {}: {}{}\n{preview}",
-        args.team, args.title,
+        "Create Linear issue in team {}{}: {}{}{}{}\n{preview}",
+        args.team,
+        args.parent.as_ref().map(|p| format!(" (subtask of {p})")).unwrap_or_default(),
+        args.title,
         args.priority.map(|p| format!(", priority {p}")).unwrap_or_default(),
+        args.assignee.as_ref().map(|a| format!(", assignee {a}")).unwrap_or_default(),
+        project_bit,
     );
     let mut payload = json!({
         "team_key": args.team, "title": args.title, "description": description,
     });
     if let Some(p) = args.priority { payload["priority"] = json!(p); }
+    if let Some(parent) = args.parent { payload["parent_id"] = json!(parent); }
+    if let Some(a) = args.assignee { payload["assignee"] = json!(a); }
+    if let Some(pr) = args.project { payload["project"] = json!(pr); }
+    if let Some(m) = args.milestone { payload["milestone"] = json!(m); }
     submit(payload, "linear.issue.create", summary, DEFAULT_TIMEOUT)
         .await
         .map(|o| project_field(o, "url"))
 }
 
 async fn cmd_linear_issue_update(args: LinearIssueUpdateArgs) -> Result<Outcome> {
+    if args.milestone.is_some() && args.project.is_none() {
+        bail!("--milestone requires --project");
+    }
     let description = resolve_body(args.description, args.description_file).await?;
     if args.status.is_none()
         && args.title.is_none()
         && description.is_none()
         && args.priority.is_none()
+        && args.parent.is_none()
+        && args.assignee.is_none()
+        && args.project.is_none()
+        && args.milestone.is_none()
     {
-        bail!("update needs at least one of --status / --title / --description / --priority");
+        bail!("update needs at least one of --status / --title / --description / --priority / --parent / --assignee / --project / --milestone");
     }
     let mut bits: Vec<String> = vec![];
     if let Some(s) = &args.status {
@@ -439,6 +478,18 @@ async fn cmd_linear_issue_update(args: LinearIssueUpdateArgs) -> Result<Outcome>
     if let Some(n) = args.priority {
         bits.push(format!("priority→{n}"));
     }
+    if let Some(p) = &args.parent {
+        bits.push(format!("parent→{p}"));
+    }
+    if let Some(a) = &args.assignee {
+        bits.push(format!("assignee→{a}"));
+    }
+    if let Some(pr) = &args.project {
+        bits.push(format!("project→{pr}"));
+    }
+    if let Some(m) = &args.milestone {
+        bits.push(format!("milestone→{m}"));
+    }
     let summary = format!("Update Linear {}: {}", args.id, bits.join(", "));
     let mut payload = json!({ "issue_id": args.id });
     if let Some(s) = args.status {
@@ -452,6 +503,18 @@ async fn cmd_linear_issue_update(args: LinearIssueUpdateArgs) -> Result<Outcome>
     }
     if let Some(n) = args.priority {
         payload["priority"] = json!(n);
+    }
+    if let Some(p) = args.parent {
+        payload["parent_id"] = json!(p);
+    }
+    if let Some(a) = args.assignee {
+        payload["assignee"] = json!(a);
+    }
+    if let Some(pr) = args.project {
+        payload["project"] = json!(pr);
+    }
+    if let Some(m) = args.milestone {
+        payload["milestone"] = json!(m);
     }
     submit(payload, "linear.issue.update", summary, DEFAULT_TIMEOUT)
         .await

@@ -98,6 +98,13 @@ prompt_context() {
   prompt_segment 237 4 "$OS_LOGO  %F{7}%m%f"
 }
 
+# Fallback for oh-my-zsh's parse_git_dirty, needed with OMZ disabled
+(( $+functions[parse_git_dirty] )) || parse_git_dirty() {
+  local STATUS
+  STATUS=$(git status --porcelain --ignore-submodules=dirty 2>/dev/null | tail -n 1)
+  [[ -n $STATUS ]] && echo '*'
+}
+
 # Git: branch/detached head, dirty status
 prompt_git() {
   (( $+commands[git] )) || return

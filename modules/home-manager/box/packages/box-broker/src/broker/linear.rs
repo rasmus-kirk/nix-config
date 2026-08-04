@@ -147,6 +147,198 @@ impl LinearClient {
             .ok_or_else(|| anyhow!("no Linear team with key `{key}`"))?;
         Ok(id.to_string())
     }
+
+    /// Resolve an issue's UUID from its identifier (e.g. "QMS-84" → UUID).
+    /// `issueCreate`'s `parentId` needs the UUID, but humans work with the
+    /// short identifier.
+    async fn issue_uuid(&self, identifier: &str) -> Result<String> {
+        let query = r#"
+            query IssueUuid($id: String!) {
+              issue(id: $id) { id }
+            }
+        "#;
+        let data = self
+            .graphql(query, json!({ "id": identifier }))
+            .await
+            .context("resolving Linear issue by identifier")?;
+        data.pointer("/issue/id")
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .ok_or_else(|| anyhow!("no Linear issue with identifier `{identifier}`"))
+    }
+
+    /// Resolve an assignee to a user UUID. `"me"` resolves to the token's
+    /// viewer. A value containing `@` matches by email; otherwise it matches
+    /// a user's name or displayName (exact first, then case-insensitive).
+    async fn user_id(&self, who: &str) -> Result<String> {
+        if who.eq_ignore_ascii_case("me") {
+            let data = self
+                .graphql("query { viewer { id } }", json!({}))
+                .await
+                .context("resolving viewer")?;
+            return data
+                .pointer("/viewer/id")
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .ok_or_else(|| anyhow!("viewer response missing id"));
+        }
+
+        let filter = if who.contains('@') {
+            json!({ "email": { "eq": who } })
+        } else {
+            Value::Null
+        };
+        let query = r#"
+            query Users($filter: UserFilter) {
+              users(filter: $filter) {
+                nodes { id name displayName email }
+              }
+            }
+        "#;
+        let data = self
+            .graphql(query, json!({ "filter": filter }))
+            .await
+            .context("looking up Linear users")?;
+        let nodes = data
+            .pointer("/users/nodes")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| anyhow!("users response missing nodes: {data}"))?;
+
+        if who.contains('@') {
+            return nodes
+                .first()
+                .and_then(|n| n.get("id"))
+                .and_then(|v| v.as_str())
+                .map(str::to_string)
+                .ok_or_else(|| anyhow!("no Linear user with email `{who}`"));
+        }
+
+        let field = |n: &Value, k: &str| n.get(k).and_then(|v| v.as_str()).map(str::to_string);
+        // Exact name / displayName match first.
+        if let Some(id) = nodes.iter().find_map(|n| {
+            (field(n, "name").as_deref() == Some(who) || field(n, "displayName").as_deref() == Some(who))
+                .then(|| field(n, "id"))
+                .flatten()
+        }) {
+            return Ok(id);
+        }
+        // Case-insensitive fallback.
+        let want = who.to_ascii_lowercase();
+        let matches: Vec<&Value> = nodes
+            .iter()
+            .filter(|n| {
+                field(n, "name").map(|s| s.to_ascii_lowercase()) == Some(want.clone())
+                    || field(n, "displayName").map(|s| s.to_ascii_lowercase()) == Some(want.clone())
+            })
+            .collect();
+        match matches.as_slice() {
+            [n] => field(n, "id").ok_or_else(|| anyhow!("matched user missing id")),
+            [] => bail!("no Linear user matching `{who}` (try an email or \"me\")"),
+            many => {
+                let names: Vec<String> = many
+                    .iter()
+                    .filter_map(|n| field(n, "email"))
+                    .collect();
+                bail!("`{who}` is ambiguous ({} users). Use an email: {}", many.len(), names.join(", "))
+            }
+        }
+    }
+
+    /// Resolve a project's UUID from its name (exact first, then
+    /// case-insensitive).
+    async fn project_id(&self, name: &str) -> Result<String> {
+        let query = r#"
+            query Projects {
+              projects { nodes { id name } }
+            }
+        "#;
+        let data = self
+            .graphql(query, json!({}))
+            .await
+            .context("looking up Linear projects")?;
+        let nodes = data
+            .pointer("/projects/nodes")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| anyhow!("projects response missing nodes: {data}"))?;
+        resolve_named(nodes, name)
+            .ok_or_else(|| anyhow!("no Linear project matching `{name}`"))
+    }
+
+    /// Resolve a milestone's UUID within a project (by project UUID), matching
+    /// on name (exact first, then case-insensitive).
+    async fn milestone_id(&self, project_uuid: &str, name: &str) -> Result<String> {
+        let query = r#"
+            query Milestones($id: String!) {
+              project(id: $id) {
+                projectMilestones { nodes { id name } }
+              }
+            }
+        "#;
+        let data = self
+            .graphql(query, json!({ "id": project_uuid }))
+            .await
+            .context("looking up project milestones")?;
+        let nodes = data
+            .pointer("/project/projectMilestones/nodes")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| anyhow!("milestones response missing nodes: {data}"))?;
+        resolve_named(nodes, name)
+            .ok_or_else(|| anyhow!("no milestone matching `{name}` in that project"))
+    }
+}
+
+/// Resolve `project` / `milestone` names to UUIDs and insert `projectId` /
+/// `projectMilestoneId` into a mutation input. A milestone needs its project,
+/// so `milestone` without `project` is an error.
+async fn insert_project_milestone(
+    client: &LinearClient,
+    project: Option<&str>,
+    milestone: Option<&str>,
+    input: &mut serde_json::Map<String, Value>,
+) -> Result<()> {
+    let project_uuid = match project {
+        Some(p) => {
+            let id = client
+                .project_id(p)
+                .await
+                .with_context(|| format!("resolving project {p}"))?;
+            input.insert("projectId".into(), Value::String(id.clone()));
+            Some(id)
+        }
+        None => None,
+    };
+    if let Some(m) = milestone {
+        let puid = project_uuid.ok_or_else(|| anyhow!("--milestone requires --project"))?;
+        let id = client
+            .milestone_id(&puid, m)
+            .await
+            .with_context(|| format!("resolving milestone {m}"))?;
+        input.insert("projectMilestoneId".into(), Value::String(id));
+    }
+    Ok(())
+}
+
+/// Match a `{id, name}` node list by name: exact first, then
+/// case-insensitive. Returns the matched node's `id`.
+fn resolve_named(nodes: &[Value], name: &str) -> Option<String> {
+    let id_of = |n: &Value| n.get("id").and_then(|v| v.as_str()).map(str::to_string);
+    if let Some(id) = nodes
+        .iter()
+        .find(|n| n.get("name").and_then(|v| v.as_str()) == Some(name))
+        .and_then(id_of)
+    {
+        return Some(id);
+    }
+    let want = name.to_ascii_lowercase();
+    nodes
+        .iter()
+        .find(|n| {
+            n.get("name")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_ascii_lowercase())
+                == Some(want.clone())
+        })
+        .and_then(id_of)
 }
 
 // ─── issue.create ──────────────────────────────────────────────────────────
@@ -160,6 +352,18 @@ struct IssueCreatePayload {
     /// Linear priority: 0 (none) … 4 (low). Optional; omitted ⇒ no priority.
     #[serde(default)]
     priority: Option<u8>,
+    /// Parent issue identifier (e.g. "QMS-84"). Set ⇒ created as a subtask.
+    #[serde(default)]
+    parent_id: Option<String>,
+    /// Assignee: "me", an email, or a user name/displayName.
+    #[serde(default)]
+    assignee: Option<String>,
+    /// Project name.
+    #[serde(default)]
+    project: Option<String>,
+    /// Milestone name (requires `project`).
+    #[serde(default)]
+    milestone: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -195,9 +399,22 @@ impl Broker for LinearIssueCreate {
             let trimmed: String = one_line.chars().take(140).collect();
             format!("\n{trimmed}")
         };
+        let parent = p
+            .parent_id
+            .map(|id| format!(" (subtask of {id})"))
+            .unwrap_or_default();
+        let assignee = p
+            .assignee
+            .map(|a| format!(", assignee {a}"))
+            .unwrap_or_default();
+        let project = match (p.project, p.milestone) {
+            (Some(pr), Some(m)) => format!(", project {pr}/{m}"),
+            (Some(pr), None) => format!(", project {pr}"),
+            _ => String::new(),
+        };
         format!(
-            "Create Linear issue in team {}: {}{}{}",
-            p.team_key, p.title, prio, desc_preview
+            "Create Linear issue in team {}{}: {}{}{}{}{}",
+            p.team_key, parent, p.title, prio, assignee, project, desc_preview
         )
     }
 
@@ -223,6 +440,29 @@ impl Broker for LinearIssueCreate {
             if let Some(n) = p.priority {
                 input.insert("priority".into(), json!(n));
             }
+            if let Some(parent) = p.parent_id.as_deref() {
+                let parent_uuid = self
+                    .client
+                    .issue_uuid(parent)
+                    .await
+                    .with_context(|| format!("resolving parent issue {parent}"))?;
+                input.insert("parentId".into(), Value::String(parent_uuid));
+            }
+            if let Some(who) = p.assignee.as_deref() {
+                let assignee_id = self
+                    .client
+                    .user_id(who)
+                    .await
+                    .with_context(|| format!("resolving assignee {who}"))?;
+                input.insert("assigneeId".into(), Value::String(assignee_id));
+            }
+            insert_project_milestone(
+                &self.client,
+                p.project.as_deref(),
+                p.milestone.as_deref(),
+                &mut input,
+            )
+            .await?;
 
             let mutation = r#"
                 mutation IssueCreate($input: IssueCreateInput!) {
@@ -277,6 +517,18 @@ impl Broker for LinearIssueCreate {
             ("Team".into(), p.team_key.clone()),
             ("Title".into(), p.title.clone()),
         ];
+        if let Some(parent) = &p.parent_id {
+            fields.push(("Parent".into(), parent.clone()));
+        }
+        if let Some(a) = &p.assignee {
+            fields.push(("Assignee".into(), a.clone()));
+        }
+        if let Some(pr) = &p.project {
+            fields.push(("Project".into(), pr.clone()));
+        }
+        if let Some(m) = &p.milestone {
+            fields.push(("Milestone".into(), m.clone()));
+        }
         if let Some(n) = p.priority {
             fields.push(("Priority".into(), priority_label(n)));
         }
@@ -318,6 +570,18 @@ struct IssueUpdatePayload {
     description: Option<String>,
     #[serde(default)]
     priority: Option<u8>,
+    /// New parent issue identifier (e.g. "QMS-79"). Set ⇒ reparent as a subtask.
+    #[serde(default)]
+    parent_id: Option<String>,
+    /// New assignee: "me", an email, or a user name/displayName.
+    #[serde(default)]
+    assignee: Option<String>,
+    /// New project name.
+    #[serde(default)]
+    project: Option<String>,
+    /// New milestone name (requires `project`).
+    #[serde(default)]
+    milestone: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -355,6 +619,18 @@ impl Broker for LinearIssueUpdate {
         if let Some(n) = p.priority {
             bits.push(format!("priority→{n}"));
         }
+        if let Some(parent) = &p.parent_id {
+            bits.push(format!("parent→{parent}"));
+        }
+        if let Some(a) = &p.assignee {
+            bits.push(format!("assignee→{a}"));
+        }
+        if let Some(pr) = &p.project {
+            bits.push(format!("project→{pr}"));
+        }
+        if let Some(m) = &p.milestone {
+            bits.push(format!("milestone→{m}"));
+        }
         format!("Update {}: {}", p.issue_id, bits.join(", "))
     }
 
@@ -366,6 +642,10 @@ impl Broker for LinearIssueUpdate {
                 && p.title.is_none()
                 && p.description.is_none()
                 && p.priority.is_none()
+                && p.parent_id.is_none()
+                && p.assignee.is_none()
+                && p.project.is_none()
+                && p.milestone.is_none()
             {
                 bail!("linear.issue.update: nothing to update");
             }
@@ -388,6 +668,29 @@ impl Broker for LinearIssueUpdate {
             if let Some(n) = p.priority {
                 input.insert("priority".into(), json!(n));
             }
+            if let Some(parent) = p.parent_id.as_deref() {
+                let parent_uuid = self
+                    .client
+                    .issue_uuid(parent)
+                    .await
+                    .with_context(|| format!("resolving parent issue {parent}"))?;
+                input.insert("parentId".into(), Value::String(parent_uuid));
+            }
+            if let Some(who) = p.assignee.as_deref() {
+                let assignee_id = self
+                    .client
+                    .user_id(who)
+                    .await
+                    .with_context(|| format!("resolving assignee {who}"))?;
+                input.insert("assigneeId".into(), Value::String(assignee_id));
+            }
+            insert_project_milestone(
+                &self.client,
+                p.project.as_deref(),
+                p.milestone.as_deref(),
+                &mut input,
+            )
+            .await?;
 
             let mutation = r#"
                 mutation IssueUpdate($id: String!, $input: IssueUpdateInput!) {
@@ -450,6 +753,18 @@ impl Broker for LinearIssueUpdate {
         }
         if let Some(n) = p.priority {
             fields.push(("New priority".into(), priority_label(n)));
+        }
+        if let Some(parent) = &p.parent_id {
+            fields.push(("New parent".into(), parent.clone()));
+        }
+        if let Some(a) = &p.assignee {
+            fields.push(("New assignee".into(), a.clone()));
+        }
+        if let Some(pr) = &p.project {
+            fields.push(("New project".into(), pr.clone()));
+        }
+        if let Some(m) = &p.milestone {
+            fields.push(("New milestone".into(), m.clone()));
         }
         let mut prose = vec![];
         if let Some(d) = p.description {

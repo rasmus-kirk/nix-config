@@ -148,6 +148,13 @@ with lib; let
     # (which would leak host-installed tools — most notably `box` itself).
     export PATH="/home/user/.nix-profile/bin:$PATH"
     export NIX_REMOTE=daemon
+    # Home-manager reads XDG_STATE_HOME (default $HOME/.local/state) to place
+    # both its gcroots dir and its profile dir. Point it at the box home's
+    # host path, bound to the same directory as ~/.local/state, so the GC
+    # roots it registers resolve to the box home on the host instead of the
+    # user's real /home/user. Without this the box generation is unrooted and
+    # a host `nix store gc` collects the whole profile.
+    export XDG_STATE_HOME=${cfg.stateDir}/home/.local/state
     export NIX_SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
     export SSL_CERT_FILE=/etc/ssl/certs/ca-bundle.crt
     # Stable identifier for this box session. Propagated into every
@@ -298,6 +305,14 @@ with lib; let
         "--bind"
         "${cfg.stateDir}/home"
         "/home/user"
+        # The same directory under a second name. Nix records GC roots as the
+        # path string it was handed, and the host reads /home/user as the real
+        # home, so roots registered from in here landed on the wrong home and
+        # left the box generation unrooted. XDG_STATE_HOME (see initScript)
+        # points at this name instead, which means the same thing on the host.
+        "--bind"
+        "${cfg.stateDir}/home"
+        "${cfg.stateDir}/home"
       ]
       ++ claudeStateBind
       ++ (optionals (cfg.githubTokenFile != null) [
@@ -342,7 +357,7 @@ with lib; let
 
   box = pkgs.writeShellApplication {
     name = cfg.name;
-    runtimeInputs = with pkgs; [coreutils trash-cli];
+    runtimeInputs = with pkgs; [coreutils findutils trash-cli];
     inheritPath = false;
     text = ''
       # --read-only / --ro: caller's $PWD is bind-mounted read-only inside the
@@ -376,15 +391,28 @@ with lib; let
         ${pkgs.direnv}/bin/direnv allow "$PWD" 2>/dev/null || true
       fi
 
-      # Auto-bootstrap on first run.
+      # Bootstrap on first run, and repair a box whose profile went away.
+      # Both tests read the profiles dir directly. Going through
+      # `.nix-profile` would follow its absolute /home/user/… target, which
+      # out here is the caller's own home, so the box could never satisfy it.
+      BOX_NEEDS_HM=0
+      [ -e "${cfg.stateDir}/home/.local/state/nix/profiles/profile/bin" ] || BOX_NEEDS_HM=1
+      [ -e "${cfg.stateDir}/home/.local/state/home-manager/gcroots/current-home" ] || BOX_NEEDS_HM=1
       if ${
         if cfg.homeManagerFlake != null
         then "true"
         else "false"
-      } && [ ! -L "${cfg.stateDir}/home/.nix-profile" ]; then
-        echo "First run — bootstrapping box home-manager (${cfg.homeManagerFlake})..."
+      } && [ "$BOX_NEEDS_HM" = 1 ]; then
+        # Drop links into a collected generation, all of which the switch
+        # below recreates. Under --impure nixpkgs reads
+        # ~/.config/nixpkgs/config.nix at eval time, so a dead link there
+        # aborts the switch before home-manager can relink anything.
+        find "${cfg.stateDir}/home" -xtype l \
+             -lname '/nix/store/*-home-manager-files*' -delete
+        echo "Bootstrapping box home-manager (${cfg.homeManagerFlake})..."
         ${runBox} bash -lc 'home-manager switch --flake ${cfg.homeManagerFlake} -b backup --impure' || {
-          echo "Bootstrap failed. Run '${cfg.name} hm-switch' manually."
+          echo "Bootstrap failed. Retry with:"
+          echo "  ${cfg.name} bash -lc 'home-manager switch --flake ${cfg.homeManagerFlake} -b backup --impure'"
           exit 1
         }
       fi
@@ -576,6 +604,13 @@ in {
           # Linear (MCP server + OAuth)
           ''^linear\.app$''
           ''^.*\.linear\.app$''
+          # Slack
+          ''^mcp-9827.slack.com$''
+          ''^slack.com$''
+          ''^mcp.slack.com$''
+          # Notion
+          ''^mcp.notion.com''
+          ''^api.notion.com''
         ];
         description = ''
           Regex patterns (extended POSIX) matching allowed destination hostnames.
@@ -610,8 +645,10 @@ in {
       example = "/data/.system-configuration#sandbox";
       description = ''
         Flake reference for the box's home-manager config. When non-null,
-        running `box` for the first time will auto-bootstrap home-manager.
-        Use `box hm-switch` to re-apply after changes.
+        `box` auto-bootstraps home-manager on first run and re-switches
+        whenever the box profile is missing or dangling. To re-apply after
+        editing the config, run the switch inside the box:
+        `box bash -lc 'home-manager switch --flake <ref> -b backup --impure'`.
       '';
     };
 

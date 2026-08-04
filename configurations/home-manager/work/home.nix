@@ -34,6 +34,10 @@ in {
       enable = true;
       addKeysToAgent = true;
       identityPath = "${secretDir}/ssh/id_ed25519_yubi";
+      # Per-machine host definitions live here (outside the flake). Drop
+      # a `Host <alias>` block in e.g. /data/.state/ssh/remotes/desktop.conf
+      # and ssh / rsync / scp pick it up automatically.
+      includes = [ "/data/.state/ssh/remotes/*.conf" ];
     };
     userDirs = {
       enable = true;

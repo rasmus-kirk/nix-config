@@ -27,8 +27,7 @@ in {
       enable = true;
       autosuggestion.enable = true;
       syntaxHighlighting.enable = true;
-      # TODO: Shouldn't be necessary, testing it out
-      # oh-my-zsh.enable = true;
+      oh-my-zsh.enable = true;
       history = mkIf (cfg.stateDir != null) {
         path = "${cfg.stateDir}/zsh/history";
       };
@@ -51,11 +50,6 @@ in {
       };
 
       initContent = ''
-        # Required for $(build_prompt) in gruvbox-powerline.zsh-theme to
-        # be evaluated each render. oh-my-zsh used to set this for us;
-        # now that OMZ is off we set it explicitly.
-        setopt PROMPT_SUBST
-
         gc() {
           git clone --recursive $(wl-paste)
         }
