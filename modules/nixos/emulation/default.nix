@@ -220,6 +220,14 @@ in {
     systemd.tmpfiles.rules =
       [
         "d ${cfg.gamesDir}                     0755 ${cfg.user} users -"
+        # The L+ rules below place symlinks under ~/.config. On this impermanence
+        # box ~/.config is wiped every boot, so if systemd-tmpfiles (running as
+        # root) auto-creates it as the parent of an L+ target, it becomes
+        # root-owned — and home-manager's linkGeneration (running as the user)
+        # then can't write into it, failing home-manager-user.service. Create
+        # ~/.config user-owned first (tmpfiles processes rules in path-sorted
+        # order, so this precedes the .config/* links).
+        "d /home/${cfg.user}/.config           0755 ${cfg.user} users -"
       ]
       ++ optionals cfg.ps1.enable [
         "d ${ps1Dir}                           0755 ${cfg.user} users -"

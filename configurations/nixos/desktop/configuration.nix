@@ -115,6 +115,46 @@ in {
     };
   };
 
+  # agenix decrypts secrets from an *activation script* into a ramfs at
+  # /run/agenix.d. A soft-reboot (the power-button recovery below) re-execs PID 1
+  # WITHOUT re-running activation scripts, and tears down that ramfs — so
+  # /run/agenix vanishes and never comes back, killing wg (hence transmission),
+  # ddns, and mam-vpn until the next real boot or `nixos-rebuild switch`.
+  #
+  # Fix: reinstall the secrets from a oneshot *service*. This mirrors agenix's own
+  # `agenix-install-secrets` unit (only wired up when systemd.sysusers/userborn is
+  # enabled, which we don't use) by replaying the exact install snippets agenix
+  # generates for the activation-script path. Ordered before the VPN so confined
+  # services find their secrets.
+  #
+  # CRITICAL: for this to re-run on a soft-reboot the unit must be *stopped* during
+  # the soft-reboot's shutdown transition, so sysinit.target re-pulls it (and thus
+  # re-fires ExecStart) on the way back up. `DefaultDependencies = no` is required
+  # here — a plain oneshot pulled into sysinit.target can't also be ordered After
+  # it — but that flag strips the automatic `Conflicts/Before=shutdown.target`, so
+  # nothing ever stopped the unit and RemainAfterExit kept it active(exited) across
+  # soft-reboots forever (secrets silently vanished; see 2026-08-02 regression).
+  # `systemd-soft-reboot.service` Requires+After `shutdown.target`, so adding the
+  # conflict/ordering below guarantees the stop-then-restart cycle. Idempotent — on
+  # a real boot activation already ran, so this just makes a fresh generation.
+  systemd.services.agenix-reinstall = {
+    description = "Reinstall agenix secrets (survives soft-reboot)";
+    wantedBy = ["sysinit.target"];
+    before = ["wg.service" "shutdown.target"];
+    conflicts = ["shutdown.target"];
+    unitConfig.DefaultDependencies = "no";
+    path = [pkgs.mount];
+    serviceConfig = {
+      Type = "oneshot";
+      RemainAfterExit = true;
+      ExecStart = pkgs.writeShellScript "agenix-reinstall" ''
+        ${config.system.activationScripts.agenixNewGeneration.text}
+        ${config.system.activationScripts.agenixInstall.text}
+        ${config.system.activationScripts.agenixChown.text}
+      '';
+    };
+  };
+
   # -------------------- Kirk Modules -------------------- #
 
   kirk = {
@@ -251,6 +291,39 @@ in {
       vpnConfinement = {
         enable = true;
         vpnNamespace = "wg";
+      };
+    };
+
+    # -------------------- VPN self-healing watchdog -------------------- #
+    # nixarr's wg.service is Type=oneshot: it runs wg-up and exits, so there is
+    # no live process for systemd to watch and a dead tunnel goes unnoticed.
+    # AirVPN's endpoint (se3.vpn.airdns.org) rotates IPs; WireGuard resolves the
+    # hostname only at bring-up and pins the IP, and the config has no
+    # PersistentKeepalive -- so when AirVPN moves the server the tunnel silently
+    # black-holes all traffic until wg.service is restarted (which re-resolves
+    # DNS to a live IP). transmission BindsTo wg.service and mam-vpn re-enters
+    # the namespace, so restarting wg alone pulls everything back up.
+    # Long-running loop: sleep, probe real connectivity through the namespace,
+    # and restart wg.service whenever the tunnel stops passing packets.
+    services.wg-watchdog = {
+      wantedBy = ["multi-user.target"];
+      after = ["wg.service"];
+      serviceConfig = {
+        Restart = "always";
+        RestartSec = "30";
+        ExecStart = pkgs.writeShellScript "wg-watchdog" ''
+          while true; do
+            sleep 600
+            # 10 pings, succeed if any one returns -- rides out lost packets.
+            if ${pkgs.iproute2}/bin/ip netns exec wg \
+                 ${pkgs.iputils}/bin/ping -c10 -W3 -q 1.1.1.1 >/dev/null 2>&1; then
+              continue
+            fi
+            echo "wg tunnel probe failed; restarting wg.service to re-resolve endpoint" >&2
+            ${pkgs.systemd}/bin/systemctl restart wg.service
+            sleep 30 # let the tunnel re-establish before the next probe
+          done
+        '';
       };
     };
   };
@@ -478,13 +551,21 @@ in {
 
   systemd.services.openrgb-color = {
     description = "Apply static case RGB colour (candlelight)";
-    # No persistent openrgb.service to wait on now — just need i2c-dev loaded.
-    # The oneshot sets the colour and exits, releasing the GPU i2c bus.
-    after = ["systemd-modules-load.service"];
+    # Order strictly after the persistent openrgb.service so the CLI connects
+    # to the running server as a *client* instead of doing its own early-boot
+    # hardware detection. Direct detection racing the server (and an amdgpu
+    # i2c bus that isn't ready yet) segfaulted this oneshot at boot, so the
+    # colour never got applied. As a client it just talks to the server.
+    requires = ["openrgb.service"];
+    after = ["openrgb.service" "systemd-modules-load.service"];
     wantedBy = ["multi-user.target"];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
+      # The server can take a moment to finish detection and open its socket;
+      # retry so we don't lose the race on a slow boot.
+      Restart = "on-failure";
+      RestartSec = 3;
       ExecStart = [
         # Steady candlelight, same colour on both. 0E0200 = rgb(14,2,0).
         "${config.services.hardware.openrgb.package}/bin/openrgb --mode static --color 0E0200"
@@ -576,16 +657,29 @@ in {
   systemd.services.systemd-hibernate.serviceConfig.ExecStart = lib.mkForce sleepToTv;
   systemd.services.systemd-hybrid-sleep.serviceConfig.ExecStart = lib.mkForce sleepToTv;
 
-  # Power button -> restart Steam game mode. Out-of-band recovery for when Steam
-  # or gamescope wedges and the in-Steam power menu is unreachable, so a hung
-  # session can be fixed *physically* (e.g. by Naja) without SSH. acpid reads the
-  # power-button evdev directly at the system level, so it works even when the
-  # user session is frozen; the restart drives the user's steam-launcher unit via
-  # `-M user@.host`. Jovian's steamos-powerbuttond (short-press suspend /
-  # long-press Steam menu) is neutered so it can't also fire, and logind ignores
-  # the key so nothing races. Trade-off (chosen): the power button no longer
-  # sleeps — sleep is now STEAM -> Power -> Sleep on the controller, which still
-  # standbys the TV via the systemd-suspend hook above.
+  # Power button -> soft-reboot. Out-of-band recovery for when Steam OR gamescope
+  # (or the display itself) wedges and the in-Steam power menu is unreachable, so
+  # a hung box can be fixed *physically* (e.g. by Naja) without SSH. Restarting
+  # only steam-launcher (the old behaviour) relaunches Steam *inside* the existing
+  # gamescope session — useless when gamescope/the compositor is what's stuck.
+  #
+  # `systemctl soft-reboot` (systemd-soft-reboot.service) tears down ALL of
+  # userspace and re-execs PID 1, restarting everything — gamescope, Steam, and
+  # the always-on services (monero/minecraft/jellyfin/syncthing) — as close to a
+  # real reboot as possible. Crucially it keeps the running KERNEL and never
+  # touches firmware/bootloader/initrd, so the dm-crypt mappings and mounts in
+  # that kernel persist: NO FDE re-unlock (no YubiKey touch, no /data passphrase).
+  # Two consequences of skipping initrd: (1) the @root impermanence rollback
+  # (boot.initrd.systemd.services.rollback) does NOT run, so this is a userspace
+  # restart, not a clean-slate wipe — for that you need a real reboot; (2) a new
+  # kernel from a system update won't take effect until the next real reboot.
+  #
+  # acpid reads the power-button evdev directly at the system level, so it fires
+  # even when the user session is frozen. Jovian's steamos-powerbuttond
+  # (short-press suspend / long-press Steam menu) is neutered so it can't also
+  # fire, and logind ignores the key so nothing races. Trade-off (chosen): the
+  # power button no longer sleeps — sleep is now STEAM -> Power -> Sleep on the
+  # controller, which still standbys the TV via the systemd-suspend hook above.
   #
   # Neuter powerbuttond by overriding its ExecStart to a no-op (a plain
   # enable=false won't mask it — Jovian ships it via a package, not
@@ -598,9 +692,9 @@ in {
   services.logind.settings.Login.HandlePowerKeyLongPress = "ignore";
   services.acpid = {
     enable = true;
-    handlers.restart-steam = {
+    handlers.power-soft-reboot = {
       event = "button/power.*";
-      action = "${pkgs.systemd}/bin/systemctl --user -M user@.host restart steam-launcher.service";
+      action = "${pkgs.systemd}/bin/systemctl soft-reboot";
     };
   };
 

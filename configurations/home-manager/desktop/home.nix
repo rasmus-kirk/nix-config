@@ -212,7 +212,9 @@ in {
   # Restart Steam in game mode: bounces Jovian's steam-launcher user unit, which
   # re-runs the steam-shortcuts sync first (so tile/shortcut changes apply) and
   # relaunches the Steam client inside the existing gamescope session — no reboot
-  # or full session restart. (For a stuck gamescope/display itself, reboot.)
+  # or full session restart. (For a stuck gamescope/display itself, the physical
+  # power button now triggers `systemctl soft-reboot` — see acpid in the desktop
+  # configuration.nix; or run it over SSH.)
   home.shellAliases.restart-steam = "systemctl --user restart steam-launcher.service";
 
   # Kill KWallet. With autologin it can never auto-unlock, so it just nags on
