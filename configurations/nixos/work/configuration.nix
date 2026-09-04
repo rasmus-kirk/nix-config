@@ -40,7 +40,12 @@ in {
     # Stop the lid switch from waking the laptop. The lid uses a Hall-effect
     # (magnetic) sensor; magnetic objects placed on the closed laptop (e.g. an
     # Onyx Boox cover) can flicker the sensor and cause spurious wake-ups.
-    # Trade-off: opening the lid no longer auto-wakes — press a key instead.
+    # Trade-off: opening the lid no longer auto-wakes, press a key instead.
+    #
+    # PNP0C0D:00 exists twice in sysfs and both need clearing. The acpi node
+    # holds the flag that arms the lid's wakeup GPE (the one /proc/acpi/wakeup
+    # reports), the platform node holds the input device's own flag.
+    ACTION=="add", SUBSYSTEM=="acpi", KERNEL=="PNP0C0D:00", ATTR{power/wakeup}="disabled"
     ACTION=="add", SUBSYSTEM=="platform", KERNEL=="PNP0C0D:00", ATTR{power/wakeup}="disabled"
 
     # Yubico FIDO HID: persistent group-based access (mode 0660, group yubikey).
@@ -152,9 +157,21 @@ in {
   };
 
   # -------------------- Remote builder (client) -------------------- #
-  # Offload builds to the desktop (nixremote@desktop, SSH port 6000). Fill in
-  # the two commented values in the ssh block, then rebuild. Until then nix just
-  # falls back to building locally, so this is safe to leave half-configured.
+  # Offload builds to the desktop. The desktop address is private, so the body
+  # of the alias stays out of the repo. It lives in
+  # ${stateDir}/ssh/root-remotes/desktop-builder.conf, which must set HostName,
+  # Port, User, IdentityFile and "HostKeyAlias desktop-builder".
+  #
+  # nix-daemon connects as root, so the Include belongs in the system-wide
+  # /etc/ssh/ssh_config below. ssh checks the owner of every file it includes
+  # and rejects one that neither root nor the caller owns. root-remotes/ is
+  # therefore root-owned and separate from remotes/, where 'user' keeps its
+  # own aliases. A user-owned file in the root glob is a fatal error, not a
+  # skip, so the two sets must not mix.
+  #
+  # Only root reads root-remotes/, so the .conf can stay mode 0600. ssh skips
+  # a glob that matches nothing, so a rebuild before the file exists is safe
+  # and nix falls back to a local build.
   nix.distributedBuilds = true;
   nix.buildMachines = [
     {
@@ -167,19 +184,19 @@ in {
       supportedFeatures = ["nixos-test" "benchmark" "big-parallel" "kvm"];
     }
   ];
-  programs.ssh.knownHosts."desktop-builder".publicKey =
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEpERjcyDtvKx2UV9K2ErAX+60xr83yQjqOjlnGL9O29 root@desktop";
+
+  # root-remotes/ holds aliases that root uses, remotes/ holds the ones only
+  # 'user' needs (the 'desktop' alias that desktop-run wants, for example).
+  # Keep them apart, because ssh refuses to read a root include that 'user'
+  # owns.
+  systemd.tmpfiles.rules = [
+    "d ${stateDir}/ssh              0755 root root  -"
+    "d ${stateDir}/ssh/root-remotes 0755 root root  -"
+    "d ${stateDir}/ssh/remotes      0755 user users -"
+  ];
+
   programs.ssh.extraConfig = ''
-    Host desktop-builder
-      HostKeyAlias desktop-builder
-      Port 6000
-      User nixremote
-      # FILL IN: the desktop's reachable address (your DDNS domain for WAN, or a
-      # LAN IP/hostname). Left out of the repo since the domain is an agenix secret.
-      # HostName your-builder-address
-      # FILL IN: this machine's private key whose public half is pubkeys/work.pub
-      # (authorized on the desktop's nixremote user). Read by nix-daemon as root.
-      # IdentityFile /path/to/work-private-key
+    Include ${stateDir}/ssh/root-remotes/*.conf
   '';
 
   services.fprintd.enable = true;
@@ -249,6 +266,8 @@ in {
     dig
     finamp
     spotify
+    scrcpy
+    android-tools
 
     # Browsers
     chromium
