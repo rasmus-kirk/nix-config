@@ -86,6 +86,7 @@ in {
         };
         init.defaultBranch = "main";
         push.autoSetupRemote = true;
+        branch.autoSetupMerge = "simple";
         include = {
           # Get delta color themes
           path =
