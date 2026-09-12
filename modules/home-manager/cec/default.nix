@@ -105,7 +105,6 @@ with lib; let
     g_last_rms = 0.0
     g_poking = False
     g_tv_on = True   # real TV power, kept current by power_monitor
-    g_phys = None    # our physical address (read once), operand for AVR wake
     g_last_ctrl = 0.0  # monotonic time of the last Steam-Controller hidraw data
     CTRL_TIMEOUT = 3.0  # no controller hidraw data for this long => it's off
     udev_w = -1      # write end of the self-pipe poked on input add/remove
@@ -249,30 +248,11 @@ with lib; let
             return None
         return "on" if m.group(1).startswith("on") else "off"
 
-    def read_phys():
-        # Our own physical address (e.g. 4.0.0.0). It's the operand of the
-        # System Audio Mode Request we use to wake the AVR. Read once; it only
-        # changes if the HDMI topology does.
-        global g_phys
-        with cec_lock:
-            try:
-                out = subprocess.run([CEC_CTL, "-d", DEV],
-                                     capture_output=True, text=True,
-                                     timeout=4).stdout
-            except Exception:
-                return
-        m = re.search(r"Physical Address\s*:\s*(\S+)", out)
-        if m:
-            g_phys = m.group(1)
-
     def power_monitor():
-        # Track the TV's real power every PWR_POLL seconds, and back-stop the
-        # AVR. rustle's tone is the PRIMARY keep-awake; but if it ever fails and
-        # the AVR drops to standby while the TV is on, the user gets a jarring
-        # HDMI re-negotiation / output switch. We can't PREVENT that over CEC
-        # (the AVR's eco-standby only resets on a real audio signal), but we
-        # catch it within PWR_POLL seconds and wake it straight back. A "waking"
-        # log line therefore means the tone failed and needs tuning.
+        # Track the TV's real power every PWR_POLL seconds. rustle's tone is the
+        # keep-awake for the speakers; if it ever fails and the AVR drops to
+        # standby while the TV is on, we deliberately leave it alone (the user
+        # asked for a manual AVR standby to stick, not be undone here).
         global g_tv_on
         while True:
             st = dev_power(TV)
@@ -280,10 +260,6 @@ with lib; let
                 g_tv_on = True
             elif st == "off":
                 g_tv_on = False
-            if AUDIO_LA and g_phys and g_tv_on and dev_power(AUDIO_LA) == "off":
-                note("AVR in standby while TV on -> waking")
-                cec("--to", AUDIO_LA, "--system-audio-mode-request",
-                    "phys-addr=" + g_phys)
             time.sleep(PWR_POLL)
 
     def make_wav():
@@ -514,7 +490,6 @@ with lib; let
         global wav_path, g_tv_on, udev_w, g_sleep_req
         signal.signal(signal.SIGUSR1, on_sleep_signal)
         configure()
-        read_phys()
         st = dev_power(TV)
         if st is not None:
             g_tv_on = (st == "on")

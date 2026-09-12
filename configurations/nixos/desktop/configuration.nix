@@ -785,7 +785,7 @@ in {
   };
 
   users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
-    ../../../pubkeys/deck-oled.pub
+    ../../../pubkeys/yubi-key.pub
   ];
 
   # -------------------- Impermanence -------------------- #
@@ -871,8 +871,7 @@ in {
     isNormalUser = true;
     group = "nixremote";
     openssh.authorizedKeys.keyFiles = [
-      ../../../pubkeys/work.pub
-      ../../../pubkeys/deck-oled.pub
+      ../../../pubkeys/builder-work.pub
     ];
   };
 
