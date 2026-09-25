@@ -2,7 +2,7 @@ return {
 	entry = function(self, _)
 		local dir, event = ya.input {
 			title = "Directory name:",
-			position = { "top-center", y = 2, w = 50 },
+			pos = { "top-center", y = 2, w = 50 },
 		}
 
 		if event ~= 1 then

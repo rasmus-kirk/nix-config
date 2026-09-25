@@ -95,7 +95,19 @@ prompt_context() {
     darwin*)  OS_LOGO="\ue29e" ;; 
     linux*)   OS_LOGO="" ;;
   esac
-  prompt_segment 237 4 "$OS_LOGO  %F{7}%m%f"
+  local ctx
+  if [[ -n ${BOX:-} ]]; then
+    # Inside a box, which account it runs as is incidental — the box is the
+    # thing worth naming, and its UTS namespace already carries that name.
+    # Without this the box shows "dev", since the box keeps the launching
+    # account's identity rather than rewriting it.
+    ctx="%m"
+  elif [[ $UID -eq 0 || $USERNAME == dev ]]; then
+    ctx="%n"
+  else
+    ctx="%m"
+  fi
+  prompt_segment 237 4 "$OS_LOGO  %F{7}$ctx%f"
 }
 
 # Fallback for oh-my-zsh's parse_git_dirty, needed with OMZ disabled
@@ -209,9 +221,23 @@ prompt_hg() {
   fi
 }
 
-# Dir: current working directory
+# Dir: current working directory. Colour identifies which account the shell
+# belongs to: box green, dev yellow, user red.
+#
+# The box check comes first and keys off BOX (set via bwrap --setenv) rather
+# than the username: the box is a bwrap sandbox running as the *same* uid as
+# the launching account, so $USERNAME is unchanged in there. Root, and any
+# account not named here, falls through to red.
 prompt_dir() {
-  prompt_segment 2 $CURRENT_FG '%~'
+  local dir_bg
+  if [[ -n ${BOX:-} ]]; then
+    dir_bg=2
+  elif [[ $USERNAME == dev ]]; then
+    dir_bg=214
+  else
+    dir_bg=1
+  fi
+  prompt_segment $dir_bg $CURRENT_FG '%~'
 }
 
 # Virtualenv: current working virtualenv

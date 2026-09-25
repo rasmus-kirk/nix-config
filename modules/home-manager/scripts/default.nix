@@ -233,7 +233,7 @@ with lib; let
     runtimeInputs = with pkgs; [systemd coreutils];
     inheritPath = false;
     text = ''
-      OUTDIR=/tmp/screenshots
+      OUTDIR=/data/media/images/screenshots
       ${pkgs.coreutils}/bin/mkdir -p "$OUTDIR"
       DEST="$OUTDIR/$(${pkgs.coreutils}/bin/date +%F-%H-%M-%S).png"
       # Phase 1: slurp + grim inside a transient user unit. cosmic's keybinding
@@ -248,6 +248,17 @@ with lib; let
         ${pkgs.libnotify}/bin/notify-send "Screenshot failed" "slurp/grim error"
         ${pkgs.coreutils}/bin/rm -f "$DEST"
         exit 1
+      fi
+      # Mirror into /tmp/screenshots, which is what the box binds: /data is
+      # 0700 user:users, so a box running as dev can't read the copy above.
+      # /tmp gets nuked regularly and that's fine — $OUTDIR is the archive,
+      # this is just the hand-off drop. Skipped unless the directory is a
+      # real one we own (systemd-tmpfiles makes it 0750 user:dev at boot);
+      # never created blind, so another uid can't plant the path in sticky
+      # /tmp and choose what the box sees.
+      TMPDIR_SHOTS=/tmp/screenshots
+      if [ -d "$TMPDIR_SHOTS" ] && [ ! -L "$TMPDIR_SHOTS" ] && [ -O "$TMPDIR_SHOTS" ]; then
+        ${pkgs.coreutils}/bin/cp -- "$DEST" "$TMPDIR_SHOTS/" || true
       fi
       # Phase 2: wl-copy outside systemd-run so its clipboard daemon isn't
       # reaped when the transient unit cleans up. setsid detaches it from

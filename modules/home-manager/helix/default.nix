@@ -107,8 +107,15 @@ in {
         ];
       };
 
+      # Gruvbox renders whitespace at bg2 (#504945). bg1 sits closer to the
+      # bg0 background, so the marks read as texture rather than characters.
+      themes.gruvbox-dim-ws = {
+        inherits = "gruvbox";
+        "ui.virtual.whitespace" = "bg1";
+      };
+
       settings = {
-        theme = "gruvbox";
+        theme = "gruvbox-dim-ws";
 
         editor = {
           mouse = true;
@@ -136,13 +143,14 @@ in {
 
           whitespace = {
             render = {
-              space = "none";
+              space = "all";
               nbsp = "all";
               tab = "all";
               newline = "all";
             };
             characters = {
               newline = "⌄";
+              space = "░";
             };
           };
         };

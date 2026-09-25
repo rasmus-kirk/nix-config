@@ -54,7 +54,7 @@ in {
 
   services.transmission = {
     enable = true;
-    package = inputs.nixpkgs-2405.legacyPackages.${pkgs.system}.transmission_4;
+    package = inputs.nixpkgs-2405.legacyPackages.${pkgs.stdenv.hostPlatform.system}.transmission_4;
     openPeerPorts = true;
     user = "user";
     settings = {
@@ -152,7 +152,7 @@ in {
   # Custom klfc keyboard layout (kirk.keyboardLayout module).
   kirk.keyboardLayout = {
     enable = true;
-    package = inputs.keyboard-layout.packages.${pkgs.system}.rk;
+    package = inputs.keyboard-layout.packages.${pkgs.stdenv.hostPlatform.system}.rk;
   };
 
   # -------------------- Remote builder (client) -------------------- #
@@ -171,8 +171,7 @@ in {
       supportedFeatures = ["nixos-test" "benchmark" "big-parallel" "kvm"];
     }
   ];
-  programs.ssh.knownHosts."desktop-builder".publicKey =
-    "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEpERjcyDtvKx2UV9K2ErAX+60xr83yQjqOjlnGL9O29 root@desktop";
+  programs.ssh.knownHosts."desktop-builder".publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEpERjcyDtvKx2UV9K2ErAX+60xr83yQjqOjlnGL9O29 root@desktop";
   programs.ssh.extraConfig = ''
     Host desktop-builder
       HostKeyAlias desktop-builder
@@ -194,6 +193,30 @@ in {
     cosmic-greeter.u2fAuth = true;
     cosmic-greeter.unixAuth = false;
   };
+
+  security.pam.u2f.settings = {
+    authfile = "${secretDir}/ssh/id_ed25519_yubi";
+    sshformat = true;
+    origin = "ssh:rasmus";
+  };
+
+  systemd.tmpfiles.rules = [
+    "d ${stateDir}                 0700 user users -"
+    "d ${stateDir}/thunderbird     0755 user users -"
+    "d ${stateDir}/cosmic          0755 user users -"
+    "d ${stateDir}/cosmic/config   0755 user users -"
+    "d ${stateDir}/cosmic/comp     0755 user users -"
+    "d ${stateDir}/cosmic/local    0755 user users -"
+    "d ${stateDir}/firefox         0755 user users -"
+    "d ${stateDir}/firefox/config  0755 user users -"
+    "d ${stateDir}/firefox/home    0755 user users -"
+    "d ${stateDir}/chromium        0755 user users -"
+    "d ${stateDir}/syncthing       0755 user users -"
+    "d ${stateDir}/syncthing/state 0755 user users -"
+    "d ${stateDir}/syncthing/sync  0755 user users -"
+    "d ${stateDir}/claude          0755 user users -"
+    "d ${stateDir}/claude/state    0755 user users -"
+  ];
 
   # Enable sound with pipewire.
   services.pulseaudio.enable = false;
@@ -263,7 +286,7 @@ in {
     wl-clipboard
     yt-dlp
 
-    inputs.agenix.packages."${system}".default
+    inputs.agenix.packages."${stdenv.hostPlatform.system}".default
   ];
 
   system.stateVersion = "25.11"; # Did you read the comment?

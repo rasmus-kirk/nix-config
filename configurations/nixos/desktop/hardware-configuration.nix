@@ -34,7 +34,6 @@
     };
   };
 
-
   fileSystems."/" = {
     device = "/dev/mapper/cryptroot";
     fsType = "btrfs";

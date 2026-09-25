@@ -45,7 +45,8 @@
     '';
   # Jellyfin web UI: fullscreen kiosk on its own profile (independent instance,
   # never attaches to the plain Chromium tile).
-  jellyfin-kiosk = mkChromiumTile "jellyfin-kiosk"
+  jellyfin-kiosk =
+    mkChromiumTile "jellyfin-kiosk"
     "--user-data-dir=${stateDir}/user/jellyfin-web --app=http://localhost:8096 --kiosk --no-first-run --window-size=3840,2160 --force-device-scale-factor=2.0";
   # Per-person Chromium browser tiles, fullscreen + scaled for the 4K TV. Each
   # has its OWN --user-data-dir so each person gets their own logins/YouTube
@@ -60,7 +61,6 @@
     "--user-data-dir=${stateDir}/user/${profile} --window-size=3840,2160 --start-fullscreen --force-device-scale-factor=2.0";
   chromium-rasmus = mkChromiumBrowser "chromium-rasmus" "chromium-rasmus";
   chromium-naja = mkChromiumBrowser "chromium-naja" "chromium-naja";
-
   # JFv3 — the new CEF/mpv Jellyfin Desktop client, wrapped from its prebuilt
   # nightly AppImage. nixpkgs only ships the old Qt 2.0.0 (broken by qtwebengine
   # 6.11.0, nixpkgs#519073), and v3 has no versioned release to package from
@@ -217,7 +217,7 @@ in {
         ratio-limit-enabled = true;
         ratio-limit = 20.0;
       };
-      package = inputs.nixpkgs-2405.legacyPackages.${pkgs.system}.transmission_4;
+      package = inputs.nixpkgs-2405.legacyPackages.${pkgs.stdenv.hostPlatform.system}.transmission_4;
       vpn.enable = true;
       peerPort = transmissionPort;
     };
@@ -357,7 +357,7 @@ in {
   # deck-oled / work machines use, pulled from the keyboard-layout flake input.
   kirk.keyboardLayout = {
     enable = true;
-    package = inputs.keyboard-layout.packages.${pkgs.system}.rk;
+    package = inputs.keyboard-layout.packages.${pkgs.stdenv.hostPlatform.system}.rk;
   };
 
   # Steam in gamescope, Cosmic as the fallback session. AMD Radeon RX 9070
@@ -599,6 +599,30 @@ in {
     "d /data                        0755 root root  -"
     "d /data/.state                 0755 root root  -"
     "d /data/.state/user            0755 user users -"
+    "d /data/.state/user/thunderbird                0755 user users -"
+    "d /data/.state/user/firefox                    0755 user users -"
+    "d /data/.state/user/firefox/config             0755 user users -"
+    "d /data/.state/user/firefox/home               0755 user users -"
+    "d /data/.state/user/chromium                   0755 user users -"
+    "d /data/.state/user/jellyfin-web               0700 user users -"
+    "d /data/.state/user/chromium-rasmus            0700 user users -"
+    "d /data/.state/user/chromium-naja              0700 user users -"
+    "d /data/.state/user/ssh                        0700 user users -"
+    "d /data/.state/user/claude                     0755 user users -"
+    "d /data/.state/user/claude/state               0755 user users -"
+    "d /data/.state/user/steam                      0755 user users -"
+    "d /data/.state/user/steam/steam                0755 user users -"
+    "d /data/.state/user/steam/steam-compat         0755 user users -"
+    "d /data/.state/user/steam/gamescope            0755 user users -"
+    "d /data/.state/user/steam/steamos-manager      0755 user users -"
+    "d /data/.state/user/plezy                      0755 user users -"
+    "d /data/.state/user/jellyfinmediaplayer        0755 user users -"
+    "d /data/.state/user/zsh                        0755 user users -"
+    "d /data/.state/user/cosmic                     0755 user users -"
+    "d /data/.state/user/cosmic/config              0755 user users -"
+    "d /data/.state/user/cosmic/comp                0755 user users -"
+    "d /data/.state/user/cosmic/local               0755 user users -"
+    "d /data/.state/user/btop                       0755 user users -"
 
     # XDG user dirs (kirk.userDirs.rootDir = /data): downloads sits
     # directly in root-owned /data — not under /data/.state/user — so it
@@ -698,7 +722,6 @@ in {
     };
   };
 
-
   # -------------------- Syncthing -------------------- #
 
   services = {
@@ -780,8 +803,8 @@ in {
 
   programs.mosh.enable = true;
   networking.firewall = {
-    allowedUDPPorts = [ 6000 ];
-    allowedTCPPorts = [ 8384 ];
+    allowedUDPPorts = [6000];
+    allowedTCPPorts = [8384];
   };
 
   users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
@@ -933,12 +956,13 @@ in {
   # in the auth order rssh is tried first, so an SSH session with a
   # forwarded agent still satisfies sudo without a key (see rssh block),
   # and U2F is the local fallback. Password remains the final fallback.
-  # Key mapping lives in ~/.config/Yubico/u2f_keys (symlinked to
-  # /data/.state/yubico in home.nix); register with `pamu2fcfg`.
   security.pam.services.sudo.u2fAuth = true;
   security.pam.services.login.u2fAuth = true;
   security.pam.services.cosmic-greeter.u2fAuth = true;
   security.pam.u2f.settings.cue = true; # prints "touch your key" prompt
+  security.pam.u2f.settings.authfile = "${secretDir}/ssh/id_ed25519_yubi";
+  security.pam.u2f.settings.sshformat = true;
+  security.pam.u2f.settings.origin = "ssh:rasmus";
 
   # 1. Enable the module globally
   security.pam.rssh.enable = true;
@@ -1085,8 +1109,8 @@ in {
     wget
 
     # Agenix
-    inputs.agenix.packages."${system}".default
-    inputs.submerger.packages."${system}".default
+    inputs.agenix.packages."${stdenv.hostPlatform.system}".default
+    inputs.submerger.packages."${stdenv.hostPlatform.system}".default
   ];
 
   system.stateVersion = "24.05";

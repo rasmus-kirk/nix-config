@@ -1,6 +1,8 @@
 {
   imports = [
     ./chromiumLaunchers
+    ./claude
+    ./cosmic
     ./fonts
     ./foot
     ./git

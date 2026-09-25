@@ -1,0 +1,20 @@
+(
+    state: Enabled,
+    acceleration: Some((
+        profile: Some(Flat),
+        speed: 0.6042271248762552,
+    )),
+    click_method: Some(Clickfinger),
+    scroll_config: Some((
+        method: Some(TwoFinger),
+        natural_scroll: None,
+        scroll_button: None,
+        scroll_factor: None,
+    )),
+    tap_config: Some((
+        enabled: true,
+        button_map: Some(LeftRightMiddle),
+        drag: true,
+        drag_lock: false,
+    )),
+)

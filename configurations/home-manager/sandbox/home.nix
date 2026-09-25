@@ -3,13 +3,15 @@
   pkgs,
   lib,
   config,
+  boxUser,
   ...
 }: let
   dataDir = "/data";
   secretDir = "${dataDir}/.secret";
   configDir = "${dataDir}/.system-configuration";
   stateDir = "${dataDir}/.state";
-  username = "user";
+  # Set by the flake's mkSandbox, from kirk.box.user on the host side.
+  username = boxUser;
   machine = "sandbox";
 in {
   kirk = {
@@ -17,11 +19,10 @@ in {
     xdgMime.enable = true;
     git = {
       enable = true;
-      # signKey set so kirk.git wires up SSH-format signature handling
-      # (gpg.format=ssh + allowedSignersFile). signByDefault=false because
-      # the box can't actually sign (no private key, no YubiKey) — that
-      # happens later via `git-batch-sign` on the host.
-      signKey = "${secretDir}/ssh/id_ed25519_yubi.pub";
+      # signByDefault=false: the box has no private key or YubiKey, so it
+      # cannot sign. signKey is the store copy, resolvable inside every box.
+      signKey = toString ../../../pubkeys/yubi.pub;
+      signPubKey = ../../../pubkeys/yubi.pub;
       signByDefault = false;
       userEmail = "mail@rasmuskirk.com";
       userName = "rasmus-kirk";
@@ -41,10 +42,8 @@ in {
     };
     ssh = {
       enable = true;
-      # No identityPath — box has no SSH key access. Git push/pull/fetch
-      # flow through the host approval TUI which uses the host's YubiKey.
+      # No identityPath — box has no SSH key access.
     };
-    box.brokerClient.enable = true;
     userDirs = {
       enable = true;
       rootDir = dataDir;
@@ -91,9 +90,25 @@ in {
     enableZshIntegration = true;
     nix-direnv.enable = true;
     silent = true;
+    # Trust every .envrc, but only in here. The box is the jail, so running a
+    # project's .envrc inside it is the point; what must not happen is the
+    # launcher marking it trusted on the *host*, which would let it execute
+    # outside the sandbox the next time that directory is entered.
+    config.whitelist.prefix = ["/"];
   };
 
   home.packages = with pkgs; [
+    # Base userland. The box's PATH is only this profile, so if it isn't here
+    # it doesn't exist in the box — including `ls`. `nix` is needed by
+    # nix-direnv to build a project's devshell.
+    coreutils
+    findutils
+    gawk
+    gnugrep
+    gnused
+    less
+    nix
+
     # Misc
     claude-code
     curl
@@ -101,10 +116,4 @@ in {
     # Misc Terminal Tools
     wl-clipboard
   ];
-
-  # Box no longer talks to GitHub directly — git push/pull/fetch all
-  # route through the host approval TUI, which performs the SSH op
-  # from the host (where the YubiKey lives). Commits in box are
-  # unsigned by design (signByDefault=false above); use `git-batch-sign`
-  # to amend-sign a range on the host when ready.
 }

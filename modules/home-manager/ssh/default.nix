@@ -38,8 +38,8 @@ in {
     programs.ssh = {
       enable = true;
       enableDefaultConfig = false;
-      matchBlocks."*" = {
-        addKeysToAgent =
+      settings."*" = {
+        AddKeysToAgent =
           if cfg.addKeysToAgent
           then "yes"
           else "no";

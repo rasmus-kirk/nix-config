@@ -5,5 +5,7 @@
     ./steamShortcuts
     ./emulation
     ./keyboardLayout
+    ./hardening
+    ./devUser
   ];
 }

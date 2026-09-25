@@ -37,11 +37,6 @@
     submerger.inputs.nixpkgs.follows = "nixpkgs";
 
     impermanence.url = "github:nix-community/impermanence";
-
-    ballbrawl = {
-      url = "git+ssh://git@github.com/rasmus-kirk/ballbrawl.git";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
   };
 
   outputs = inputs @ {
@@ -72,11 +67,29 @@
         f {
           pkgs = import nixpkgs {inherit system;};
         });
+
+    mkSandbox = boxUser:
+      home-manager.lib.homeManagerConfiguration {
+        pkgs = import nixpkgs {
+          system = "x86_64-linux";
+          config.allowUnfree = true;
+        };
+
+        extraSpecialArgs = {inherit inputs boxUser;};
+
+        modules = [
+          ./configurations/home-manager/sandbox/home.nix
+          self.homeManagerModules.default
+        ];
+      };
   in {
     nixosModules.default = import ./modules/nixos;
 
     homeManagerModules.default = {
-      imports = [./modules/home-manager];
+      imports = [
+        ./modules/home-manager
+        nix-index-database.homeModules.nix-index
+      ];
       config._module.args = {inherit inputs;};
     };
 
@@ -130,18 +143,6 @@
     in {
       default = website.package;
       debug = website.loop;
-      box-broker = pkgs.rustPlatform.buildRustPackage {
-        pname = "box-broker";
-        version = "0.2.0";
-        src = ./modules/home-manager/box/packages/box-broker;
-        cargoLock.lockFile = ./modules/home-manager/box/packages/box-broker/Cargo.lock;
-      };
-      box-approver = pkgs.rustPlatform.buildRustPackage {
-        pname = "box-approver";
-        version = "0.2.0";
-        src = ./modules/home-manager/box/packages/box-broker;
-        cargoLock.lockFile = ./modules/home-manager/box/packages/box-broker/Cargo.lock;
-      };
     });
 
     formatter = forAllSystems ({pkgs}: pkgs.alejandra);
@@ -219,14 +220,19 @@
           ./configurations/nixos/work/configuration.nix
           agenix.nixosModules.default
           self.nixosModules.default
-          # nix-index-database.nixosModules.default
           home-manager.nixosModules.home-manager
           {
             home-manager.users.user = {
               imports = [
                 ./configurations/home-manager/work/home.nix
                 self.homeManagerModules.default
-                nix-index-database.homeModules.nix-index
+              ];
+              config.home.packages = [home-manager.packages."${system}".default];
+            };
+            home-manager.users.dev = {
+              imports = [
+                ./configurations/home-manager/dev/home.nix
+                self.homeManagerModules.default
               ];
               config.home.packages = [home-manager.packages."${system}".default];
             };
@@ -252,20 +258,8 @@
     };
 
     homeConfigurations = {
-      sandbox = home-manager.lib.homeManagerConfiguration {
-        pkgs = import nixpkgs {
-          system = "x86_64-linux";
-          config.allowUnfree = true;
-        };
-
-        extraSpecialArgs = {inherit inputs;};
-
-        modules = [
-          ./configurations/home-manager/sandbox/home.nix
-          # nix-index-database.homeModules.nix-index
-          self.homeManagerModules.default
-        ];
-      };
+      sandbox = mkSandbox "user";
+      sandbox-dev = mkSandbox "dev";
 
       naja-deck = home-manager.lib.homeManagerConfiguration {
         pkgs = import nixpkgs {
@@ -277,7 +271,6 @@
 
         modules = [
           ./configurations/home-manager/naja-deck/home.nix
-          nix-index-database.homeModules.nix-index
           self.homeManagerModules.default
         ];
       };

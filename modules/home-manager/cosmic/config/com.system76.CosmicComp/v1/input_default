@@ -1,0 +1,8 @@
+(
+    state: Enabled,
+    acceleration: Some((
+        profile: Some(Adaptive),
+        speed: -0.2867359637957856,
+    )),
+    left_handed: Some(false),
+)

@@ -24,11 +24,16 @@ in {
       type = with types; nullOr (either path str);
       default = null;
       description = ''
-        Path to the SSH public key. Enables SSH signature handling:
-        `gpg.format = ssh`, `allowedSignersFile` is built from this
-        key, and commits are signed by default (controllable via
-        `signByDefault`).
+        Key git signs commits with, as a path readable by the user at
+        runtime. Enables SSH signature handling (`gpg.format = ssh`) and
+        signs commits by default, controllable via `signByDefault`.
       '';
+    };
+
+    signPubKey = mkOption {
+      type = with types; nullOr path;
+      default = null;
+      description = "Public key that `allowedSignersFile` is built from.";
     };
 
     signByDefault = mkOption {
@@ -63,9 +68,9 @@ in {
         signByDefault = cfg.signByDefault;
       };
       settings = {
-        gpg.ssh.allowedSignersFile = mkIf (cfg.signKey != null) (toString (
+        gpg.ssh.allowedSignersFile = mkIf (cfg.signPubKey != null) (toString (
           pkgs.writeText "allowed_signers"
-          "${cfg.userEmail} ${builtins.readFile cfg.signKey}"
+          "${cfg.userEmail} ${builtins.readFile cfg.signPubKey}"
         ));
         user.email = cfg.userEmail;
         user.name = cfg.userName;

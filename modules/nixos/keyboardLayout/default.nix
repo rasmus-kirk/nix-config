@@ -78,7 +78,7 @@ in {
 
     package = mkOption {
       type = types.package;
-      example = literalExpression "inputs.keyboard-layout.packages.\${pkgs.system}.rk";
+      example = literalExpression "inputs.keyboard-layout.packages.\${pkgs.stdenv.hostPlatform.system}.rk";
       description = "klfc-built layout package providing symbols/<layout> and types/<layout>.";
     };
 
