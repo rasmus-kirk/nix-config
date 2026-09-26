@@ -35,9 +35,6 @@ in {
       sessionVariables = {
         NIXPKGS_ALLOW_UNFREE = "1";
         TERMINAL = "foot";
-        # TODO: Shouldn't be necessary, testing it out
-        # Enable gnome discovery of nix installed programs
-        # XDG_DATA_DIRS = "$HOME/.nix-profile/share:$XDG_DATA_DIRS";
         # Fix nix path, see: https://github.com/nix-community/home-manager/issues/2564#issuecomment-994943471
         NIX_PATH = "\${NIX_PATH:+$NIX_PATH:}$HOME/.nix-defexpr/channels:/nix/var/nix/profiles/per-user/root/channels";
       };
@@ -59,13 +56,6 @@ in {
         nr() {
           nix run --impure nixpkgs#"$1" "''${@:2}"
         }
-
-        # What is this?
-        # if [[ $1 == eval ]]
-        # then
-        #   "$@"
-        # set --
-        # fi
       '';
 
       plugins = [

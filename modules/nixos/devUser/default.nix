@@ -23,13 +23,8 @@ in {
       linger = true;
     };
 
-    # Screenshot hand-off drop. `screenshot` (kirk.scripts) archives captures
-    # under /data, which is 0700 user:users and so invisible to dev; it also
-    # mirrors each one here, and dev's box bind-mounts this path read-only so
-    # Claude can be shown images. Root creates it at boot: owner user writes,
-    # group dev reads, nobody else sees it — and pre-creating it here means
-    # another uid can't win the race for the name in sticky /tmp. No age
-    # argument, so systemd-tmpfiles' /tmp cleanup leaves the directory alone.
+    # `screenshot` mirrors captures here because dev cannot read /data. Root creates it at boot so
+    # no other uid can claim the name in sticky /tmp. No age field, so tmpfiles cleanup skips it.
     systemd.tmpfiles.rules = [
       "d /tmp/screenshots 0750 user dev -"
     ];

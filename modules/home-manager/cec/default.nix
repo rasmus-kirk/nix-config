@@ -7,36 +7,8 @@
 with lib; let
   cfg = config.kirk.cec;
 
-  # Single TV-liveness manager for the always-on box. It subsumes rustle:
-  # the box never powers off, so the TV follows *activity*, not power, and the
-  # speaker keep-alive only makes sense while the TV is actually on.
-  #
-  # The daemon tracks the TV's REAL power state (polled over CEC), not just
-  # what it last commanded — so it wakes the TV on input no matter how it went
-  # to standby (its own idle timeout, the LG remote, or a manual standby).
-  #
-  # Security: the daemon NEVER reads keyboards. A udev rule grants it (via the
-  # `cectv` group) exactly two nodes — /dev/cec0 and the keystroke-free
-  # "System Control" sleep-key node — so the only key it can read is the
-  # repurposed sleep button. Controller presence is read from world-readable
-  # sysfs; the user is in neither `input` nor `video`.
-  #
-  # CEC:
-  #   * Wake (image-view-on): the sleep button (KEY_SLEEP on the System-Control
-  #     node, which carries no letters) or a controller connecting, while the
-  #     TV is off.
-  #   * Sleep (standby): no sleep-button press, no TV audio, and no controller
-  #     connected, for idleMinutes.
-  #   (A Steam controller's input is invisible to evdev — Steam reads it over
-  #    hidraw — so we use its *presence* (sysfs) to block sleep and its
-  #    *connect* (udev) to wake; we never read its input.)
-  #
-  # Keep-alive (rustle, emulated): record the TV sink's monitor, RMS each ~1s;
-  # after silenceMinutes of silence play a sub-audible pulse for pulseSeconds,
-  # reset on real sound. Monitor + pulse are PINNED to the TV's HDMI sink
-  # (keepAwake.sink), so headphones becoming the default sink don't affect the
-  # TV and the pulse lands on the TV speakers. We ignore the monitor while WE
-  # pulse so our poke isn't mistaken for audio.
+  # The box never powers off, so the TV follows activity instead of box power.
+  # The daemon polls real TV power over CEC, so it wakes the TV however the TV went to standby.
   daemon = pkgs.writers.writePython3Bin "cec-tv-liveness" {
     libraries = [pkgs.python3Packages.evdev];
     flakeIgnore = ["E501" "E722" "E302" "E305" "E306" "W391" "E741" "E402"];
@@ -75,11 +47,7 @@ with lib; let
     DEBUG = os.environ.get("DEBUG", "0") == "1"
     TONE_NAME = "cec-keepalive"
 
-    # Controller-volume-to-AVR relay (see volume_monitor). The Steam controller's
-    # volume keys only reach the system (gamescope) volume on the TV sink, never
-    # our evdev path -- so hold the sink at REF_PCT and translate any deviation
-    # into CEC volume steps on the AVR. REF_PCT<100 leaves headroom to see a
-    # volume-UP (which raises the sink) as well as a down.
+    # REF_PCT below 100 leaves headroom to detect a volume-up on the sink.
     VOL_RELAY = os.environ.get("VOL_RELAY", "0") == "1"
     REF_PCT = int(os.environ.get("REF_PCT", "75"))
     STEP_PCT = max(1, int(os.environ.get("STEP_PCT", "5")))
@@ -88,11 +56,10 @@ with lib; let
     POLL = 1.0
     RESCAN = 5.0
     RATE = 8000
-    PWR_POLL = 5.0   # how often to read the TV's real power state
+    PWR_POLL = 5.0
     EV_KEY = 1
     KEY_SLEEP = 142
-    # KEY_POWER (116) intentionally not handled: the power button is acpid's
-    # (restart Steam game mode), not a TV toggle. See the key loop below.
+    # KEY_POWER is not handled because acpid owns the power button.
     KEY_VOLUMEUP = 115
     KEY_VOLUMEDOWN = 114
     KEY_MUTE = 113
@@ -104,14 +71,11 @@ with lib; let
     g_last_audio = 0.0
     g_last_rms = 0.0
     g_poking = False
-    g_tv_on = True   # real TV power, kept current by power_monitor
-    g_phys = None    # our physical address (read once), operand for AVR wake
-    g_last_ctrl = 0.0  # monotonic time of the last Steam-Controller hidraw data
-    CTRL_TIMEOUT = 3.0  # no controller hidraw data for this long => it's off
-    udev_w = -1      # write end of the self-pipe poked on input add/remove
-    # Set by SIGUSR1 (the system suspend action is overridden to signal us --
-    # e.g. Steam's UI "Sleep") instead of suspending the always-on box; handled
-    # as a sleep-button press.
+    g_tv_on = True
+    g_phys = None
+    g_last_ctrl = 0.0
+    CTRL_TIMEOUT = 3.0
+    udev_w = -1
     g_sleep_req = False
 
     def log(msg):
@@ -119,30 +83,17 @@ with lib; let
             print("[cec] " + msg, flush=True)
 
     def note(msg):
-        # Operational, always-on, content-free: which response key fired and
-        # what the TV was told. Only ever called for sleep/power/volume/mute.
+        # Always logged, so callers must not pass typed key content.
         print("[cec] " + msg, flush=True)
 
     def on_sleep_signal(signum, frame):
-        # The system suspend action is replaced (systemd-suspend override in
-        # configuration.nix) with a SIGUSR1 to us, so a suspend request -- e.g.
-        # Steam's power-menu "Sleep" -- toggles the TV instead of suspending the
-        # always-on box.
+        # configuration.nix replaces system suspend with SIGUSR1 to this daemon.
         global g_sleep_req
         g_sleep_req = True
 
     def cec(*args):
-        # No args -> (re)register our Playback logical address. This runs the
-        # logical-address allocation, a slow bus negotiation (~100s of ms), so
-        # we do it ONCE (startup) and reuse the address: the kernel keeps it
-        # across cec-ctl runs; only an HPD event (TV standby/wake or a replug)
-        # clears it.
-        #
-        # With args -> transmit on the already-claimed address (fast, no
-        # re-registration). If an HPD cleared it, cec-ctl prints "unconfigured"
-        # and refuses; we then re-register and retry once. This keeps frequent
-        # transmits (volume) snappy while still self-healing after the TV
-        # sleeps/wakes.
+        # Address registration is a slow bus negotiation, so register once and
+        # re-register only when an HPD event made cec-ctl report "unconfigured".
         reg = ["--playback", "--osd-name", OSD]
         with cec_lock:
             if not args:
@@ -158,7 +109,6 @@ with lib; let
             return p
 
     def cec_result(p):
-        # Concise transmit outcome for the journal: ok / nack-timeout / rc=N.
         out = ((p.stdout or "") + (p.stderr or "")).lower()
         if p.returncode != 0:
             return "rc=%d" % p.returncode
@@ -170,13 +120,7 @@ with lib; let
         cec()
 
     def cec_vol(ui_cmd, log_it):
-        # Forward a volume/mute key to the audio system (AVR/soundbar) as a CEC
-        # user-control press + release (ui-cmd: volume-up / volume-down / mute).
-        # Volume over CEC is "System Audio Control": it targets the Audio System
-        # (logical addr 5), NOT the TV -- the TV has no CEC concept of its own
-        # speaker volume, so this only does anything when an AVR is present and
-        # the TV is in system-audio mode. Logged once per press (log_it; not on
-        # autorepeat): the action, then the transmit outcome.
+        # The TV has no CEC volume control, so volume goes to the audio system.
         if log_it:
             note("%s pressed -> audio system" % ui_cmd)
         p = cec("--to", AUDIO_LA, "--user-control-pressed", "ui-cmd=" + ui_cmd,
@@ -185,7 +129,6 @@ with lib; let
             note("%s: %s" % (ui_cmd, cec_result(p)))
 
     def sink_state():
-        # (volume %, muted bool) for the TV sink, or None if unreadable.
         if not SINK:
             return None
         try:
@@ -209,13 +152,8 @@ with lib; let
             pass
 
     def volume_monitor():
-        # Hold the TV sink at REF_PCT and relay any deviation to the AVR over CEC.
-        # A controller/system volume press moves the sink off REF_PCT (the only
-        # way that input reaches us -- it never hits evdev); we send the matching
-        # number of CEC volume steps to the AVR (each STEP_PCT of change == one
-        # step) and snap the sink back to REF_PCT, so the AVR does the real
-        # attenuation while the box stays put. Mute is left alone (a box mute is
-        # already silence). Our own snap-back reads as delta 0 -> no feedback.
+        # Steam controller volume keys only change the sink volume and never reach
+        # evdev, so relay sink deviations from REF_PCT to the AVR and reset the sink.
         set_sink(REF_PCT)
         while True:
             time.sleep(0.3)
@@ -250,9 +188,7 @@ with lib; let
         return "on" if m.group(1).startswith("on") else "off"
 
     def read_phys():
-        # Our own physical address (e.g. 4.0.0.0). It's the operand of the
-        # System Audio Mode Request we use to wake the AVR. Read once; it only
-        # changes if the HDMI topology does.
+        # The physical address is the operand of the System Audio Mode Request that wakes the AVR.
         global g_phys
         with cec_lock:
             try:
@@ -266,13 +202,8 @@ with lib; let
             g_phys = m.group(1)
 
     def power_monitor():
-        # Track the TV's real power every PWR_POLL seconds, and back-stop the
-        # AVR. rustle's tone is the PRIMARY keep-awake; but if it ever fails and
-        # the AVR drops to standby while the TV is on, the user gets a jarring
-        # HDMI re-negotiation / output switch. We can't PREVENT that over CEC
-        # (the AVR's eco-standby only resets on a real audio signal), but we
-        # catch it within PWR_POLL seconds and wake it straight back. A "waking"
-        # log line therefore means the tone failed and needs tuning.
+        # CEC cannot prevent AVR eco-standby, so wake the AVR again if the tone failed.
+        # A "waking" log line means the keep-alive tone needs tuning.
         global g_tv_on
         while True:
             st = dev_power(TV)
@@ -371,9 +302,7 @@ with lib; let
             time.sleep(2)
 
     def udev_monitor():
-        # Real-time input add/remove. Pokes the main loop's self-pipe so a
-        # controller connecting triggers an immediate rescan (and wake) rather
-        # than waiting up to RESCAN seconds.
+        # Wake the main loop at once on input add/remove instead of after RESCAN.
         while True:
             try:
                 p = subprocess.Popen(
@@ -390,9 +319,7 @@ with lib; let
             time.sleep(2)
 
     def has_volume(dev):
-        # True for the node that carries the volume keys (the Consumer Control
-        # node) -- but NEVER a real keyboard: a node that also has letters is
-        # excluded so we don't grab (and steal) all typing from the desktop.
+        # Exclude nodes with letter keys, so the grab does not take typing from the desktop.
         try:
             caps = dev.capabilities().get(EV_KEY, [])
         except Exception:
@@ -402,13 +329,7 @@ with lib; let
         return evdev.ecodes.KEY_A not in caps
 
     def refresh_devices(devs):
-        # Open every input node we can, each exactly once (mutates `devs`), and
-        # drop nodes that vanished. The node carrying the volume keys is GRABBED
-        # (EVIOCGRAB) so the desktop never sees those keys -- we forward
-        # volume/mute to the AVR ourselves, and without the grab the compositor
-        # would ALSO change the box sink, double-attenuating the audio feeding
-        # the AVR. The grab is exclusive and released automatically when the
-        # node is dropped (its fd closed).
+        # Grab the volume-key node, so the compositor does not also attenuate the sink feeding the AVR.
         cur = set(evdev.list_devices())
         for p in list(devs):
             if p not in cur:
@@ -429,9 +350,7 @@ with lib; let
             devs[p] = d
 
     def find_controller_hidraws():
-        # /dev/hidrawN nodes belonging to Valve (vendor 0x28de) -- the Steam
-        # Controller and its wireless dongle. logind's uaccess ACL grants the
-        # session user rw on them, so no extra group is needed.
+        # Valve vendor 0x28de. The logind uaccess ACL gives the session user access.
         paths = []
         try:
             names = os.listdir("/sys/class/hidraw")
@@ -447,25 +366,10 @@ with lib; let
         return paths
 
     def controller_monitor():
-        # A Steam Controller streams hidraw reports (IMU/status) continuously
-        # the whole time it is powered on -- independent of Steam, the game, or
-        # the input layout. So *real data* flowing on a Valve hidraw is a robust,
-        # layout-independent "a controller is on" signal, unlike the virtual
-        # gamepad's BTN_SOUTH (which only appears for gamepad-layout games -- not
-        # keyboard/mouse layouts or desktop mode). We only watch for data flow;
-        # the report contents are irrelevant and discarded (no input is logged).
-        #
-        # Two footguns, both about the always-connected Steam Controller Puck
-        # (the receiver/dock): after a controller has connected and dropped, one
-        # of the Puck's hidraw interfaces sits at EOF/HUP -- select() reports it
-        # readable forever while os.read() returns NO bytes. So:
-        #   1. only a NON-EMPTY read counts as activity (an empty read is EOF,
-        #      not a controller report -- counting it pinned `present` true and
-        #      the TV never slept); and
-        #   2. an fd that hits EOF/HUP is retired (closed) and reopened fresh on
-        #      the next scan, so a hung fd can't spin as "readable" forever.
+        # A powered-on controller streams hidraw reports in every input layout, so data flow means presence.
+        # After a disconnect, a receiver hidraw fd stays readable at EOF, so empty reads retire the fd.
         global g_last_ctrl
-        fds = {}          # path -> open fd
+        fds = {}
         last_scan = 0.0
         while True:
             now = time.monotonic()
@@ -496,10 +400,10 @@ with lib; let
                 try:
                     while True:
                         if not os.read(fd, 256):
-                            raise EOFError  # EOF/HUP: not a report -> retire
-                        got_data = True     # a real, non-empty controller report
+                            raise EOFError
+                        got_data = True
                 except BlockingIOError:
-                    pass                    # drained (EAGAIN) -- fd stays open
+                    pass
                 except (OSError, EOFError):
                     try:
                         os.close(fd)
@@ -548,7 +452,7 @@ with lib; let
             except OSError:
                 r = []
             now = time.monotonic()
-            sleep_pressed = False   # the sleep button was pressed this tick
+            sleep_pressed = False
             udev_event = False
 
             for fd in r:
@@ -557,7 +461,7 @@ with lib; let
                         os.read(udev_r, 4096)
                     except OSError:
                         pass
-                    udev_event = True  # input device added/removed -> rescan now
+                    udev_event = True
                     continue
                 d = fds.get(fd)
                 if d is None:
@@ -568,16 +472,10 @@ with lib; let
                             continue
                         if ev.value not in (1, 2):  # key-down or autorepeat
                             continue
-                        # Act on (and log) only these response keys; every
-                        # other key -- letters included -- is ignored silently
-                        # and never logged. KEY_POWER is deliberately NOT here:
-                        # the physical power button is owned by acpid, which
-                        # restarts Steam game mode (see configuration.nix) -- so
-                        # only the sleep key (or Steam's Sleep via SIGUSR1)
-                        # toggles the TV, never the power button.
+                        # Ignore and never log all other keys.
                         if ev.code == KEY_SLEEP:
                             if ev.value == 1:
-                                sleep_pressed = True       # toggle TV power
+                                sleep_pressed = True
                         elif ev.code == KEY_VOLUMEUP:
                             cec_vol("volume-up", ev.value == 1)
                         elif ev.code == KEY_VOLUMEDOWN:
@@ -587,9 +485,6 @@ with lib; let
                 except OSError:
                     devs.pop(d.path, None)
 
-            # A SIGUSR1 (the system suspend action is overridden to signal us --
-            # e.g. Steam's power-menu "Sleep") is handled as a sleep-button
-            # press: toggle the TV instead of suspending the box.
             if g_sleep_req:
                 g_sleep_req = False
                 sleep_pressed = True
@@ -598,9 +493,8 @@ with lib; let
                 refresh_devices(devs)
                 last_rescan = now
 
-            # Controller presence from the hidraw monitor (layout-independent).
             present = (now - g_last_ctrl) < CTRL_TIMEOUT
-            connect = present and not was_present  # a controller just turned on
+            connect = present and not was_present
             was_present = present
             if connect and DEBUG:
                 log("controller connect")
@@ -609,15 +503,10 @@ with lib; let
             if real_audio:
                 last_sound = now
 
-            # Audio playing, or a controller present, keeps it awake.
             if (real_audio and AUDIO_AWAKE) or present:
                 last_activity = now
 
-            # Sleep button = explicit power TOGGLE (awake -> standby,
-            # asleep -> wake). Otherwise: a controller connecting wakes a
-            # sleeping TV, and idle (no audio, no controller) sleeps it. Audio
-            # only KEEPS the TV awake -- it never auto-wakes -- so a manual
-            # standby sticks even while sound is still routed to the TV sink.
+            # Audio never wakes the TV, so a manual standby holds while sound still plays.
             if sleep_pressed:
                 last_activity = now
                 action = "standby" if g_tv_on else "image-view-on"
@@ -717,14 +606,14 @@ in {
         relaying volume changes on the TV sink to the AVR over CEC. The Steam
         controller's volume keys only reach the system/gamescope volume (never
         this daemon's evdev path), so the sink is held at referencePercent and
-        any deviation is translated into CEC volume steps on the AVR -- giving
+        any deviation is translated into CEC volume steps on the AVR, giving
         controller-driven AVR volume. Requires `sink` to be set'';
       referencePercent = mkOption {
         type = types.ints.between 1 99;
         default = 75;
         description = ''
           Percent the TV sink is held at (the AVR does the real attenuation).
-          Must be <100 so a volume-UP -- which raises the sink -- is detectable.
+          Must be <100 so a volume-UP (which raises the sink) is detectable.
         '';
       };
       stepPercent = mkOption {

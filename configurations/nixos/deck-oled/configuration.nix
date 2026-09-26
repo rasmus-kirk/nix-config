@@ -1,6 +1,3 @@
-# Edit this configuration file to define what should be installed on
-# your system.  Help is available in the configuration.nix(5) man page
-# and in the NixOS manual (accessible by running ‘nixos-help’).
 {
   config,
   pkgs,
@@ -18,7 +15,6 @@ in {
   age = {
     identityPaths = ["${secretDir}/ssh/age_ed25519"];
     secrets = {
-      # user.file = ./age/user.age;
       hosts.file = ./age/hosts.age;
       "wg.conf".file = ./age/wg.conf.age;
     };
@@ -29,7 +25,6 @@ in {
     wireguardConfigFile = config.age.secrets."wg.conf".path;
     accessibleFrom = [
       "192.168.1.0/24"
-      # "192.168.0.0/24"
       "127.0.0.1"
     ];
     portMappings = [
@@ -46,7 +41,6 @@ in {
     ];
   };
 
-  # Add systemd service to VPN network namespace
   systemd.services.transmission.vpnConfinement = {
     enable = true;
     vpnNamespace = "wg";
@@ -74,19 +68,16 @@ in {
 
   services.udev = {
     packages = [pkgs.ledger-udev-rules];
-    # ACTION=="remove", SUBSYSTEM=="usb", ENV{PRODUCT}=="1050/*", RUN+="${pkgs.systemd}/bin/loginctl lock-sessions"
     extraRules = ''
       ACTION=="remove", SUBSYSTEM=="usb", ENV{PRODUCT}=="1050/*", RUN+="${pkgs.systemd}/bin/systemctl sleep"
       ACTION=="add", SUBSYSTEM=="usb", ENV{PRODUCT}=="1050/*", ATTR{power/wakeup}="enabled"
     '';
   };
 
-  # Enable networking
-  networking.hostName = "deck-oled"; # Define your hostname.
+  networking.hostName = "deck-oled";
   networking.networkmanager.enable = true;
   networking.extraHosts = builtins.readFile config.age.secrets.hosts.path;
 
-  # Set your time zone.
   time.timeZone = "Europe/Copenhagen";
   i18n.defaultLocale = "en_DK.UTF-8";
   i18n.extraLocaleSettings = {
@@ -106,12 +97,11 @@ in {
     settings = {
       experimental-features = ["nix-command" "flakes"];
       download-buffer-size = 500000000; # 500 MB
-      # Faster builds
+      # 0 uses all available cores.
       cores = 0;
-      # Return more information when errors happen
       show-trace = true;
     };
-    # Use the pinned nixpkgs version that is already used, when using `nix shell nixpkgs#package`
+    # Make `nix shell nixpkgs#package` use the same pinned nixpkgs as the system.
     registry.nixpkgs = {
       from = {
         id = "nixpkgs";
@@ -121,11 +111,9 @@ in {
     };
   };
 
-  # Enable the X11 windowing system.
-  # TODO: Why???
+  # TODO: find out why this is needed.
   services.xserver.enable = true;
 
-  # Enable the Cosmic Desktop Environment.
   services.desktopManager.cosmic.enable = true;
   services.gnome.gnome-keyring.enable = false;
   services.gnome.gcr-ssh-agent.enable = false;
@@ -149,16 +137,13 @@ in {
   programs.ssh.askPassword = "";
   programs.firefox.enable = true;
 
-  # Custom klfc keyboard layout (kirk.keyboardLayout module).
   kirk.keyboardLayout = {
     enable = true;
     package = inputs.keyboard-layout.packages.${pkgs.stdenv.hostPlatform.system}.rk;
   };
 
-  # -------------------- Remote builder (client) -------------------- #
-  # Offload builds to the desktop (nixremote@desktop, SSH port 6000). Fill in
-  # the two commented values in the ssh block, then rebuild. Until then nix just
-  # falls back to building locally, so this is safe to leave half-configured.
+  # Offload builds to the desktop. Nix builds locally until the ssh block has a HostName
+  # and an IdentityFile for a non-sk key, because nix-daemon cannot wait for a YubiKey touch.
   nix.distributedBuilds = true;
   nix.buildMachines = [
     {
@@ -177,14 +162,6 @@ in {
       HostKeyAlias desktop-builder
       Port 6000
       User nixremote
-      # FILL IN: the desktop's reachable address (your DDNS domain for WAN, or a
-      # LAN IP/hostname). Left out of the repo since the domain is an agenix secret.
-      # HostName your-builder-address
-      # FILL IN: this machine's private key for offload auth. NOTE: pubkeys/
-      # deck-oled.pub (authorized on the desktop) is a YubiKey-backed sk- key, so
-      # an unattended nix-daemon can't use it (blocks on a touch). Point this at a
-      # NON-sk key and authorize that key's pub on the desktop instead.
-      # IdentityFile /path/to/deck-private-key
   '';
 
   security.pam.services = {
@@ -218,7 +195,6 @@ in {
     "d ${stateDir}/claude/state    0755 user users -"
   ];
 
-  # Enable sound with pipewire.
   services.pulseaudio.enable = false;
   security.rtkit.enable = true;
   services.pipewire = {
@@ -226,27 +202,19 @@ in {
     alsa.enable = true;
     alsa.support32Bit = true;
     pulse.enable = true;
-    # If you want to use JACK applications, uncomment this
-    #jack.enable = true;
-
-    # use the example session manager (no others are packaged yet so this is enabled by default,
-    # no need to redefine it in your config for now)
-    #media-session.enable = true;
   };
 
-  # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.user = {
     isNormalUser = true;
     description = "Rasmus Kirk";
     extraGroups = ["networkmanager" "wheel"];
   };
 
-  # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
 
   security.sudo = {
-    execWheelOnly = true; # For security
-    package = pkgs.sudo.override {withInsults = true;}; # For insults lol
+    execWheelOnly = true;
+    package = pkgs.sudo.override {withInsults = true;};
     extraConfig = ''
       Defaults insults
       Defaults timestamp_timeout=15
@@ -289,5 +257,5 @@ in {
     inputs.agenix.packages."${stdenv.hostPlatform.system}".default
   ];
 
-  system.stateVersion = "25.11"; # Did you read the comment?
+  system.stateVersion = "25.11";
 }

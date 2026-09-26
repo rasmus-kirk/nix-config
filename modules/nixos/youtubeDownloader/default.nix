@@ -92,9 +92,7 @@ in {
 
   config = mkIf cfg.enable {
     users.users = {
-      # Create the user if it doesn't exist
-      # Note: system user, no login shell
-      # If you want custom UID/GID, user can override with user/group options
+      # Create the system user only when the default name is used.
       ${cfg.user} = mkIf (cfg.user == "ytdl") {
         isSystemUser = true;
         description = "User for running YouTube downloader service";

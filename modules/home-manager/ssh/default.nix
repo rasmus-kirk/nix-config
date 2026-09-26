@@ -27,7 +27,7 @@ in {
       example = [ "/data/.state/ssh/remotes/*.conf" ];
       description = ''
         Paths (glob-supporting) to add as SSH `Include` directives. Lets
-        per-machine host definitions live outside the nix config — the
+        per-machine host definitions live outside the nix config. The
         file just has to exist on disk at ssh time; a missing match is
         silently ignored.
       '';

@@ -29,12 +29,8 @@ in {
   };
 
   services.udev.extraRules = ''
-    # YubiKey FIDO interface, group-owned so the yubikey group can open it.
-    # systemd's uaccess ACLs this device to whoever holds the active seat
-    # session (user), which leaves dev — in the group precisely so it can use
-    # the sk-ssh key — holding a key handle it cannot talk to, so both signing
-    # and SSH auth fail for it. Using the key still needs a physical touch and
-    # the matching handle; this only decides who may open the device node.
+    # systemd uaccess grants the YubiKey FIDO node only to the seat user.
+    # Group ownership lets dev open it too, so dev can use the sk-ssh key.
     KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1050", GROUP="yubikey", MODE="0660"
 
     ACTION=="remove", SUBSYSTEM=="usb", ENV{PRODUCT}=="1050/*", RUN+="${pkgs.writeShellScript "yubikey-lock-on-unplug" ''
@@ -48,12 +44,10 @@ in {
   programs.steam.extraPackages = [pkgs.hidapi];
   hardware.steam-hardware.enable = true;
 
-  # Enable networking
   networking.hostName = machine;
   networking.networkmanager.enable = true;
   networking.extraHosts = "";
 
-  # Set your time zone.
   time.timeZone = "Europe/Copenhagen";
   i18n.defaultLocale = "en_DK.UTF-8";
   i18n.extraLocaleSettings = {
@@ -73,12 +67,11 @@ in {
     settings = {
       experimental-features = ["nix-command" "flakes"];
       download-buffer-size = 500000000; # 500 MB
-      # Faster builds
+      # 0 uses all available cores.
       cores = 0;
-      # Return more information when errors happen
       show-trace = true;
     };
-    # Use the pinned nixpkgs version that is already used, when using `nix shell nixpkgs#package`
+    # Make `nix shell nixpkgs#package` use the same pinned nixpkgs as the system.
     registry.nixpkgs = {
       from = {
         id = "nixpkgs";
@@ -88,10 +81,8 @@ in {
     };
   };
 
-  # Enable the X11 windowing system.
   services.xserver.enable = true;
 
-  # Enable the Cosmic Desktop Environment.
   services.desktopManager.cosmic.enable = true;
   services.displayManager.cosmic-greeter.enable = true;
   services.gnome.gnome-keyring.enable = false;
@@ -188,7 +179,6 @@ in {
     origin = "ssh:rasmus";
   };
 
-  # Enable sound with pipewire.
   services.pulseaudio.enable = false;
   security.rtkit.enable = true;
   services.pipewire = {
@@ -202,14 +192,12 @@ in {
   # Dedicated group for YubiKey hidraw access (see services.udev.extraRules).
   users.groups.yubikey = {};
 
-  # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.user = {
     isNormalUser = true;
     description = "Rasmus Kirk";
     extraGroups = ["networkmanager" "wheel" "yubikey"];
   };
 
-  # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
 
   security.sudo = {
@@ -220,7 +208,6 @@ in {
   };
 
   environment.systemPackages = with pkgs; [
-    # Misc
     yubioath-flutter
     usbutils
     pciutils
@@ -233,13 +220,10 @@ in {
     scrcpy
     android-tools
 
-    # Browsers
     chromium
 
-    # Chat
     signal-desktop
 
-    # Misc Terminal Tools
     wl-clipboard
     wtype
     yt-dlp
@@ -247,5 +231,5 @@ in {
     inputs.agenix.packages."${stdenv.hostPlatform.system}".default
   ];
 
-  system.stateVersion = "25.11"; # Did you read the comment?
+  system.stateVersion = "25.11";
 }

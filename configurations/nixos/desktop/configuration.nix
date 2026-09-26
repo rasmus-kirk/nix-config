@@ -13,11 +13,8 @@
   stateDir = "${dataDir}/.state";
   transmissionPort = 33915;
 
-  # ExecStart for the systemd-{suspend,hibernate,hybrid-sleep} drop-ins below:
-  # on this always-on box a suspend request (notably Steam's power-menu "Sleep")
-  # must not actually suspend, so signal the CEC daemon (SIGUSR1) to put the TV
-  # to standby instead. The empty first entry resets systemd's ExecStart; the
-  # second is ours.
+  # This always-on box must not suspend, so a suspend request puts the TV in standby.
+  # The empty first entry resets the unit's ExecStart.
   sleepToTv = [
     ""
     "${pkgs.writeShellScript "sleep-to-tv-standby" ''
@@ -25,80 +22,28 @@
     ''}"
   ];
 
-  # Chromium-based non-Steam tiles run as launcher SCRIPTS, not raw `chromium` +
-  # launch options, for two reasons that bite every Chromium/Electron app started
-  # from Steam game mode:
-  #   1. Steam's %command% expands to EMPTY for non-Steam shortcuts, so a
-  #      launch-options command line loses its exe (/bin/sh then runs the first
-  #      flag as a program). The args must live in the script.
-  #   2. Steam injects its overlay via LD_PRELOAD=gameoverlayrenderer.so, which
-  #      crashes Chromium's zygote/sandbox (SIGABRT in ZygoteHostImpl::
-  #      LaunchZygote, gameoverlayrenderer.so frames on the stack); Steam then
-  #      limps up only after retrying — the long startup. Unsetting LD_PRELOAD
-  #      drops the overlay from chromium and its subprocesses and KEEPS the
-  #      sandbox intact (unlike --no-sandbox). --ozone-platform=x11 uses
-  #      gamescope's XWayland.
+  # Steam's %command% is empty for non-Steam shortcuts, so the args live in a script.
+  # Steam's overlay LD_PRELOAD crashes the Chromium zygote; unsetting it keeps the sandbox.
   mkChromiumTile = name: args:
     pkgs.writeShellScriptBin name ''
       unset LD_PRELOAD
       exec ${pkgs.chromium}/bin/chromium --ozone-platform=x11 ${args} "$@"
     '';
-  # Jellyfin web UI: fullscreen kiosk on its own profile (independent instance,
-  # never attaches to the plain Chromium tile).
+  # Own profile, so it never attaches to the plain Chromium tile.
   jellyfin-kiosk =
     mkChromiumTile "jellyfin-kiosk"
     "--user-data-dir=${stateDir}/user/jellyfin-web --app=http://localhost:8096 --kiosk --no-first-run --window-size=3840,2160 --force-device-scale-factor=2.0";
-  # Per-person Chromium browser tiles, fullscreen + scaled for the 4K TV. Each
-  # has its OWN --user-data-dir so each person gets their own logins/YouTube
-  # account. Use --start-fullscreen, NOT --window-size: Chromium treats
-  # --window-size as LOGICAL px and multiplies by the device scale, so
-  # --window-size=3840,2160 + scale 2.0 makes a 7680x4320 window that gamescope
-  # then downscales 0.5x to fit the output — cancelling the scale (looked 1x).
-  # Fullscreen sizes the window to the output, so scale 2.0 renders cleanly (this
-  # is why the --kiosk JF tile scaled fine and the windowed browser didn't).
+  # --start-fullscreen is required because Chromium multiplies --window-size by the
+  # scale factor, and gamescope then downscales the oversized window.
   mkChromiumBrowser = name: profile:
     mkChromiumTile name
     "--user-data-dir=${stateDir}/user/${profile} --window-size=3840,2160 --start-fullscreen --force-device-scale-factor=2.0";
   chromium-rasmus = mkChromiumBrowser "chromium-rasmus" "chromium-rasmus";
   chromium-naja = mkChromiumBrowser "chromium-naja" "chromium-naja";
-  # JFv3 — the new CEF/mpv Jellyfin Desktop client, wrapped from its prebuilt
-  # nightly AppImage. nixpkgs only ships the old Qt 2.0.0 (broken by qtwebengine
-  # 6.11.0, nixpkgs#519073), and v3 has no versioned release to package from
-  # source. The nightly.link URL always serves "latest main", so this hash goes
-  # stale whenever upstream CI rebuilds — when a rebuild fails on a hash
-  # mismatch, refresh `version` + `hash`:
-  #   nix-prefetch-url --print-path <url>
-  #   nix hash convert --hash-algo sha256 --to sri <printed-hash>
-  # Replace with a clean appimageTools wrap of a tagged release once upstream
-  # cuts one with stable asset URLs.
-  # DISABLED — switched to the old Qt5 jellyfin-media-player (nixpkgs-2405, see
-  # systemPackages). Uncomment this block AND its systemPackages line to switch
-  # back to JFv3.
-  # jellyfinDesktopV3 = let
-  #   version = "3.0.0-dev+7ecfcdf";
-  #   zip = pkgs.fetchurl {
-  #     url = "https://nightly.link/jellyfin/jellyfin-desktop/workflows/build-linux-appimage/main/linux-appimage-x86_64.zip";
-  #     hash = "sha256-FT9DoIBV3dwG3cDS1gG1IAK8vyO2kjnOpQQgOuVZoyU=";
-  #   };
-  #   appimage = pkgs.runCommandLocal "jellyfin-desktop-${version}.AppImage" {
-  #     nativeBuildInputs = [pkgs.unzip];
-  #   } ''
-  #     unzip ${zip} '*.AppImage'
-  #     mv *.AppImage $out
-  #   '';
-  # in
-  #   pkgs.appimageTools.wrapType2 {
-  #     pname = "jellyfin-desktop";
-  #     inherit version;
-  #     src = appimage;
-  #   };
 in {
   imports = [
     ./hardware-configuration.nix
-    # Re-enable together with the ballbrawl input in flake.nix and the
-    # services.ballbrawl block below. Commented out during the first
-    # FDE install because the live ISO can't fetch the private SSH input.
-    # inputs.ballbrawl.nixosModules.default
+    # TODO: re-enable the ballbrawl module and services.ballbrawl with the ballbrawl input in flake.nix.
   ];
 
   # -------------------- Secrets -------------------- #
@@ -115,28 +60,8 @@ in {
     };
   };
 
-  # agenix decrypts secrets from an *activation script* into a ramfs at
-  # /run/agenix.d. A soft-reboot (the power-button recovery below) re-execs PID 1
-  # WITHOUT re-running activation scripts, and tears down that ramfs — so
-  # /run/agenix vanishes and never comes back, killing wg (hence transmission),
-  # ddns, and mam-vpn until the next real boot or `nixos-rebuild switch`.
-  #
-  # Fix: reinstall the secrets from a oneshot *service*. This mirrors agenix's own
-  # `agenix-install-secrets` unit (only wired up when systemd.sysusers/userborn is
-  # enabled, which we don't use) by replaying the exact install snippets agenix
-  # generates for the activation-script path. Ordered before the VPN so confined
-  # services find their secrets.
-  #
-  # CRITICAL: for this to re-run on a soft-reboot the unit must be *stopped* during
-  # the soft-reboot's shutdown transition, so sysinit.target re-pulls it (and thus
-  # re-fires ExecStart) on the way back up. `DefaultDependencies = no` is required
-  # here — a plain oneshot pulled into sysinit.target can't also be ordered After
-  # it — but that flag strips the automatic `Conflicts/Before=shutdown.target`, so
-  # nothing ever stopped the unit and RemainAfterExit kept it active(exited) across
-  # soft-reboots forever (secrets silently vanished; see 2026-08-02 regression).
-  # `systemd-soft-reboot.service` Requires+After `shutdown.target`, so adding the
-  # conflict/ordering below guarantees the stop-then-restart cycle. Idempotent — on
-  # a real boot activation already ran, so this just makes a fresh generation.
+  # Soft-reboot skips activation scripts and clears the agenix ramfs, so a service reinstalls the secrets.
+  # DefaultDependencies=no drops the shutdown.target conflict; it is set again so soft-reboot restarts this unit.
   systemd.services.agenix-reinstall = {
     description = "Reinstall agenix secrets (survives soft-reboot)";
     wantedBy = ["sysinit.target"];
@@ -175,13 +100,8 @@ in {
       enable = true;
       wgConf = config.age.secrets."airvpn-wg.conf".path;
       vpnTestService.enable = false;
-      # exposeOnLAN defaults to true, which (since nixarr PR #171) puts the
-      # whole RFC1918 range — including 10.0.0.0/8 — in the namespace's
-      # accessibleFrom. AirVPN's in-tunnel DNS is 10.128.0.1 (inside 10/8),
-      # so that range gets routed out the LAN bridge instead of the tunnel,
-      # killing DNS for confined services (transmission couldn't resolve
-      # trackers -> FD-exhaustion "too many open files"; mam-vpn -> curl
-      # exit 6). Disable the broad default and re-add only the real LAN.
+      # exposeOnLAN routes all of 10.0.0.0/8 to the LAN, which includes AirVPN's
+      # in-tunnel DNS at 10.128.0.1. Expose only the real LAN.
       exposeOnLAN = false;
       accessibleFrom = ["192.168.1.0/24"];
     };
@@ -237,48 +157,27 @@ in {
     prowlarr.openFirewall = true;
   };
 
-  # nixarr creates *-sync-config oneshots unconditionally when each *arr
-  # is enabled (there's no settings-sync enable toggle), and they were
-  # failing on boot. We don't manage indexers / download clients
-  # declaratively, so disable the generated units directly.
+  # nixarr always creates these units and they fail at boot. Indexers and
+  # download clients are not managed declaratively.
   systemd.services.prowlarr-sync-config.enable = false;
   systemd.services.radarr-sync-config.enable = false;
   systemd.services.sonarr-sync-config.enable = false;
 
-  # Syncthing creates dirs 750 / files 640 (group `sync` read-only). See
-  # services.syncthing.group above.
+  # Syncthing creates dirs 750 and files 640, so group `sync` is read-only.
   systemd.services.syncthing.serviceConfig.UMask = "0027";
 
-  # nixarr runs audiobookshelf with ProtectSystem=strict and only its state
-  # dir in ReadWritePaths, so /data/media is read-only to it. Fine for
-  # audiobooks (playback only reads), but it breaks PODCASTS, which need ABS to
-  # write episodes into the library -> "ENOENT mkdir .../podcasts/<show>".
-  # Grant the podcasts library write access. TODO: fix upstream in nixarr.
+  # nixarr makes /data/media read-only to audiobookshelf, but podcasts write episodes into the library.
+  # TODO: fix upstream in nixarr.
   systemd.services.audiobookshelf.serviceConfig.ReadWritePaths =
     lib.mkForce ["/data/.state/nixarr/audiobookshelf" "/data/media/library/podcasts"];
 
-  # -------------------- Ballbrawl -------------------- #
-  # game.<bare-domain> served by the ballbrawl flake module. The DDNS
-  # entry (nixarr.ddns.nineteenEightyFour) already keeps subdomains of
-  # the bare domain pointing at this host, same path jellyfin and
-  # audiobookshelf use.
-  # Temporarily disabled while the ballbrawl input is commented out for
-  # the first FDE install (see flake.nix). Re-enable together with the
-  # input + the ./hardware-configuration.nix import line above.
-  # services.ballbrawl = {
-  #   enable = true;
-  #   domain = "game." + (lib.removeSuffix "\n" (builtins.readFile config.age.secrets.domain.path));
-  #   acmeMail = "slimness_bullish683@simplelogin.com";
-  # };
-
-  # MAM
   systemd = {
     timers.mam-vpn = {
       timerConfig = {
-        OnBootSec = "120"; # Run 30 seconds after system boot
+        OnBootSec = "120";
         OnCalendar = "hourly";
-        Persistent = true; # Run service immediately if last window was missed
-        RandomizedDelaySec = "15min"; # Run service OnCalendar +- 5min
+        Persistent = true;
+        RandomizedDelaySec = "15min";
       };
       wantedBy = ["multi-user.target"];
     };
@@ -294,17 +193,8 @@ in {
       };
     };
 
-    # -------------------- VPN self-healing watchdog -------------------- #
-    # nixarr's wg.service is Type=oneshot: it runs wg-up and exits, so there is
-    # no live process for systemd to watch and a dead tunnel goes unnoticed.
-    # AirVPN's endpoint (se3.vpn.airdns.org) rotates IPs; WireGuard resolves the
-    # hostname only at bring-up and pins the IP, and the config has no
-    # PersistentKeepalive -- so when AirVPN moves the server the tunnel silently
-    # black-holes all traffic until wg.service is restarted (which re-resolves
-    # DNS to a live IP). transmission BindsTo wg.service and mam-vpn re-enters
-    # the namespace, so restarting wg alone pulls everything back up.
-    # Long-running loop: sleep, probe real connectivity through the namespace,
-    # and restart wg.service whenever the tunnel stops passing packets.
+    # AirVPN rotates endpoint IPs and WireGuard resolves the hostname only at bring-up.
+    # Restarting the oneshot wg.service re-resolves it, and dependent services follow.
     services.wg-watchdog = {
       wantedBy = ["multi-user.target"];
       after = ["wg.service"];
@@ -314,7 +204,7 @@ in {
         ExecStart = pkgs.writeShellScript "wg-watchdog" ''
           while true; do
             sleep 600
-            # 10 pings, succeed if any one returns -- rides out lost packets.
+            # One reply out of 10 counts as success, to tolerate packet loss.
             if ${pkgs.iproute2}/bin/ip netns exec wg \
                  ${pkgs.iputils}/bin/ping -c10 -W3 -q 1.1.1.1 >/dev/null 2>&1; then
               continue
@@ -331,47 +221,28 @@ in {
   # -------------------- Desktop / Gaming -------------------- #
 
   services.xserver.enable = true;
-  # KDE Plasma 6 desktop. History: Cosmic -> GNOME -> Plasma. The DE churn was
-  # mostly chasing a frozen-video bug that turned out to be the Jellyfin client
-  # (qtwebengine 6.11.0), not the compositor; GNOME then kept enabling underscan
-  # on the TV and hiding its own display controls. Plasma gives explicit,
-  # predictable per-output display settings, which suits this TV box. Plasma is
-  # the Switch-to-Desktop target; Jovian's gamescope game-mode stays the boot
-  # session (no separate display manager — SDDM comes from jovian.steam).
+  # Plasma is the Switch-to-Desktop target; gamescope game mode is the boot session.
+  # jovian.steam provides SDDM, so no separate display manager is set.
   services.desktopManager.plasma6.enable = true;
-  # Trim the Plasma app suite (we use foot + helix, not konsole/kate). These are
-  # filtered from the optional set; add/remove freely via kdePackages.*.
+  # foot and helix replace konsole and kate.
   environment.plasma6.excludePackages = with pkgs.kdePackages; [
     konsole
     kate
     elisa
     khelpcenter
-    kwallet-pam # no autologin-unlockable wallet; KWallet is disabled (see home.nix)
+    kwallet-pam # KWallet is disabled in home.nix
     kwalletmanager
   ];
-  # jovian's Steam (Deck) module sets services.orca.enable = true (screen
-  # reader). We don't want one — force it off.
+  # jovian's Steam module enables the Orca screen reader.
   services.orca.enable = lib.mkForce false;
 
-  # Custom klfc keyboard layout (kirk.keyboardLayout module). Same layout the
-  # deck-oled / work machines use, pulled from the keyboard-layout flake input.
   kirk.keyboardLayout = {
     enable = true;
     package = inputs.keyboard-layout.packages.${pkgs.stdenv.hostPlatform.system}.rk;
   };
 
-  # Steam in gamescope, Cosmic as the fallback session. AMD Radeon RX 9070
-  # (Navi 48 / RDNA4) is well supported here: kernel 6.18 + Mesa 25+ +
-  # redistributable firmware (RDNA4 needs kernel >= 6.12 / Mesa >= 25.0).
-  #
-  # NOTE: steamos.useSteamOSConfig must be explicitly FALSE. It defaults to
-  # jovian.steam.enable (= true here), and gates jovian's SteamOS modules —
-  # including boot.nix, which injects Deck-tuned amdgpu params
-  # (amdgpu.lockup_timeout, ttm.pages_min=8G, sched_hw_submission,
-  # amdgpu.dcdebugmask=0x20000) — the very params suspected for the initrd
-  # hang — plus SteamOS sysctl/earlyoom/automount/cec. Those target the
-  # Deck's APU and a SteamOS appliance, wrong for a desktop dGPU that's
-  # primarily a server. We want only the Steam + gamescope session.
+  # useSteamOSConfig defaults to true with jovian.steam and adds Deck APU amdgpu params
+  # and SteamOS services, which are wrong for a desktop dGPU server.
   jovian = {
     steamos.useSteamOSConfig = false;
     steam = {
@@ -385,60 +256,22 @@ in {
   programs.steam.extraPackages = [pkgs.hidapi];
   hardware.steam-hardware.enable = true;
 
-  # Multi-GPU box: Intel iGPU (8086:7D67) + AMD RX 9070XT (1002:7550, Navi 48).
-  # The iGPU drives no displays (the monitor is on the AMD HDMI) and exists
-  # only for potential media transcode (VAAPI, unaffected by this). Without a
-  # hint, DXVK/vkd3d under Proton enumerate the Intel GPU first and render
-  # games on it — dGPU stays idle/silent at ~40MHz while the weak iGPU pegs at
-  # ~1.5GHz, giving terrible framerates. Pin games to the AMD card by name.
-  #
-  # Two non-obvious requirements, both learned the hard way:
-  #   1. MUST be sessionVariables, not `environment.variables`: the latter only
-  #      lands in /etc/set-environment (sourced by login *shells*), which the
-  #      Wayland/Cosmic graphical session never reads, so Steam never saw it.
-  #      sessionVariables writes /etc/pam/environment, loaded by pam_env for
-  #      every session (graphical login included). Confirmed reaching Steam.
-  #   2. MESA_VK_DEVICE_SELECT does NOT work here: it relies on the
-  #      VkLayer_MESA_device_select implicit layer, which exists on the host
-  #      but is NOT imported into Steam's pressure-vessel runtime, so Proton
-  #      ignores it. DXVK_FILTER_DEVICE_NAME / VKD3D_FILTER_DEVICE_NAME are
-  #      read directly by DXVK (DX9-11) and vkd3d-proton (DX12), needing no
-  #      layer. "Radeon" matches "AMD Radeon RX 9070 XT (RADV ...)" and
-  #      excludes the Intel iGPU. (Verified: game VRAM landed on card1 and
-  #      gpu_busy ramped to 84% while the iGPU dropped to 0MHz.)
+  # Proton picks the Intel iGPU first, so pin DXVK and vkd3d to the AMD card. Only
+  # sessionVariables reach Steam, and Steam's runtime lacks the MESA_VK_DEVICE_SELECT layer.
   environment.sessionVariables = {
     DXVK_FILTER_DEVICE_NAME = "Radeon";
     VKD3D_FILTER_DEVICE_NAME = "Radeon";
   };
 
-  # Declarative non-Steam shortcuts (kirk.steamShortcuts, modules/nixos). A
-  # per-user oneshot runs before Jovian's steam-launcher (re)starts Steam — on
-  # every game-mode entry, so it applies on desktop<->game-mode switches without
-  # a reboot — and reconciles shortcuts.vdf to the declared set.
-  #
-  # steamRoot MUST be the real Steam data dir that ~/.local/share/Steam resolves
-  # to. home.nix persists that at ${stateDir}/steam/steam (the /steam container
-  # also holds steam-compat/gamescope/steamos-manager siblings), so it's nested
-  # one level under ${stateDir}/steam. Pointing steamRoot at the parent writes to
-  # a phantom userdata/ tree Steam never reads (the long-standing "shortcuts
-  # never apply" bug) — it needs the trailing /steam.
+  # steamRoot must be the dir that ~/.local/share/Steam resolves to (see home.nix).
+  # Its parent holds a userdata/ tree that Steam never reads.
   kirk.steamShortcuts = {
     enable = true;
     user = "user";
     steamRoot = "/data/.state/user/steam/steam";
-    # Authoritative: any non-Steam shortcut NOT declared here is removed.
     pruneUnmanaged = true;
     shortcuts = {
-      # Jellyfin tile = the JF web UI in a Chromium kiosk. The native
-      # xaltsc/jellyfin-desktop client was dropped: it CANNOT run under gamescope
-      # (its renderer composites mpv as a wayland subsurface sized via
-      # wp_viewporter over a single_pixel_buffer backdrop, and gamescope
-      # implements none of wl_subcompositor / wp_viewporter /
-      # wp_single_pixel_buffer_manager_v1; its x11 backend dies with a wgpu
-      # swapchain DEVICE LOST). Chromium renders fine under gamescope, so the tile
-      # opens the web client — and it works identically in desktop mode. Dedicated
-      # --user-data-dir (own persisted profile, see home.nix tmpfiles) so it's a
-      # tracked standalone process and never attaches to the Chromium tile.
+      # The native Jellyfin client needs Wayland protocols that gamescope does not implement.
       "Jellyfin" = {
         exe = "${jellyfin-kiosk}/bin/jellyfin-kiosk";
         portrait = ../../../images/steam/jellyfin-portrait.png; # 600x900 library capsule
@@ -456,8 +289,6 @@ in {
         icon = ../../../images/steam/firefox-icon.png; # 1024x1024
       };
       "Chromium" = {
-        # Wrapper (strips Steam's overlay LD_PRELOAD, fills the 4K TV, own
-        # profile); raw chromium + %command% launch options fails from game mode.
         exe = "${chromium-rasmus}/bin/chromium-rasmus";
         portrait = ../../../images/steam/chromium-portrait.png; # 600x900
         landscape = ../../../images/steam/chromium-landscape.png; # 920x430
@@ -465,9 +296,7 @@ in {
         logo = ../../../images/steam/chromium-logo.png; # 4315x1024
         icon = ../../../images/steam/chromium-icon.png; # 256x256
       };
-      # Naja's browser — separate profile (own logins/YouTube). Uses Google
-      # Chrome artwork (chrome-*, from SteamGridDB) so it's visually distinct from
-      # Rasmus's Chromium tile above.
+      # Chrome artwork distinguishes this tile from the Chromium tile.
       "Chromium (Naja)" = {
         exe = "${chromium-naja}/bin/chromium-naja";
         portrait = ../../../images/steam/chrome-portrait.png; # 600x900
@@ -479,26 +308,12 @@ in {
     };
   };
 
-  # Console emulation (kirk.emulation, modules/nixos). Games declared below are
-  # auto-registered as game-mode tiles via kirk.steamShortcuts above (they merge
-  # into its shortcut set). Everything needed to play lives in one syncable tree
-  # under /data/.state/games/<system> (ROMs + BIOS + saves), so Syncthing'ing it
-  # mirrors the library and saves to the Steam Deck.
+  # ROMs, BIOS and saves live in /data/.state/games/<system>, so Syncthing mirrors
+  # them to the Steam Deck. Declared games become tiles through kirk.steamShortcuts.
   kirk.emulation = {
     enable = true;
     ps1.enable = true;
     switch.enable = true;
-    # Declare games here to get a tile each (rom + SteamGridDB artwork); same
-    # shape for both systems, e.g.:
-    #   ps1.games."Final Fantasy VII" = {
-    #     rom = "Final Fantasy VII (Disc 1).m3u";   # under /data/.state/games/ps1/games
-    #     portrait = ../../../images/steam/ff7-portrait.png;
-    #     landscape = ../../../images/steam/ff7-landscape.png;
-    #   };
-    #   switch.games."Tears of the Kingdom" = {
-    #     rom = "totk.nsp";                          # under /data/.state/games/switch/games
-    #     portrait = ../../../images/steam/totk-portrait.png;
-    #   };
   };
 
   hardware.enableRedistributableFirmware = true;
@@ -507,24 +322,15 @@ in {
     powerOnBoot = true;
   };
 
-  # Thunderbolt + firmware update daemons.
   services.hardware.bolt.enable = true;
   services.fwupd.enable = true;
 
-  # Case / motherboard RGB (ASRock Z890 Pro-A, Polychrome over SMBus).
-  # motherboard = "intel" loads i2c-dev + i2c-i801 so OpenRGB can reach the
-  # SMBus controllers. Run `openrgb` to detect devices and set colours; save
-  # a profile, then set `startupProfile` here to persist it across reboots.
+  # The ASRock Z890 Pro-A board RGB is on SMBus; "intel" loads i2c-dev and i2c-i801.
   services.hardware.openrgb = {
     enable = true;
     motherboard = "intel";
-    # ASRock RX 9070 (GPU subvendor 0x1849) GPU RGB is NOT in OpenRGB
-    # 1.0rc2 (what nixpkgs ships). Build OpenRGB master + the still-unmerged
-    # ASRock GPU controller patch from upstream issue #5225 (download the
-    # .patch into ./patches/ and `git add` it — flakes only see tracked
-    # files). We replace nixpkgs' two rc2-era patches: one is an upstream
-    # commit already present in master, the other is a plugin-path tweak we
-    # don't use — both would break against master.
+    # OpenRGB 1.0rc2 lacks the ASRock RX 9070 GPU controller, so build master with the
+    # unmerged patch from upstream issue #5225. The nixpkgs rc2 patches do not apply to master.
     package = pkgs.openrgb.overrideAttrs (old: {
       version = "git-asrock-4306603";
       src = pkgs.fetchFromGitLab {
@@ -537,64 +343,41 @@ in {
     });
   };
 
-  # No NixOS option sets a specific colour (only startupProfile, which needs
-  # an interactively-saved profile that wouldn't survive the @root rollback).
-  # So apply the colour declaratively via the CLI once at boot. Applies to
-  # all detected controllers (add `--device N` to target one).
-  # 1A0500 = rgb(26,5,0), warm candlelight. Dimmer: 0D0300 (13,3,0), 070100 (7,1,0).
-  # Disable the persistent OpenRGB SERVER: idle, it keeps the GPU i2c bus
-  # claimed, and that bus is shared with the display's DDC — which stutters
-  # the desktop (confirmed: `systemctl stop openrgb` cleared it). We don't
-  # need a running server; openrgb-color sets the colour once at boot and
-  # exits, and both controllers hold it (GPU Direct, board Static).
-  # systemd.services.openrgb.enable = lib.mkForce false;
-
+  # No NixOS option sets a colour, and a saved startupProfile would not survive the @root rollback.
   systemd.services.openrgb-color = {
     description = "Apply static case RGB colour (candlelight)";
-    # Order strictly after the persistent openrgb.service so the CLI connects
-    # to the running server as a *client* instead of doing its own early-boot
-    # hardware detection. Direct detection racing the server (and an amdgpu
-    # i2c bus that isn't ready yet) segfaulted this oneshot at boot, so the
-    # colour never got applied. As a client it just talks to the server.
+    # Run as a client of openrgb.service. Its own early-boot hardware detection
+    # races the server and the amdgpu i2c bus, and segfaults.
     requires = ["openrgb.service"];
     after = ["openrgb.service" "systemd-modules-load.service"];
     wantedBy = ["multi-user.target"];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      # The server can take a moment to finish detection and open its socket;
-      # retry so we don't lose the race on a slow boot.
+      # The server can open its socket after this unit starts.
       Restart = "on-failure";
       RestartSec = 3;
       ExecStart = [
-        # Steady candlelight, same colour on both. 0E0200 = rgb(14,2,0).
         "${config.services.hardware.openrgb.package}/bin/openrgb --mode static --color 0E0200"
         "${config.services.hardware.openrgb.package}/bin/openrgb --device \"ASRock GPU\" --mode direct --color 0E0200"
       ];
     };
   };
 
-  # The GPU (Taichi) RGB resets to its default on resume from sleep — Direct
-  # is software-driven, not a stored hardware mode — so re-apply on wake.
-  # (The board's Static mode survives sleep, but re-applying is harmless.)
-  # NOTE: keep these colours in sync with the openrgb-color oneshot above.
+  # GPU Direct mode is software-driven and resets on resume.
+  # Keep these colours in sync with openrgb-color.
   powerManagement.resumeCommands = ''
     ${config.services.hardware.openrgb.package}/bin/openrgb --mode static --color 0E0200
     ${config.services.hardware.openrgb.package}/bin/openrgb --device "ASRock GPU" --mode direct --color 0E0200
   '';
 
-  # schedutil scales dynamically without `powersave`'s aggressive power-down.
-  # Better for gaming spikes, still ramps down at idle.
+  # schedutil follows gaming load spikes and still ramps down at idle.
   powerManagement.enable = true;
   powerManagement.cpuFreqGovernor = "schedutil";
 
   # -------------------- user state subtree -------- #
-  # /data/.state stays root-owned (nixarr + other system services keep
-  # their own service-user-owned subdirs there). All home-manager USER
-  # state instead lives under a single user-owned subtree,
-  # /data/.state/user, created here once. home.nix then manages the
-  # per-app subdirs under it via its own user-tmpfiles (which work now
-  # that the parent is writable by 'user').
+  # /data/.state stays root-owned for system services, so user state lives in
+  # the user-owned /data/.state/user.
   systemd.tmpfiles.rules = [
     "d /data                        0755 root root  -"
     "d /data/.state                 0755 root root  -"
@@ -624,35 +407,21 @@ in {
     "d /data/.state/user/cosmic/local               0755 user users -"
     "d /data/.state/user/btop                       0755 user users -"
 
-    # XDG user dirs (kirk.userDirs.rootDir = /data): downloads sits
-    # directly in root-owned /data — not under /data/.state/user — so it
-    # is created here. The /data/media/* XDG dirs already work via the
-    # setgid 'media' group on /data/media.
+    # The downloads XDG dir is in root-owned /data, so the user cannot create it.
     "d /data/downloads              0755 user users -"
 
-    # @persist NVMe subvol (mounted at /persist). The AI flake at
-    # /data/ai/flake.nix runs as 'user' and writes models/caches here, so the
-    # dir must be user-owned. (/persist/monero is created+owned by the monero
-    # module's createHome, so it needs no rule.)
+    # The AI flake at /data/ai runs as user and writes models here.
     "d /persist/ai                  0755 user users -"
 
-    # Steam libraries: parent + the samsung dir (a plain dir on the root NVMe).
-    # /persist/games/sandisk is a mountpoint (the SanDisk), handled by fileSystems.
+    # /persist/games/sandisk is a mountpoint, declared in fileSystems.
     "d /persist/games               0755 user users -"
     "d /persist/games/samsung       0755 user users -"
   ];
 
   # -------------------- Server Defaults -------------------- #
 
-  # If the system runs out of ram, then journald crashes and the server will be down.
-  # This should force systemd to restart, no matter what.
+  # journald can crash when memory runs out; never rate-limit its restart.
   systemd.services.systemd-journald.unitConfig.StartLimitIntervalSec = 0;
-
-  # Kill services if we run out of ram
-  # services.earlyoom = {
-  #   enable = true;
-  #   freeMemThreshold = 3; # In percent
-  # };
 
   boot.kernelParams = [
     "panic=10" # Reboot after 10 seconds of kernel panic
@@ -665,51 +434,20 @@ in {
     TERM = "xterm-256color";
   };
 
-  # cosmic-greeter handles login; no getty auto-login.
   services.logind.settings.Login.HandleLidSwitch = "ignore";
-  # Always-on server: the suspend/sleep key must never suspend it. This also
-  # frees that key to be repurposed as a "wake TV" button (see kirk.cec).
+  # The suspend key is repurposed as a TV wake button (see kirk.cec).
   services.logind.settings.Login.HandleSuspendKey = "ignore";
   services.logind.settings.Login.HandleSuspendKeyLongPress = "ignore";
 
-  # Steam's power-menu "Sleep" issues a *software* suspend (login1 Suspend ->
-  # systemd-suspend.service), which HandleSuspendKey=ignore does NOT catch (that
-  # only covers the hardware key). This box must never actually suspend, so
-  # replace the suspend action (and hibernate/hybrid) with sleepToTv -> a SIGUSR1
-  # to the CEC daemon, which standbys the TV. Drop-ins (systemd ships the units).
+  # HandleSuspendKey covers only the hardware key. Steam's power-menu "Sleep" is a
+  # software suspend through login1.
   systemd.services.systemd-suspend.serviceConfig.ExecStart = lib.mkForce sleepToTv;
   systemd.services.systemd-hibernate.serviceConfig.ExecStart = lib.mkForce sleepToTv;
   systemd.services.systemd-hybrid-sleep.serviceConfig.ExecStart = lib.mkForce sleepToTv;
 
-  # Power button -> soft-reboot. Out-of-band recovery for when Steam OR gamescope
-  # (or the display itself) wedges and the in-Steam power menu is unreachable, so
-  # a hung box can be fixed *physically* (e.g. by Naja) without SSH. Restarting
-  # only steam-launcher (the old behaviour) relaunches Steam *inside* the existing
-  # gamescope session — useless when gamescope/the compositor is what's stuck.
-  #
-  # `systemctl soft-reboot` (systemd-soft-reboot.service) tears down ALL of
-  # userspace and re-execs PID 1, restarting everything — gamescope, Steam, and
-  # the always-on services (monero/minecraft/jellyfin/syncthing) — as close to a
-  # real reboot as possible. Crucially it keeps the running KERNEL and never
-  # touches firmware/bootloader/initrd, so the dm-crypt mappings and mounts in
-  # that kernel persist: NO FDE re-unlock (no YubiKey touch, no /data passphrase).
-  # Two consequences of skipping initrd: (1) the @root impermanence rollback
-  # (boot.initrd.systemd.services.rollback) does NOT run, so this is a userspace
-  # restart, not a clean-slate wipe — for that you need a real reboot; (2) a new
-  # kernel from a system update won't take effect until the next real reboot.
-  #
-  # acpid reads the power-button evdev directly at the system level, so it fires
-  # even when the user session is frozen. Jovian's steamos-powerbuttond
-  # (short-press suspend / long-press Steam menu) is neutered so it can't also
-  # fire, and logind ignores the key so nothing races. Trade-off (chosen): the
-  # power button no longer sleeps — sleep is now STEAM -> Power -> Sleep on the
-  # controller, which still standbys the TV via the systemd-suspend hook above.
-  #
-  # Neuter powerbuttond by overriding its ExecStart to a no-op (a plain
-  # enable=false won't mask it — Jovian ships it via a package, not
-  # systemd.user.services, so the /etc/systemd/user symlink still points at the
-  # real unit). ExecStart="" resets the package's line; `true` exits 0 so it
-  # never reads the power-button evdev. Drop-in, like the systemd-suspend override.
+  # The power button soft-reboots, for physical recovery when Steam or gamescope hangs.
+  # Soft-reboot keeps the kernel, so FDE stays unlocked, but the @root rollback does not run.
+  # Jovian ships powerbuttond in a package, so enable = false does not disable it.
   systemd.user.services.steamos-powerbuttond.serviceConfig.ExecStart =
     lib.mkForce ["" "${pkgs.coreutils}/bin/true"];
   services.logind.settings.Login.HandlePowerKey = "ignore";
@@ -727,9 +465,7 @@ in {
   services = {
     syncthing = {
       enable = true;
-      # Run as group `sync` (which `user` is in) so synced data is
-      # group-readable. UMask 0027 -> new dirs 750, files 640: the sync group
-      # can enter/read but not write (see systemd.services.syncthing below).
+      # Group `sync` makes synced data readable by `user`.
       group = "sync";
       configDir = "${stateDir}/syncthing";
       dataDir = "${dataDir}/sync";
@@ -748,9 +484,7 @@ in {
     };
     monero = {
       enable = true;
-      # Blockchain (~200 GB) lives on the @persist NVMe subvol, not the default
-      # /var/lib/monero. The module uses dataDir as the monero user's home and
-      # createHome makes it; migrated data keeps its monero:monero ownership.
+      # The ~200 GB blockchain is re-downloadable, so it lives on @persist, not /data.
       dataDir = "/persist/monero";
     };
     minecraft-server = {
@@ -812,24 +546,16 @@ in {
   ];
 
   # -------------------- Impermanence -------------------- #
-  # The NVMe root is ephemeral (rolled back to @root-blank each boot, see
-  # the rollback service in the Machine Specific section). These paths
-  # are bind-mounted from /data/.state/persist so they survive reboots.
-  # Default policy: anything that can be redirected via NixOS module
-  # config goes to /data/.state/<service> directly; this list is only
-  # for state whose owning module does not expose a path override.
-  # NOTE: /var/log is intentionally persisted here so boot/initrd logs
-  # (cryptsetup/FIDO2 unlock, the rollback itself) survive the @root wipe
-  # and remain available for debugging.
+  # List only state whose module has no path option; other state goes to /data/.state/<service>.
   environment.persistence."/data/.state/persist" = {
     hideMounts = true;
     directories = [
       "/var/lib/nixos" # stable uid/gid map across rebuilds
-      "/var/lib/acme" # Let's Encrypt certs — avoid rate limits
-      "/var/lib/tuptime" # uptime history
+      "/var/lib/acme" # avoids Let's Encrypt rate limits
+      "/var/lib/tuptime"
       "/var/lib/systemd/timers" # Persistent=true timer stamps (mam-vpn)
-      "/var/log" # journald + non-journald logs (kept across rollback)
-      "/var/lib/bluetooth" # paired-device DB (future-proof)
+      "/var/log" # keeps initrd unlock and rollback logs for debugging
+      "/var/lib/bluetooth"
     ];
     files = [
       "/etc/machine-id"
@@ -842,10 +568,8 @@ in {
 
   # -------------------- Boilerplate -------------------- #
 
-  # Set your time zone.
   time.timeZone = "Europe/Copenhagen";
 
-  # Select internationalisation properties.
   i18n.defaultLocale = "en_DK.UTF-8";
   i18n.extraLocaleSettings = {
     LC_ADDRESS = "da_DK.UTF-8";
@@ -864,17 +588,13 @@ in {
     settings = {
       experimental-features = ["nix-command" "flakes"];
       download-buffer-size = 500000000; # 500 MB
-      # Faster builds: run derivations in parallel (max-jobs = auto = #cores)
-      # and let each use all cores. Oversubscribes on big parallel builds but
-      # maximizes throughput, which suits this box (it's also the remote builder).
+      # Oversubscribes cores on large builds, for maximum throughput as the remote builder.
       max-jobs = "auto";
       cores = 0;
-      # Return more information when errors happen
       show-trace = true;
-      # Let the nixremote build user (work + deck offload here) write the store.
       trusted-users = ["root" "nixremote"];
     };
-    # Use the pinned nixpkgs version that is already used, when using `nix shell nixpkgs#package`
+    # Pin `nix shell nixpkgs#...` to the system nixpkgs.
     registry.nixpkgs = {
       from = {
         id = "nixpkgs";
@@ -885,10 +605,8 @@ in {
   };
 
   # -------------------- Remote builder -------------------- #
-  # work + deck offload builds here over SSH (port 6000), authenticating as the
-  # dedicated `nixremote` user with each machine's key from /pubkeys. nixremote
-  # is a trusted nix user (see nix.settings.trusted-users) so it may populate
-  # the store. WAN/work case needs port 6000 forwarded at the router.
+  # work and deck offload builds here over SSH on port 6000.
+  # Builds over WAN need port 6000 forwarded at the router.
   users.groups.nixremote = {};
   users.users.nixremote = {
     isNormalUser = true;
@@ -905,14 +623,11 @@ in {
   # -------------------- Machine Specific -------------------- #
 
   users.mutableUsers = false;
-  # Shared group for syncthing data: `user` is a member (extraGroups below)
-  # and syncthing runs as this group, so synced files are group-readable.
   users.groups.sync = {};
   users.groups.cectv = {};
 
-  # The CEC daemon's narrow access: the CEC adapter + the keystroke-free
-  # "System Control" node (the remote's sleep key, hijacked as a wake button).
-  # Nothing in `input`/`video` — so no user process can read keyboards.
+  # The CEC daemon gets the CEC adapter and the keystroke-free control nodes, so no
+  # user process needs `input` access to keyboards.
   services.udev.extraRules = ''
     SUBSYSTEM=="cec", KERNEL=="cec[0-9]*", GROUP="cectv", MODE="0660"
     SUBSYSTEM=="input", KERNEL=="event[0-9]*", ATTRS{name}=="*System Control*", GROUP="cectv", MODE="0660"
@@ -921,20 +636,12 @@ in {
   users.users."user" = {
     isNormalUser = true;
     hashedPasswordFile = config.age.secrets.user.path;
-    # cectv is the CEC TV-liveness daemon's entire privileged surface: a udev
-    # rule (below) puts /dev/cec0 and the keystroke-free "System Control"
-    # sleep-key node into it, and nothing else. Deliberately NOT in `input`
-    # (no keyboard access -> no keylogging), `video` (no screen/scanout or
-    # webcam), or `render`. sync: syncthing data access.
+    # No `input`, `video` or `render`, to deny keyboard, screen and webcam access.
     extraGroups = ["networkmanager" "wheel" "sync" "cectv"];
   };
 
-  hardware.graphics.enable = true; # Wayland / Cosmic / Vulkan
-  # Intel iGPU (0x7d67) media stack, for Jellyfin hardware transcoding on the
-  # render node (renderD129) — keeps the AMD dGPU free for gaming. Without these
-  # only the AMD radeonsi VA-API driver is present (no iHD), so the iGPU can't
-  # transcode. intel-media-driver = iHD VA-API; vpl-gpu-rt = oneVPL runtime for
-  # Jellyfin's preferred Intel QSV path.
+  hardware.graphics.enable = true;
+  # Intel iGPU VA-API and QSV drivers let Jellyfin transcode without the AMD dGPU.
   hardware.graphics.extraPackages = with pkgs; [
     intel-media-driver
     vpl-gpu-rt
@@ -944,18 +651,12 @@ in {
     networkmanager.enable = true;
   };
 
-  # Intentionally no system `programs.zsh` (matches work). Login shell is
-  # bash -> `exec zsh` (home-manager), so /etc/zsh* aren't needed. Enabling
-  # it generates /etc/zshenv|zshrc|zprofile, which buildFHSEnv then symlinks
-  # into the `box` sandbox (its hardcoded /etc list) where the host's
-  # `prompt suse` + `hostname --fqdn` break the box shell.
+  # No system `programs.zsh`. Its /etc/zsh* files leak into the buildFHSEnv `box`
+  # sandbox and break the shell there.
 
   # -------------------- YubiKey (U2F) -------------------- #
-  # Touch-to-authenticate for local sudo, TTY login, and the Cosmic
-  # greeter. Both pam_u2f and pam_rssh below are stacked "sufficient";
-  # in the auth order rssh is tried first, so an SSH session with a
-  # forwarded agent still satisfies sudo without a key (see rssh block),
-  # and U2F is the local fallback. Password remains the final fallback.
+  # rssh is tried before U2F, so sudo over SSH with a forwarded agent needs no key.
+  # Password is the final fallback.
   security.pam.services.sudo.u2fAuth = true;
   security.pam.services.login.u2fAuth = true;
   security.pam.services.cosmic-greeter.u2fAuth = true;
@@ -964,40 +665,30 @@ in {
   security.pam.u2f.settings.sshformat = true;
   security.pam.u2f.settings.origin = "ssh:rasmus";
 
-  # 1. Enable the module globally
   security.pam.rssh.enable = true;
 
-  # 2. Tell it to use standard SSH keys for validation
   security.pam.rssh.settings.auth_key_file = "/etc/ssh/authorized_keys.d/user";
 
-  # 3. Apply it specifically to sudo
   security.pam.services.sudo.rssh = true;
 
   security.sudo = {
-    execWheelOnly = true; # For security
-    package = pkgs.sudo.override {withInsults = true;}; # For insults lol
+    execWheelOnly = true;
+    package = pkgs.sudo.override {withInsults = true;};
     extraConfig = "Defaults insults";
   };
 
-  # systemd in initrd: cleaner cryptsetup passphrase prompts and
-  # hosts the snapshot-rollback unit below.
+  # The rollback unit below needs systemd in initrd.
   boot.initrd.systemd.enable = true;
 
-  # /data LUKS — passphrase prompted at console (no more SD-card keyfile).
-  # Root LUKS (cryptroot) is declared in hardware-configuration.nix.
+  # Root LUKS (cryptroot) is in hardware-configuration.nix.
   boot.initrd.luks.devices.crypt_ssd1 = {
     device = "/dev/disk/by-id/ata-Samsung_SSD_870_QVO_8TB_S5SSNF0WA10922R";
-    allowDiscards = true; # Allows SSD trim commands for better performance
-    # YubiKey FIDO2 unlock (systemd initrd). Enroll once with:
-    #   sudo systemd-cryptenroll --fido2-device=auto \
-    #     /dev/disk/by-id/ata-Samsung_SSD_870_QVO_8TB_S5SSNF0WA10922R
-    # The existing passphrase stays as a fallback.
+    allowDiscards = true;
+    # Enroll with `systemd-cryptenroll --fido2-device=auto <device>`; the passphrase stays as fallback.
     crypttabExtraOpts = ["fido2-device=auto"];
   };
 
-  # Impermanence: roll @root back to a pristine state on every boot,
-  # archiving the previous @root under /old_roots/<timestamp> and
-  # GCing anything older than 30 days.
+  # Archive the previous @root under /old_roots and delete archives older than 30 days.
   boot.initrd.systemd.services.rollback = {
     description = "Rollback BTRFS root subvolume to a pristine state";
     wantedBy = ["initrd.target"];
@@ -1044,11 +735,7 @@ in {
     ];
   };
 
-  # Steam libraries, to keep games off the 8TB /data pool:
-  #  - /persist/games/sandisk: the dedicated SanDisk SSD (unencrypted btrfs,
-  #    label "games", @games subvol). Loaded late (not neededForBoot).
-  #  - /persist/games/samsung: a plain dir on the root NVMe's free space
-  #    (encrypted via cryptroot) -- no separate device, just declared below.
+  # Steam library on an unencrypted SanDisk SSD, to keep games off the 8TB /data pool.
   fileSystems."/persist/games/sandisk" = {
     device = "/dev/disk/by-label/games";
     fsType = "btrfs";
@@ -1062,7 +749,6 @@ in {
     ];
   };
 
-  # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
 
   environment.systemPackages = with pkgs; [
@@ -1083,11 +769,7 @@ in {
     chromium
     openrgb
     v4l-utils # cec-ctl: HDMI-CEC control (TV power/input over /dev/cec0)
-    # No native Jellyfin desktop client. xaltsc/jellyfin-desktop can't run under
-    # gamescope game mode (its wgpu/subsurface renderer needs wl_subcompositor /
-    # wp_viewporter, which gamescope lacks; its x11 backend dies with a wgpu
-    # DEVICE LOST), so the JF web UI in a Chromium kiosk is used for both game
-    # and desktop mode (see kirk.steamShortcuts). plezy kept as a light fallback.
+    # Fallback media client; Jellyfin runs as a Chromium kiosk (see kirk.steamShortcuts).
     plezy
 
     # Compression

@@ -43,7 +43,7 @@ in {
         Whether `git commit` signs by default. Defaults to true when
         `signKey` is set. Set to false to get signature verification
         (format=ssh + allowedSignersFile) without forcing every commit
-        to be signed — useful inside sandboxes where signing happens
+        to be signed. Useful inside sandboxes where signing happens
         elsewhere but verification of signed commits is still wanted.
       '';
     };

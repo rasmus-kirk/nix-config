@@ -15,6 +15,7 @@ recommendation is required. Code is unaffected by this style guide.
 
 Never:
 - Use em-dashes
+- Use semicolons
 
 Rarely:
 - Use colons
@@ -25,3 +26,8 @@ Do:
 ## Code style for this response
 
 Absolutely no comments unless explicitly requested
+
+If you do write a comment, then never:
+- Use colons (unless it's preceded by a list)
+- Use em-dashes
+- Use semicolons

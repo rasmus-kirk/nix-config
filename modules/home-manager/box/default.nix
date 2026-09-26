@@ -60,7 +60,6 @@ in {
               --hostname box
               --die-with-parent
               --clearenv
-              # Set environment variables.
               --setenv PATH ${boxHome}/.nix-profile/bin
               --setenv HOME ${boxHome}
               --setenv USER ${cfg.user}
@@ -76,7 +75,6 @@ in {
               --chdir "$PWD"
             )
 
-            # Network off unless explicitly enabled.
             if [ "''${argc_net:-0}" != 1 ]; then
               args+=(--unshare-net)
             fi

@@ -1,4 +1,3 @@
-# My home manager config
 {
   pkgs,
   config,
@@ -17,19 +16,13 @@ in {
     foot.enable = true;
     mpv.enable = true;
     mvi.enable = true;
-    # TV liveness over HDMI-CEC, subsuming rustle (no standalone kirk.rustle
-    # here anymore). Always-on box, so the TV follows *activity*, not power:
-    # idle (no /dev/input events AND no real audio) for idleMinutes -> TV
-    # standby; any key/controller/mouse or audio -> wake. While the TV is
-    # awake it emulates rustle: watches the sink monitor (RMS) and, after
-    # ~10 min of silence, plays a 10s sub-audible pulse so the speaker doesn't
-    # hit its EU-mandated standby — reset on real sound, nothing while asleep.
+    # This box is always on, so the TV follows input and audio activity, not host power.
+    # While the TV is awake, a sub-audible pulse keeps the speaker out of EU-mandated standby.
     cec = {
       enable = true;
       sink = "alsa_output.pci-0000_03_00.1.hdmi-stereo"; # the LG TV (Navi 48 HDMI; node.nick "LG TV")
       keepAwake.debug = true; # TEMP: verify monitor RMS in the journal
-      # Relay controller/system volume on the TV sink to the AVR over CEC (the
-      # controller's volume keys only reach the system volume, not our evdev).
+      # Controller volume keys only reach the system volume, so relay it to the AVR over CEC.
       controllerVolume.enable = true;
     };
     xdgMime.enable = true;
@@ -93,12 +86,6 @@ in {
 
   home.stateVersion = "22.11";
 
-  # All home-manager user state lives under ${stateDir} (= /data/.state/user),
-  # a single user-owned subtree created at system level (configuration.nix).
-  #
-  # syncthing user-level entries removed: this box runs system-level
-  # services.syncthing (configDir = /data/.state/syncthing) owned by
-  # the syncthing system user — a user-level syncthing would conflict.
   systemd.user.tmpfiles.rules = [
     "L+ ${config.home.homeDirectory}/.thunderbird               - - - - ${stateDir}/thunderbird"
     "L+ ${config.home.homeDirectory}/.mozilla                   - - - - ${stateDir}/firefox/home"
@@ -116,17 +103,12 @@ in {
 
     "L+ ${config.home.homeDirectory}/.local/share/Steam         - - - - ${stateDir}/steam/steam"
     "L+ ${config.home.homeDirectory}/.steam                     - - - - ${stateDir}/steam/steam-compat"
-    # jovian/gamescope gaming-mode settings live OUTSIDE the Steam root, so
-    # they need explicit persistence or the @root rollback resets them every
-    # boot: gamescope display modes/EDID + steamos-manager state.
+    # Gamescope and steamos-manager settings live outside the Steam root, so the
+    # @root rollback resets them each boot unless they are persisted here.
     "L+ ${config.home.homeDirectory}/.config/gamescope          - - - - ${stateDir}/steam/gamescope"
     "L+ ${config.home.homeDirectory}/.config/steamos-manager    - - - - ${stateDir}/steam/steamos-manager"
 
-    # Jellyfin client state, persisted across the @root rollback. The native
-    # jellyfin-desktop client was removed (can't run under gamescope); the web UI
-    # runs in a Chromium kiosk whose profile lives under ${stateDir}/jellyfin-web.
-    #   - Plezy (Flutter, nixpkgs): ~/.local/share/com.edde746.plezy.
-    # Old Qt5 JMP (jellyfin-media-player from nixpkgs-2405) — its login/config.
+    # Jellyfin Media Player (Qt5, nixpkgs-2405) and Plezy state, persisted across the @root rollback.
     "L+ ${config.home.homeDirectory}/.local/share/jellyfinmediaplayer - - - - ${stateDir}/jellyfinmediaplayer"
     "L+ ${config.home.homeDirectory}/.local/share/com.edde746.plezy - - - - ${stateDir}/plezy"
   ];
@@ -160,18 +142,11 @@ in {
     silent = true;
   };
 
-  # Restart Steam in game mode: bounces Jovian's steam-launcher user unit, which
-  # re-runs the steam-shortcuts sync first (so tile/shortcut changes apply) and
-  # relaunches the Steam client inside the existing gamescope session — no reboot
-  # or full session restart. (For a stuck gamescope/display itself, the physical
-  # power button now triggers `systemctl soft-reboot` — see acpid in the desktop
-  # configuration.nix; or run it over SSH.)
+  # Relaunches Steam inside the running gamescope session and re-runs the steam-shortcuts sync first.
   home.shellAliases.restart-steam = "systemctl --user restart steam-launcher.service";
 
-  # Kill KWallet. With autologin it can never auto-unlock, so it just nags on
-  # every launch — and Chromium blocks on that prompt (its KDE "safe storage"
-  # backend), which is why only Chromium, only on Plasma, "couldn't connect".
-  # Disabling the subsystem makes apps fall back to their own stores.
+  # With autologin KWallet can never auto-unlock, and Chromium blocks on its prompt.
+  # Disabled, apps fall back to their own secret stores.
   xdg.configFile."kwalletrc".text = ''
     [Wallet]
     Enabled=false

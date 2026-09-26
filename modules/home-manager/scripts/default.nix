@@ -236,9 +236,8 @@ with lib; let
       OUTDIR=/data/media/images/screenshots
       ${pkgs.coreutils}/bin/mkdir -p "$OUTDIR"
       DEST="$OUTDIR/$(${pkgs.coreutils}/bin/date +%F-%H-%M-%S).png"
-      # Phase 1: slurp + grim inside a transient user unit. cosmic's keybinding
-      # launcher context doesn't let slurp acquire input grabs, but systemd-run's
-      # session does.
+      # Cosmic's keybinding launcher context blocks slurp input grabs, so run slurp
+      # and grim in a transient user unit.
       # shellcheck disable=SC2016
       if ! systemd-run --user --collect --quiet --wait -- ${pkgs.bash}/bin/bash -c '
         set -e
@@ -249,20 +248,13 @@ with lib; let
         ${pkgs.coreutils}/bin/rm -f "$DEST"
         exit 1
       fi
-      # Mirror into /tmp/screenshots, which is what the box binds: /data is
-      # 0700 user:users, so a box running as dev can't read the copy above.
-      # /tmp gets nuked regularly and that's fine — $OUTDIR is the archive,
-      # this is just the hand-off drop. Skipped unless the directory is a
-      # real one we own (systemd-tmpfiles makes it 0750 user:dev at boot);
-      # never created blind, so another uid can't plant the path in sticky
-      # /tmp and choose what the box sees.
+      # The box binds /tmp/screenshots because dev cannot read /data. Copy only into a
+      # real directory we own, so another uid cannot plant the path in sticky /tmp.
       TMPDIR_SHOTS=/tmp/screenshots
       if [ -d "$TMPDIR_SHOTS" ] && [ ! -L "$TMPDIR_SHOTS" ] && [ -O "$TMPDIR_SHOTS" ]; then
         ${pkgs.coreutils}/bin/cp -- "$DEST" "$TMPDIR_SHOTS/" || true
       fi
-      # Phase 2: wl-copy outside systemd-run so its clipboard daemon isn't
-      # reaped when the transient unit cleans up. setsid detaches it from
-      # the script's session.
+      # Run wl-copy outside systemd-run so unit cleanup does not reap its clipboard daemon.
       ${pkgs.util-linux}/bin/setsid -f ${pkgs.wl-clipboard}/bin/wl-copy --type image/png < "$DEST"
       ${pkgs.libnotify}/bin/notify-send "Screenshot" "$DEST"
     '';
@@ -301,16 +293,8 @@ with lib; let
       EXCLUDE_ARGS=(--exclude=target/ --exclude=.direnv/ --exclude=.devenv/)
 
       if git -C "$LOCAL" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-        # Let git decide what to skip so the remote mirror matches the work
-        # tree. Enumerating the ignored paths (rather than pointing rsync at
-        # .gitignore via a dir-merge filter) keeps git's own semantics:
-        # negations, .git/info/exclude and core.excludesfile all apply, and
-        # rsync never has to parse a syntax it only half shares.
-        #
-        # --directory collapses a fully-ignored dir to one entry, so big
-        # trees like target/ cost a single pattern instead of one per file.
-        # sed anchors each path to the transfer root, otherwise an ignored
-        # ./foo.log would also exclude src/foo.log.
+        # Let git list ignored paths so rsync applies git's exact ignore semantics. --directory
+        # collapses ignored dirs to one entry. sed anchors each path to the transfer root.
         EXCLUDE_FILE=$(mktemp)
         trap 'rm -f "$EXCLUDE_FILE"' EXIT
         git -C "$LOCAL" ls-files -z --others --ignored --exclude-standard --directory \
@@ -320,27 +304,13 @@ with lib; let
         EXCLUDE_ARGS=(--from0 --exclude-from="$EXCLUDE_FILE")
       fi
 
-      # --no-inc-recursive: index the whole tree before transfer so
-      # --info=progress2 has an accurate total from the start (percentage
-      # doesn't jump around as new files are discovered mid-transfer).
-      # Costs a few seconds of pre-walk on large trees like lighthouse.
-      #
-      # --mkpath: rsync creates missing dest parent dirs itself, folding
-      # what would have been a separate `ssh desktop mkdir -p …` into this
-      # same connection (saves one YubiKey touch per invocation).
-      #
-      # Build dirs stay excluded: even with identical nix-pinned rustc, the
-      # transfer cost (~30 min for lighthouse's target) dominates any
-      # cache-hit savings. If you ever want cross-machine cargo caching,
-      # sccache (or nix-store copy of built derivations) is the right
-      # tool, not rsync.
+      # --no-inc-recursive gives --info=progress2 an accurate total. --mkpath avoids a separate
+      # ssh mkdir and its YubiKey touch. Build dirs stay excluded, because transfer costs more than a rebuild.
       rsync -azh --delete --info=progress2,stats2 --no-inc-recursive --mkpath \
         "''${EXCLUDE_ARGS[@]}" \
         "$LOCAL/" "desktop:$REMOTE/"
 
-      # printf %q escapes each arg so `desktop-run cargo run -- --foo "bar baz"`
-      # reaches nix intact with word boundaries preserved. Same local-expansion
-      # intent as above.
+      # printf %q keeps argument word boundaries intact through ssh.
       CMD_QUOTED=$(printf ' %q' "$@")
       # shellcheck disable=SC2029
       exec ssh -t desktop \

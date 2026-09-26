@@ -1,4 +1,3 @@
-# My home manager config
 {
   pkgs,
   config,

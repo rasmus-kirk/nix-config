@@ -32,7 +32,6 @@ in {
       yazi = {
         name = "Yazi";
         exec = "${getExe pkgs.foot} ${getExe pkgs.yazi} %u";
-        #mimeType = [ "inode/directory" ];
       };
     };
 

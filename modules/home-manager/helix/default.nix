@@ -5,13 +5,6 @@
   ...
 }:
 with lib; let
-  # Helix expects the `haskell-language-server-wrapper` to be named `haskell-language-server`
-  #hs-wrapper = pkgs.writeShellApplication {
-  #  name = "haskell-language-server";
-  #  text = ''
-  #    haskell-language-server-wrapper
-  #  '';
-  #};
   cfg = config.kirk.helix;
   mostLsps = with pkgs; [
     # JSON, HTML, CSS, SCSS
@@ -28,14 +21,10 @@ with lib; let
     nil
     # Scala
     metals
-    # Makdown
+    # Markdown
     marksman
     # Latex
     texlab
-    # Haskell
-    #hs-wrapper
-    #haskell-language-server
-    #ghc
     # Go
     gopls
     # Debugger: Rust/CPP/C/Zig
@@ -61,7 +50,6 @@ in {
   };
 
   config = mkIf cfg.enable {
-    # Install specified packages
     home.packages = mkMerge [
       cfg.extraPackages
       (mkIf cfg.installMostLsps mostLsps)
@@ -97,7 +85,6 @@ in {
             roots = ["Cargo.toml" "Cargo.lock"];
             language-servers = [
               "rust-analyzer"
-              # "harper-ls"
             ];
           }
           {
@@ -157,11 +144,8 @@ in {
 
         # Make Helix more like kakoune
         keys.insert = {
-          # Alt-s to save
           "A-s" = ":w";
-          # Alt-w to close buffer
           "A-w" = ":buffer-close";
-          # Ctrl-r to reload all buffers from disk
           "C-r" = ":reload-all";
 
           "A-l" = "goto_next_buffer";
@@ -174,11 +158,8 @@ in {
         };
 
         keys.normal = {
-          # Alt-s to save
           "A-s" = ":w";
-          # Alt-w to close buffer
           "A-w" = ":buffer-close";
-          # Ctrl-r to reload all buffers from disk
           "C-r" = ":reload-all";
 
           W = "extend_next_word_end";

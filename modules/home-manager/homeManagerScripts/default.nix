@@ -163,8 +163,7 @@ in {
 
     configDir = mkOption {
       type = types.nullOr types.path;
-      # modules are evaluated as follows: imports, options, config
-      # you don't want to refer to config. from options as they haven't been evaluated yet.
+      # Options cannot refer to config, so the xdg.configHome default is applied later.
       default = null;
       description = ''
         Path to the home-manager configuration. If not set, will default to:
@@ -211,7 +210,6 @@ in {
         # Use the pinned nixpkgs version that is already used, when using `nix-shell package`
         channels = let nixpkgs = inputs.nixpkgs; in {inherit nixpkgs;};
         settings = {
-          #download-buffer-size = 500000000; # 500 MB
           # Force this, even if nix is installed through the official installer
           experimental-features = ["nix-command" "flakes"];
           # Faster builds
