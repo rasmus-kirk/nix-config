@@ -2,6 +2,7 @@
   config,
   pkgs,
   lib,
+  inputs,
   ...
 }:
 with lib; let
@@ -158,6 +159,12 @@ in {
       description = "Path to the nixos configuration.";
     };
 
+    extraNixOptions = mkOption {
+      type = types.bool;
+      default = false;
+      description = "Apply opinionated nix defaults.";
+    };
+
     stateDir = mkOption {
       type = types.path;
       default = "/etc/nixos";
@@ -178,6 +185,30 @@ in {
   };
 
   config = mkIf cfg.enable {
+    nix = mkIf cfg.extraNixOptions {
+      # Use latest nix version
+      package = pkgs.nixVersions.latest;
+      # Use the pinned nixpkgs version that is already used, when using `nix-shell package`
+      nixPath = ["nixpkgs=${inputs.nixpkgs}"];
+      settings = {
+        # Force this, even if nix is installed through the official installer
+        experimental-features = ["nix-command" "flakes"];
+        download-buffer-size = 500000000; # 500 MB
+        # Faster builds
+        cores = 0;
+        # Return more information when errors happen
+        show-trace = true;
+      };
+      # Use the pinned nixpkgs version that is already used, when using `nix shell nixpkgs#package`
+      registry.nixpkgs = {
+        from = {
+          id = "nixpkgs";
+          type = "indirect";
+        };
+        flake = inputs.nixpkgs;
+      };
+    };
+
     environment.systemPackages = [
       nos
     ];

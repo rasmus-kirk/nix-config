@@ -87,6 +87,7 @@ in {
       enable = true;
       configDir = configDir;
       machine = machine;
+      extraNixOptions = true;
     };
   };
 
@@ -583,25 +584,10 @@ in {
     LC_TIME = "da_DK.UTF-8";
   };
 
-  nix = {
-    package = pkgs.nixVersions.latest;
-    settings = {
-      experimental-features = ["nix-command" "flakes"];
-      download-buffer-size = 500000000; # 500 MB
-      # Oversubscribes cores on large builds, for maximum throughput as the remote builder.
-      max-jobs = "auto";
-      cores = 0;
-      show-trace = true;
-      trusted-users = ["root" "nixremote"];
-    };
-    # Pin `nix shell nixpkgs#...` to the system nixpkgs.
-    registry.nixpkgs = {
-      from = {
-        id = "nixpkgs";
-        type = "indirect";
-      };
-      flake = inputs.nixpkgs;
-    };
+  nix.settings = {
+    # Oversubscribes cores on large builds, for maximum throughput as the remote builder.
+    max-jobs = "auto";
+    trusted-users = ["root" "nixremote"];
   };
 
   # -------------------- Remote builder -------------------- #

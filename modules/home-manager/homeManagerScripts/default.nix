@@ -163,7 +163,7 @@ in {
 
     configDir = mkOption {
       type = types.nullOr types.path;
-      # Options cannot refer to config, so the xdg.configHome default is applied later.
+      # Options cannot refer to config, so the let block resolves the null fallback.
       default = null;
       description = ''
         Path to the home-manager configuration. If not set, will default to:

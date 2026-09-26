@@ -64,6 +64,7 @@ in {
     configDir = configDir;
     stateDir = stateDir;
     machine = "deck-oled";
+    extraNixOptions = true;
   };
 
   services.udev = {
@@ -90,25 +91,6 @@ in {
     LC_PAPER = "da_DK.UTF-8";
     LC_TELEPHONE = "da_DK.UTF-8";
     LC_TIME = "da_DK.UTF-8";
-  };
-
-  nix = {
-    package = pkgs.nixVersions.latest;
-    settings = {
-      experimental-features = ["nix-command" "flakes"];
-      download-buffer-size = 500000000; # 500 MB
-      # 0 uses all available cores.
-      cores = 0;
-      show-trace = true;
-    };
-    # Make `nix shell nixpkgs#package` use the same pinned nixpkgs as the system.
-    registry.nixpkgs = {
-      from = {
-        id = "nixpkgs";
-        type = "indirect";
-      };
-      flake = inputs.nixpkgs;
-    };
   };
 
   # TODO: find out why this is needed.

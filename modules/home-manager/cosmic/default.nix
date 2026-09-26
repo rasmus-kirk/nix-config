@@ -9,10 +9,9 @@ in {
   options.kirk.cosmic.enable = mkEnableOption "declarative COSMIC desktop configuration";
 
   config = mkIf cfg.enable {
-    xdg.configFile."cosmic" = {
-      source = ./config;
-      recursive = true;
-      force = true;
-    };
+    home.activation.cosmicConfig = hm.dag.entryAfter ["linkGeneration"] ''
+      run mkdir -p ${config.xdg.configHome}/cosmic
+      run cp -rT --remove-destination --no-preserve=mode ${./config} ${config.xdg.configHome}/cosmic
+    '';
   };
 }

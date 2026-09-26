@@ -13,19 +13,21 @@
 in {
   imports = [./hardware-configuration.nix];
 
-  kirk.nixosScripts = {
-    enable = true;
-    configDir = configDir;
-    stateDir = stateDir;
-    machine = machine;
-    pure = true;
-  };
-
-  kirk.hardening.enable = true;
-  kirk.devUser.enable = true;
-  kirk.keyboardLayout = {
-    enable = true;
-    package = inputs.keyboard-layout.packages.${pkgs.stdenv.hostPlatform.system}.rk;
+  kirk = {
+    nixosScripts = {
+      enable = true;
+      configDir = configDir;
+      stateDir = stateDir;
+      machine = machine;
+      pure = true;
+      extraNixOptions = true;
+    };
+    hardening.enable = true;
+    devUser.enable = true;
+    keyboardLayout = {
+      enable = true;
+      package = inputs.keyboard-layout.packages.${pkgs.stdenv.hostPlatform.system}.rk;
+    };
   };
 
   services.udev.extraRules = ''
@@ -60,25 +62,6 @@ in {
     LC_PAPER = "da_DK.UTF-8";
     LC_TELEPHONE = "da_DK.UTF-8";
     LC_TIME = "da_DK.UTF-8";
-  };
-
-  nix = {
-    package = pkgs.nixVersions.latest;
-    settings = {
-      experimental-features = ["nix-command" "flakes"];
-      download-buffer-size = 500000000; # 500 MB
-      # 0 uses all available cores.
-      cores = 0;
-      show-trace = true;
-    };
-    # Make `nix shell nixpkgs#package` use the same pinned nixpkgs as the system.
-    registry.nixpkgs = {
-      from = {
-        id = "nixpkgs";
-        type = "indirect";
-      };
-      flake = inputs.nixpkgs;
-    };
   };
 
   services.xserver.enable = true;
@@ -136,7 +119,6 @@ in {
 
     "d ${stateDir}                           0700 user users -"
     "d ${stateDir}/ssh                       0700 user users -"
-    # root-owned: ssh rejects an Include owned by neither root nor the caller.
     "d ${stateDir}/ssh/root-remotes          0700 root root  -"
     "d ${stateDir}/ssh/remotes               0700 user users -"
     "d ${stateDir}/firefox                   0755 user users -"
@@ -150,7 +132,6 @@ in {
     "d ${stateDir}/claude/state              0755 user users -"
 
     # dev cannot reach /data, so the sk handle is copied into its own home.
-    # Useless without the physical YubiKey, so duplicating it costs nothing.
     "d /home/dev/.ssh                        0700 dev dev -"
     "C /home/dev/.ssh/id_ed25519_yubi        0600 dev dev - ${secretDir}/ssh/id_ed25519_yubi"
     "C /home/dev/.ssh/id_ed25519_yubi.pub    0644 dev dev - ${secretDir}/ssh/id_ed25519_yubi.pub"
