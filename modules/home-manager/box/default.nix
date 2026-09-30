@@ -22,6 +22,13 @@ in {
       example = literalExpression "inputs.self.homeConfigurations.sandbox.activationPackage";
       description = "The box's home-manager generation, built by the host.";
     };
+
+    yubiHandle = mkOption {
+      type = with types; nullOr str;
+      default = null;
+      example = "/data/.secret/ssh/id_ed25519_yubi";
+      description = "YubiKey handle for signing in the box. Used only with `--yubi`.";
+    };
   };
 
   config = mkIf cfg.enable {
@@ -35,7 +42,7 @@ in {
           # @meta version 0.5.0
           # @flag --net                 Share the host's network.
           # @flag --rw                  Bind $PWD read-write (default is read-only).
-          # @flag --yubi                Expose the YubiKey's hidraw node.
+          # @flag --yubi                Expose the YubiKey and its SSH key handle.
           # @flag --claude              Bind the host's Claude Code state (~/.claude).
 
           main() {
@@ -86,6 +93,10 @@ in {
                 grep -q ':00001050:' "$h/device/uevent" 2>/dev/null || continue
                 args+=(--dev-bind-try "/dev/''${h##*/}" "/dev/''${h##*/}")
               done
+              ${optionalString (cfg.yubiHandle != null) ''
+                args+=(--ro-bind-try ${cfg.yubiHandle} ${boxHome}/.ssh/id_ed25519_yubi)
+                args+=(--ro-bind-try ${cfg.yubiHandle}.pub ${boxHome}/.ssh/id_ed25519_yubi.pub)
+              ''}
             fi
 
             # Mount Claude state dir.
@@ -97,6 +108,9 @@ in {
               args+=(--bind ${config.home.homeDirectory}/.claude ${boxHome}/.claude)
               args+=(--bind ${config.home.homeDirectory}/.claude.json ${boxHome}/.claude.json)
             fi
+
+            mkdir -p ${config.xdg.cacheHome}/box/nix
+            args+=(--bind ${config.xdg.cacheHome}/box/nix ${boxHome}/.cache/nix)
 
             if [ "''${argc_rw:-0}" = 1 ]; then
               # Read-write mode.

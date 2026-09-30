@@ -6,5 +6,6 @@
     ./keyboardLayout
     ./hardening
     ./devUser
+    ./yubikey
   ];
 }

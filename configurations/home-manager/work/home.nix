@@ -65,6 +65,7 @@ in {
     box = {
       enable = true;
       homeManagerPackage = inputs.self.homeConfigurations.sandbox.activationPackage;
+      yubiHandle = "${secretDir}/ssh/id_ed25519_yubi";
     };
     chromiumLaunchers = {
       enable = true;

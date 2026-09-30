@@ -20,6 +20,20 @@ in {
     };
   };
 
+  kirk = {
+    nixosScripts = {
+      enable = true;
+      configDir = configDir;
+      machine = "deck-oled";
+      extraNixOptions = true;
+    };
+    yubikey = {
+      enable = true;
+      lockOnUnplug = true;
+      sshAgent = true;
+    };
+  };
+
   vpnNamespaces.wg = {
     enable = true;
     wireguardConfigFile = config.age.secrets."wg.conf".path;
@@ -59,21 +73,7 @@ in {
     };
   };
 
-  kirk.nixosScripts = {
-    enable = true;
-    configDir = configDir;
-    stateDir = stateDir;
-    machine = "deck-oled";
-    extraNixOptions = true;
-  };
-
-  services.udev = {
-    packages = [pkgs.ledger-udev-rules];
-    extraRules = ''
-      ACTION=="remove", SUBSYSTEM=="usb", ENV{PRODUCT}=="1050/*", RUN+="${pkgs.systemd}/bin/systemctl sleep"
-      ACTION=="add", SUBSYSTEM=="usb", ENV{PRODUCT}=="1050/*", ATTR{power/wakeup}="enabled"
-    '';
-  };
+  services.udev.packages = [pkgs.ledger-udev-rules];
 
   networking.hostName = "deck-oled";
   networking.networkmanager.enable = true;
@@ -97,8 +97,6 @@ in {
   services.xserver.enable = true;
 
   services.desktopManager.cosmic.enable = true;
-  services.gnome.gnome-keyring.enable = false;
-  services.gnome.gcr-ssh-agent.enable = false;
 
   jovian = {
     devices.steamdeck.enable = true;
@@ -113,10 +111,6 @@ in {
   };
   hardware.enableRedistributableFirmware = true;
 
-  programs.ssh.startAgent = true;
-  environment.variables.SSH_ASKPASS = "";
-
-  programs.ssh.askPassword = "";
   programs.firefox.enable = true;
 
   kirk.keyboardLayout = {
@@ -139,6 +133,7 @@ in {
     }
   ];
   programs.ssh.knownHosts."desktop-builder".publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEpERjcyDtvKx2UV9K2ErAX+60xr83yQjqOjlnGL9O29 root@desktop";
+  # TODO Add HostName and a non-sk IdentityFile. Auto-upgrades skip until then.
   programs.ssh.extraConfig = ''
     Host desktop-builder
       HostKeyAlias desktop-builder
@@ -146,26 +141,19 @@ in {
       User nixremote
   '';
 
-  security.pam.services = {
-    login.u2fAuth = true;
-    sudo.u2fAuth = true;
-    cosmic-greeter.u2fAuth = true;
-    cosmic-greeter.unixAuth = false;
+  system.autoUpgrade = {
+    enable = true;
+    flake = "github:rasmus-kirk/nix-config#deck-oled";
+    flags = ["--impure" "--refresh" "--option" "max-jobs" "0"];
+    operation = "boot";
+    dates = "daily";
+    persistent = true;
   };
-
-  security.pam.u2f.settings = {
-    authfile = "${secretDir}/ssh/id_ed25519_yubi";
-    sshformat = true;
-    origin = "ssh:rasmus";
-  };
+  systemd.services.nixos-upgrade.serviceConfig.ExecCondition =
+    "${config.nix.package}/bin/nix store info --store ssh-ng://desktop-builder";
 
   systemd.tmpfiles.rules = [
     "d ${stateDir}                 0700 user users -"
-    "d ${stateDir}/thunderbird     0755 user users -"
-    "d ${stateDir}/cosmic          0755 user users -"
-    "d ${stateDir}/cosmic/config   0755 user users -"
-    "d ${stateDir}/cosmic/comp     0755 user users -"
-    "d ${stateDir}/cosmic/local    0755 user users -"
     "d ${stateDir}/firefox         0755 user users -"
     "d ${stateDir}/firefox/config  0755 user users -"
     "d ${stateDir}/firefox/home    0755 user users -"
@@ -222,7 +210,6 @@ in {
     keepassxc
     thunderbird
     feishin
-    yubioath-flutter
     ledger-live-desktop
     claude-code
 

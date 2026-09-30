@@ -18,11 +18,8 @@ in {
     xdgMime.enable = true;
     git = {
       enable = true;
-      # The box has no private key or YubiKey, so it cannot sign.
-      # signKey is the store copy, which every box can resolve.
-      signKey = toString ../../../pubkeys/yubi.pub;
+      signKey = "/home/${username}/.ssh/id_ed25519_yubi.pub";
       signPubKey = ../../../pubkeys/yubi.pub;
-      signByDefault = false;
       userEmail = "mail@rasmuskirk.com";
       userName = "rasmus-kirk";
     };
@@ -39,19 +36,13 @@ in {
       enable = true;
       configDir = configDir;
     };
-    ssh = {
-      enable = true;
-      # No identityPath, because the box has no SSH key access.
-    };
+    ssh.enable = true;
     userDirs = {
       enable = true;
       rootDir = dataDir;
       autoSortDownloads = true;
     };
-    zsh = {
-      enable = true;
-      # Default stateDir keeps history in $HOME/.zsh_history, inside the box's writable home.
-    };
+    zsh.enable = true;
   };
 
   systemd.user.startServices = false;
@@ -83,15 +74,13 @@ in {
     enableZshIntegration = true;
     nix-direnv.enable = true;
     silent = true;
-    # The box is the jail, so trust every .envrc inside it. Never record that
-    # trust on the host, where the .envrc would then run unsandboxed.
+    # Always trust any direnv in the box.
     config.whitelist.prefix = ["/"];
   };
 
   home.packages = with pkgs; [
-    # The box PATH contains only this profile, so it needs a base userland.
-    # nix-direnv needs `nix` to build a project's devshell.
     coreutils
+    python3
     findutils
     gawk
     gnugrep

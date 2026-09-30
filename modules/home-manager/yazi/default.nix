@@ -158,12 +158,12 @@ in {
             }
             {
               on = "t";
-              run = "plugin toggle-preview";
+              run = "plugin toggle-pane min-preview";
               desc = "Hide or show preview";
             }
             {
               on = "T";
-              run = "plugin toggle-pane";
+              run = "plugin toggle-pane max-preview";
               desc = "Maximize or restore preview";
             }
             # Goto
@@ -236,6 +236,10 @@ in {
           });
       };
       settings = {
+        preview = {
+          max_width = 3840;
+          max_height = 2160;
+        };
         plugin = {
           prepend_fetchers = [
             {

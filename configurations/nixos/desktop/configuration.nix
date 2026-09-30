@@ -89,6 +89,7 @@ in {
       machine = machine;
       extraNixOptions = true;
     };
+    yubikey.enable = true;
   };
 
   # -------------------- Nixarr -------------------- #
@@ -231,7 +232,7 @@ in {
     kate
     elisa
     khelpcenter
-    kwallet-pam # KWallet is disabled in home.nix
+    kwallet-pam
     kwalletmanager
   ];
   # jovian's Steam module enables the Orca screen reader.
@@ -275,11 +276,11 @@ in {
       # The native Jellyfin client needs Wayland protocols that gamescope does not implement.
       "Jellyfin" = {
         exe = "${jellyfin-kiosk}/bin/jellyfin-kiosk";
-        portrait = ../../../images/steam/jellyfin-portrait.png; # 600x900 library capsule
-        landscape = ../../../images/steam/jellyfin-landscape.png; # 920x430 big grid
-        hero = ../../../images/steam/jellyfin-hero.png; # 1920x620 banner
-        logo = ../../../images/steam/jellyfin-logo.png; # transparent logo
-        icon = ../../../images/steam/jellyfin-icon.png; # 256x256 list icon
+        portrait = ../../../images/steam/jellyfin-portrait.png; # 600x900
+        landscape = ../../../images/steam/jellyfin-landscape.png; # 920x430
+        hero = ../../../images/steam/jellyfin-hero.png; # 3840x1240
+        logo = ../../../images/steam/jellyfin-logo.png; # 1363x480
+        icon = ../../../images/steam/jellyfin-icon.png; # 1024x1024
       };
       "Firefox" = {
         exe = "/run/current-system/sw/bin/firefox";
@@ -380,9 +381,9 @@ in {
   # /data/.state stays root-owned for system services, so user state lives in
   # the user-owned /data/.state/user.
   systemd.tmpfiles.rules = [
-    "d /data                        0755 root root  -"
-    "d /data/.state                 0755 root root  -"
-    "d /data/.state/user            0755 user users -"
+    "d /data                                        0755 root root  -"
+    "d /data/.state                                 0755 root root  -"
+    "d /data/.state/user                            0755 user users -"
     "d /data/.state/user/thunderbird                0755 user users -"
     "d /data/.state/user/firefox                    0755 user users -"
     "d /data/.state/user/firefox/config             0755 user users -"
@@ -410,9 +411,6 @@ in {
 
     # The downloads XDG dir is in root-owned /data, so the user cannot create it.
     "d /data/downloads              0755 user users -"
-
-    # The AI flake at /data/ai runs as user and writes models here.
-    "d /persist/ai                  0755 user users -"
 
     # /persist/games/sandisk is a mountpoint, declared in fileSystems.
     "d /persist/games               0755 user users -"
@@ -460,8 +458,6 @@ in {
       action = "${pkgs.systemd}/bin/systemctl soft-reboot";
     };
   };
-
-  # -------------------- Syncthing -------------------- #
 
   services = {
     syncthing = {
@@ -534,12 +530,6 @@ in {
       settings.PasswordAuthentication = false;
       ports = [6000];
     };
-  };
-
-  programs.mosh.enable = true;
-  networking.firewall = {
-    allowedUDPPorts = [6000];
-    allowedTCPPorts = [8384];
   };
 
   users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
@@ -643,14 +633,6 @@ in {
   # -------------------- YubiKey (U2F) -------------------- #
   # rssh is tried before U2F, so sudo over SSH with a forwarded agent needs no key.
   # Password is the final fallback.
-  security.pam.services.sudo.u2fAuth = true;
-  security.pam.services.login.u2fAuth = true;
-  security.pam.services.cosmic-greeter.u2fAuth = true;
-  security.pam.u2f.settings.cue = true; # prints "touch your key" prompt
-  security.pam.u2f.settings.authfile = "${secretDir}/ssh/id_ed25519_yubi";
-  security.pam.u2f.settings.sshformat = true;
-  security.pam.u2f.settings.origin = "ssh:rasmus";
-
   security.pam.rssh.enable = true;
 
   security.pam.rssh.settings.auth_key_file = "/etc/ssh/authorized_keys.d/user";

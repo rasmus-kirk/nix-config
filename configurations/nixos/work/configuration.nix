@@ -17,30 +17,23 @@ in {
     nixosScripts = {
       enable = true;
       configDir = configDir;
-      stateDir = stateDir;
       machine = machine;
       pure = true;
       extraNixOptions = true;
     };
     hardening.enable = true;
     devUser.enable = true;
+    yubikey = {
+      enable = true;
+      lockOnUnplug = true;
+      lockOnlyWithDevices = ["17ef:6047"];
+      sshAgent = true;
+    };
     keyboardLayout = {
       enable = true;
       package = inputs.keyboard-layout.packages.${pkgs.stdenv.hostPlatform.system}.rk;
     };
   };
-
-  services.udev.extraRules = ''
-    # systemd uaccess grants the YubiKey FIDO node only to the seat user.
-    # Group ownership lets dev open it too, so dev can use the sk-ssh key.
-    KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1050", GROUP="yubikey", MODE="0660"
-
-    ACTION=="remove", SUBSYSTEM=="usb", ENV{PRODUCT}=="1050/*", RUN+="${pkgs.writeShellScript "yubikey-lock-on-unplug" ''
-      if ${pkgs.usbutils}/bin/lsusb -d 17ef:6047 > /dev/null; then
-        ${pkgs.systemd}/bin/loginctl lock-sessions
-      fi
-    ''}"
-  '';
 
   programs.steam.enable = true;
   programs.steam.extraPackages = [pkgs.hidapi];
@@ -68,29 +61,19 @@ in {
 
   services.desktopManager.cosmic.enable = true;
   services.displayManager.cosmic-greeter.enable = true;
-  services.gnome.gnome-keyring.enable = false;
-  services.gnome.gcr-ssh-agent.enable = false;
   services.displayManager.autoLogin = {
     enable = true;
     user = "user";
   };
+
   services.logind.settings.Login.HandleLidSwitch = "ignore";
-
-  services.hardware.bolt.enable = true;
   services.fwupd.enable = true;
-
   hardware.enableRedistributableFirmware = true;
-
   hardware.graphics.enable = true;
-
   hardware.bluetooth = {
     enable = true;
     powerOnBoot = true;
   };
-
-  programs.ssh.startAgent = true;
-  programs.ssh.askPassword = "";
-  environment.variables.SSH_ASKPASS = "";
 
   programs.firefox.enable = true;
 
@@ -141,25 +124,6 @@ in {
     Include ${stateDir}/ssh/root-remotes/*.conf
   '';
 
-  services.fprintd.enable = true;
-
-  security.pam.services = {
-    login.u2fAuth = true;
-    login.fprintAuth = true;
-    sudo.u2fAuth = true;
-    sudo.fprintAuth = true;
-    cosmic-greeter.u2fAuth = true;
-    cosmic-greeter.fprintAuth = false;
-    cosmic-greeter.unixAuth = false;
-  };
-
-  security.pam.u2f.settings = {
-    cue = true;
-    authfile = "${secretDir}/ssh/id_ed25519_yubi";
-    sshformat = true;
-    origin = "ssh:rasmus";
-  };
-
   services.pulseaudio.enable = false;
   security.rtkit.enable = true;
   services.pipewire = {
@@ -169,9 +133,6 @@ in {
     pulse.enable = true;
     wireplumber.enable = true;
   };
-
-  # Dedicated group for YubiKey hidraw access (see services.udev.extraRules).
-  users.groups.yubikey = {};
 
   users.users.user = {
     isNormalUser = true;
@@ -189,7 +150,6 @@ in {
   };
 
   environment.systemPackages = with pkgs; [
-    yubioath-flutter
     usbutils
     pciutils
     sshfs

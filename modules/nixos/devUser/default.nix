@@ -6,9 +6,18 @@
 with lib; let
   cfg = config.kirk.devUser;
 in {
-  options.kirk.devUser.enable = mkEnableOption "isolated development user";
+  options.kirk.devUser = {
+    enable = mkEnableOption "isolated development user";
+    user = mkOption {
+      type = types.str;
+      default = "user";
+      description = "Existing user that gets sudo access to dev and membership in the dev group.";
+    };
+  };
 
   config = mkIf cfg.enable {
+    kirk.yubikey.hidrawGroup = true;
+
     users.groups.dev = {};
 
     users.users.dev = {
@@ -21,18 +30,21 @@ in {
       hashedPassword = "!";
       # `sudo -i` creates no logind session, so user timers need lingering.
       linger = true;
+      homeMode = "750";
     };
+
+    users.users.${cfg.user}.extraGroups = ["dev"];
 
     # `screenshot` mirrors captures here because dev cannot read /data. Root creates it at boot so
     # no other uid can claim the name in sticky /tmp. No age field, so tmpfiles cleanup skips it.
     systemd.tmpfiles.rules = [
-      "d /tmp/screenshots 0750 user dev -"
+      "d /tmp/screenshots 0750 ${cfg.user} dev -"
     ];
 
     # runAs pins the target: grants dev, never root.
     security.sudo.extraRules = [
       {
-        users = ["user"];
+        users = [cfg.user];
         runAs = "dev";
         commands = [
           {

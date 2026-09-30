@@ -89,7 +89,6 @@ in {
   ];
 
   services.syncthing.enable = true;
-  services.protonmail-bridge.enable = true;
 
   programs.bash = {
     enable = true;

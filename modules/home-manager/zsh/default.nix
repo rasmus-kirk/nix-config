@@ -2,6 +2,7 @@
   config,
   pkgs,
   lib,
+  inputs,
   ...
 }:
 with lib; let
@@ -10,6 +11,10 @@ with lib; let
     if cfg.stateDir != null
     then "${cfg.stateDir}/todo.md"
     else "~/.local/share/todo.md";
+  pinnedAt = inputs.nixpkgs.lastModified;
+  maxAge = toString cfg.maxNixpkgsAge;
+  staleAt = pinnedAt + cfg.maxNixpkgsAge * 24 * 60 * 60;
+  warning = ''\033[1;37m[\033[1;33mWARNING\033[1;37m]:\033[0m'';
 in {
   options.kirk.zsh = {
     enable = mkEnableOption "zsh configuration.";
@@ -17,6 +22,11 @@ in {
       type = with types; nullOr path;
       default = null;
       description = "Where to store stateful ZSH information, ie. the history.";
+    };
+    maxNixpkgsAge = mkOption {
+      type = types.int;
+      default = 7;
+      description = "Warn in new shells when the pinned nixpkgs is older than this many days.";
     };
   };
 
@@ -47,6 +57,9 @@ in {
       };
 
       initContent = ''
+        if [ "$(date +%s)" -gt ${toString staleAt} ]; then
+          echo -e "${warning} nixpkgs is from $(date -d @${toString pinnedAt} +%F), which is older than ${maxAge} days, please run upgrade"
+        fi
         gc() {
           git clone --recursive $(wl-paste)
         }

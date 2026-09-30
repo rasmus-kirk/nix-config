@@ -11,7 +11,6 @@
     ./homeManagerScripts
     ./stateBackup
     ./jiten
-    ./monero
     ./mpv
     ./mvi
     ./box
