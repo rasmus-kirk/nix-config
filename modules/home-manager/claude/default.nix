@@ -28,6 +28,17 @@ with lib; let
     ];
     outputStyle = "Concise";
   };
+
+  mcpConfig = pkgs.writeText "claude-mcp.json" (builtins.toJSON {mcpServers = cfg.mcpServers;});
+
+  claudeWithMcp = pkgs.symlinkJoin {
+    name = "claude-code-mcp";
+    paths = [pkgs.claude-code];
+    nativeBuildInputs = [pkgs.makeWrapper];
+    postBuild = ''
+      wrapProgram $out/bin/claude --add-flags "--mcp-config=${mcpConfig}"
+    '';
+  };
 in {
   options.kirk.claude = {
     enable = mkEnableOption "Claude Code configuration";
@@ -37,22 +48,46 @@ in {
       default = "low";
       description = "Default Claude Code effort level.";
     };
-  };
 
-  config = mkIf cfg.enable {
-    home.file = {
-      ".claude/settings.json" = {
-        text = builtins.toJSON settings;
-        force = true;
-      };
-      ".claude/style-rules.md" = {
-        source = ./style-rules.md;
-        force = true;
-      };
-      ".claude/skills/ask/SKILL.md" = {
-        source = ./skills/ask/SKILL.md;
-        force = true;
-      };
+    mcpServers = mkOption {
+      type = with types; attrsOf anything;
+      default = {};
+      example = literalExpression ''
+        {
+          linear = {
+            type = "http";
+            url = "https://mcp.linear.app/mcp";
+            headers.Authorization = "Bearer ''${LINEAR_API_KEY}";
+          };
+        }
+      '';
+      description = "MCP servers passed to Claude Code via `--mcp-config`. If set, a wrapped `claude` is added to `home.packages`. Works without `enable`.";
     };
   };
+
+  config = mkMerge [
+    (mkIf (cfg.mcpServers != {}) {
+      home.packages = [claudeWithMcp];
+    })
+    (mkIf cfg.enable {
+      home.file = {
+        ".claude/settings.json" = {
+          text = builtins.toJSON settings;
+          force = true;
+        };
+        ".claude/style-rules.md" = {
+          source = ./style-rules.md;
+          force = true;
+        };
+        ".claude/CLAUDE.md" = {
+          source = ./CLAUDE.md;
+          force = true;
+        };
+        ".claude/skills/ask/SKILL.md" = {
+          source = ./skills/ask/SKILL.md;
+          force = true;
+        };
+      };
+    })
+  ];
 }

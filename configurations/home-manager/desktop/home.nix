@@ -69,7 +69,10 @@ in {
       stateDir = stateDir;
     };
     fonts.enable = true;
-    box.enable = true;
+    box = {
+      enable = true;
+      tokenDir = "${secretDir}/tokens-read-only";
+    };
     chromiumLaunchers = {
       enable = true;
       stateDir = stateDir;
@@ -126,12 +129,6 @@ in {
 
   programs.zsh.profileExtra = ''
     export TERM=foot
-    # GitHub PAT for the github MCP plugin when Claude Code runs on host.
-    # In the box, this token is exported via the sandbox initScript; this
-    # mirrors that behaviour for host shells.
-    if [ -r ${secretDir}/github/qms-pat-global-ro ]; then
-      export GITHUB_PERSONAL_ACCESS_TOKEN="$(tr -d '[:space:]' < ${secretDir}/github/qms-pat-global-ro)"
-    fi
   '';
 
   programs.direnv = {

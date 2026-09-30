@@ -34,7 +34,6 @@ in {
     };
     helix.enable = true;
     jiten.enable = true;
-    claude.enable = true;
     cosmic.enable = true;
     scripts.enable = true;
     yazi = {
@@ -66,6 +65,7 @@ in {
       enable = true;
       homeManagerPackage = inputs.self.homeConfigurations.sandbox.activationPackage;
       yubiHandle = "${secretDir}/ssh/id_ed25519_yubi";
+      tokenDir = "${secretDir}/tokens-read-only";
     };
     chromiumLaunchers = {
       enable = true;
@@ -80,20 +80,7 @@ in {
 
   home.username = username;
   home.homeDirectory = "/home/${username}";
-
   home.stateVersion = "22.11";
-
-  systemd.user.tmpfiles.rules = [
-    "L+ ${config.home.homeDirectory}/.mozilla                   - - - - ${stateDir}/firefox/home"
-    "L+ ${config.home.homeDirectory}/.config/mozilla            - - - - ${stateDir}/firefox/config"
-    "L+ ${config.home.homeDirectory}/.config/chromium           - - - - ${stateDir}/chromium"
-
-    "L+ ${config.home.homeDirectory}/.local/state/cosmic        - - - - ${stateDir}/cosmic/local"
-    "L+ ${config.home.homeDirectory}/.local/state/cosmic-comp   - - - - ${stateDir}/cosmic/comp"
-
-    "L+ ${config.home.homeDirectory}/.claude                    - - - - ${stateDir}/claude/state"
-    "L+ ${config.home.homeDirectory}/.claude.json               - - - - ${stateDir}/claude/claude.json"
-  ];
 
   programs.bash = {
     enable = true;
@@ -108,12 +95,6 @@ in {
 
   programs.zsh.profileExtra = ''
     export TERM=foot
-    # GitHub PAT for the github MCP plugin when Claude Code runs on host.
-    # In the box, ~/.secret/github/pat is exported via the sandbox initScript;
-    # this mirrors that behaviour for host shells.
-    if [ -r ${secretDir}/github/qms-pat-global-ro ]; then
-      export GITHUB_PERSONAL_ACCESS_TOKEN="$(tr -d '[:space:]' < ${secretDir}/github/qms-pat-global-ro)"
-    fi
   '';
 
   programs.direnv = {
@@ -125,9 +106,6 @@ in {
   };
 
   home.packages = with pkgs; [
-    claude-code
-    bubblewrap
-    finamp
     devTerm
   ];
 }

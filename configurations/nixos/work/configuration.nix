@@ -114,10 +114,24 @@ in {
     "d ${stateDir}/claude                    0755 user users -"
     "d ${stateDir}/claude/state              0755 user users -"
 
-    # dev cannot reach /data, so the sk handle is copied into its own home.
-    "d /home/dev/.ssh                        0700 dev dev -"
-    "C /home/dev/.ssh/id_ed25519_yubi        0600 dev dev - ${secretDir}/ssh/id_ed25519_yubi"
-    "C /home/dev/.ssh/id_ed25519_yubi.pub    0644 dev dev - ${secretDir}/ssh/id_ed25519_yubi.pub"
+    "d /home/user/.config                    0755 user users -"
+    "d /home/user/.local                     0755 user users -"
+    "d /home/user/.local/state               0755 user users -"
+    "L+ /home/user/.mozilla                  - - - - ${stateDir}/firefox/home"
+    "L+ /home/user/.config/mozilla           - - - - ${stateDir}/firefox/config"
+    "L+ /home/user/.config/chromium          - - - - ${stateDir}/chromium"
+    "L+ /home/user/.local/state/cosmic       - - - - ${stateDir}/cosmic/local"
+    "L+ /home/user/.local/state/cosmic-comp  - - - - ${stateDir}/cosmic/comp"
+    "L+ /home/user/.claude                   - - - - ${stateDir}/claude/state"
+    "L+ /home/user/.claude.json              - - - - ${stateDir}/claude/claude.json"
+
+    # dev cannot reach /data, so secrets are copied.
+    "d  /run/dev-secret                          0550 root dev -"
+    "d  /run/dev-secret/ssh                      0550 root dev -"
+    "C+ /run/dev-secret/ssh/id_ed25519_yubi      0440 root dev - ${secretDir}/ssh/id_ed25519_yubi"
+    "C+ /run/dev-secret/ssh/id_ed25519_yubi.pub  0444 root dev - ${secretDir}/ssh/id_ed25519_yubi.pub"
+    "C+ /run/dev-secret/tokens-read-only         0550 root dev - ${secretDir}/tokens-read-only"
+    "Z  /run/dev-secret/tokens-read-only/*       0440 root dev -"
   ];
 
   programs.ssh.extraConfig = ''
@@ -144,9 +158,7 @@ in {
 
   security.sudo = {
     package = pkgs.sudo.override {withInsults = true;}; # For insults lol
-    extraConfig = ''
-      Defaults insults
-    '';
+    extraConfig = "Defaults insults";
   };
 
   environment.systemPackages = with pkgs; [

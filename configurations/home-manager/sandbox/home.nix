@@ -43,6 +43,11 @@ in {
       autoSortDownloads = true;
     };
     zsh.enable = true;
+    claude.mcpServers.linear = {
+      type = "http";
+      url = "https://mcp.linear.app/mcp";
+      headers.Authorization = "Bearer \${LINEAR_API_KEY}";
+    };
   };
 
   systemd.user.startServices = false;
@@ -68,6 +73,8 @@ in {
     export TERM=foot
   '';
 
+  programs.gh.enable = true;
+
   programs.direnv = {
     enable = true;
     enableBashIntegration = true;
@@ -88,7 +95,6 @@ in {
     less
     nix
 
-    claude-code
     curl
 
     wl-clipboard

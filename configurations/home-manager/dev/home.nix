@@ -13,17 +13,16 @@ in {
     helix.enable = true;
     scripts.enable = true;
     jiten.enable = true;
-    claude.enable = true;
     git = {
       enable = true;
-      signKey = "${homeDir}/.ssh/id_ed25519_yubi.pub";
+      signKey = "/run/dev-secret/ssh/id_ed25519_yubi.pub";
       signPubKey = ../../../pubkeys/yubi.pub;
       userEmail = "mail@rasmuskirk.com";
       userName = "rasmus-kirk";
     };
     ssh = {
       enable = true;
-      identityPath = "${homeDir}/.ssh/id_ed25519_yubi";
+      identityPath = "/run/dev-secret/ssh/id_ed25519_yubi";
       addKeysToAgent = false;
     };
     yazi.enable = true;
@@ -32,7 +31,8 @@ in {
       enable = true;
       user = username;
       homeManagerPackage = inputs.self.homeConfigurations."sandbox-dev".activationPackage;
-      yubiHandle = "${homeDir}/.ssh/id_ed25519_yubi";
+      yubiHandle = "/run/dev-secret/ssh/id_ed25519_yubi";
+      tokenDir = "/run/dev-secret/tokens-read-only";
     };
   };
 
@@ -52,7 +52,6 @@ in {
   };
 
   systemd.user.startServices = false;
-
   programs = {
     home-manager.enable = true;
     bash = {
@@ -72,7 +71,6 @@ in {
 
 
   home.packages = with pkgs; [
-    claude-code
     curl
     oscclip
   ];

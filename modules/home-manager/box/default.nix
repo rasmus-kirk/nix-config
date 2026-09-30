@@ -7,6 +7,7 @@
 with lib; let
   cfg = config.kirk.box;
   boxHome = "/home/${cfg.user}";
+  boxTokenDir = "${boxHome}/.secret/tokens-read-only";
 in {
   options.kirk.box = {
     enable = mkEnableOption "bubblewrap sandbox";
@@ -29,6 +30,13 @@ in {
       example = "/data/.secret/ssh/id_ed25519_yubi";
       description = "YubiKey handle for signing in the box. Used only with `--yubi`.";
     };
+
+    tokenDir = mkOption {
+      type = with types; nullOr str;
+      default = null;
+      example = "/data/.secret/tokens-read-only";
+      description = "Directory of read-only tokens. Each file is exported as an env var named after the file. Used only with `--tokens`.";
+    };
   };
 
   config = mkIf cfg.enable {
@@ -39,11 +47,12 @@ in {
         inheritPath = false;
         text = ''
           # @describe Bubblewrap sandbox.
-          # @meta version 0.5.0
+          # @meta version 0.6.0
           # @flag --net                 Share the host's network.
           # @flag --rw                  Bind $PWD read-write (default is read-only).
           # @flag --yubi                Expose the YubiKey and its SSH key handle.
           # @flag --claude              Bind the host's Claude Code state (~/.claude).
+          # @flag --tokens              Export the read-only tokens in tokenDir.
 
           main() {
             local args=(
@@ -109,6 +118,16 @@ in {
               args+=(--bind ${config.home.homeDirectory}/.claude.json ${boxHome}/.claude.json)
             fi
 
+            if [ "''${argc_tokens:-0}" = 1 ]; then
+              ${optionalString (cfg.tokenDir != null) ''
+                args+=(--ro-bind-try ${cfg.tokenDir} ${boxTokenDir})
+              ''}
+              ${optionalString (cfg.tokenDir == null) ''
+                echo "box: --tokens needs kirk.box.tokenDir" >&2
+                exit 1
+              ''}
+            fi
+
             mkdir -p ${config.xdg.cacheHome}/box/nix
             args+=(--bind ${config.xdg.cacheHome}/box/nix ${boxHome}/.cache/nix)
 
@@ -129,6 +148,10 @@ in {
               set -e
               export HOME_MANAGER_BACKUP_EXT=backup
               ${cfg.homeManagerPackage}/activate
+              for token in ${boxTokenDir}/*; do
+                [ -f "$token" ] || continue
+                export "$(basename "$token")=$(< "$token")"
+              done
               exec ${boxHome}/.nix-profile/bin/zsh
             ''}
           }
