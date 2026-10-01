@@ -6,21 +6,6 @@
 }:
 with lib; let
   cfg = config.kirk.yazi;
-  mkYaziPlugin = name:
-    pkgs.stdenv.mkDerivation {
-      name = name;
-      phases = ["unpackPhase" "buildPhase"];
-      buildPhase = ''
-        mkdir -p "$out"
-        echo "${name}.yazi/*" "$out"
-        cp -vr ${name}.yazi/* "$out"
-      '';
-      src = pkgs.fetchgit {
-        rev = "c2c16c83dd6c754c38893030848a162bb2422ca2";
-        url = "https://github.com/yazi-rs/plugins.git";
-        hash = "sha256-BdisAHsLHNqtuDu8rtBZZaqiTeL60pQOWKsRct35VZM=";
-      };
-    };
   mkYaziPluginGithub = x:
     pkgs.stdenv.mkDerivation {
       name = x.name;
@@ -43,12 +28,6 @@ with lib; let
       url = "https://github.com/bennyyip/gruvbox-dark.yazi.git";
       rev = "619fdc5844db0c04f6115a62cf218e707de2821e";
       hash = "sha256-Y/i+eS04T2+Sg/Z7/CGbuQHo5jxewXIgORTQm25uQb4=";
-    };
-    exifaudio = mkYaziPluginGithub {
-      name = "exifaudio";
-      url = "https://github.com/Sonico98/exifaudio.yazi";
-      rev = "7ff714155f538b6460fdc8e911a9240674ad9b89";
-      hash = "sha256-qRUAKlrYWV0qzI3SAQUYhnL3QR+0yiRc+0XbN/MyufI=";
     };
   };
 in {
@@ -179,12 +158,12 @@ in {
             }
             {
               on = "t";
-              run = "plugin toggle-preview";
+              run = "plugin toggle-pane min-preview";
               desc = "Hide or show preview";
             }
             {
               on = "T";
-              run = "plugin toggle-pane";
+              run = "plugin toggle-pane max-preview";
               desc = "Maximize or restore preview";
             }
             # Goto
@@ -257,30 +236,18 @@ in {
           });
       };
       settings = {
-        #opener = {
-        #  xdg = [
-        #    { run = ''xdg-open "$@"''; desc = "xdg-open"; for = "unix"; }
-        #  ];
-        #};
-        #open.prepend_rules = [
-        #  { mime = "*"; use = "xdg"; }
-        #];
+        preview = {
+          max_width = 3840;
+          max_height = 2160;
+        };
         plugin = {
-          prepend_previewers = [
-            {
-              mime = "audio/*";
-              run = "exifaudio";
-            }
-          ];
           prepend_fetchers = [
             {
-              id = "git";
               url = "*/";
               run = "git";
               group = "git";
             }
             {
-              id = "git";
               url = "*";
               run = "git";
               group = "git";
@@ -292,12 +259,11 @@ in {
       plugins = {
         mkdir = ./plugins/mkdir;
         autotab = ./plugins/autotab;
-        exifaudio = plugins.exifaudio;
-        full-border = mkYaziPlugin "full-border";
-        git = mkYaziPlugin "git";
-        smart-filter = mkYaziPlugin "smart-filter";
-        chmod = mkYaziPlugin "chmod";
-        toggle-pane = mkYaziPlugin "toggle-pane";
+        full-border = pkgs.yaziPlugins.full-border;
+        git = pkgs.yaziPlugins.git;
+        smart-filter = pkgs.yaziPlugins.smart-filter;
+        chmod = pkgs.yaziPlugins.chmod;
+        toggle-pane = pkgs.yaziPlugins.toggle-pane;
       };
       theme.flavor.use = "gruvbox-dark";
     };

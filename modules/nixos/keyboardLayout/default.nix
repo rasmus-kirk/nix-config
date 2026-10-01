@@ -1,9 +1,5 @@
-# Custom klfc-compiled XKB keyboard layout. klfc emits symbols/<name> and
-# types/<name>, but the custom key *types* aren't registered in xkb's
-# rules/base + rules/evdev, so XKB ignores them. The patcher below copies the
-# system xkb dir, injects the `+<layout>` type lines under the right headers,
-# and points XKB_CONFIG_ROOT at the patched copy. Extracted from the per-machine
-# blocks in the deck-oled / work configs.
+# XKB ignores klfc key types because rules/base and rules/evdev do not register them.
+# The patcher adds the type lines to a copy of the xkb dir and points XKB_CONFIG_ROOT at it.
 {
   config,
   pkgs,
@@ -78,7 +74,7 @@ in {
 
     package = mkOption {
       type = types.package;
-      example = literalExpression "inputs.keyboard-layout.packages.\${pkgs.system}.rk";
+      example = literalExpression "inputs.keyboard-layout.packages.\${pkgs.stdenv.hostPlatform.system}.rk";
       description = "klfc-built layout package providing symbols/<layout> and types/<layout>.";
     };
 

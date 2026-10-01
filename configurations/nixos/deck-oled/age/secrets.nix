@@ -1,7 +1,7 @@
 let
-  key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDgYSiaoC2so74z6rtbvyFPPJGrY732aC6p8ZWivH+0d mail@rasmuskirk.com";
+  read = name: builtins.replaceStrings ["\n"] [""] (builtins.readFile ../../../../ssh-keys/age/${name}.pub);
+  keys = [(read "deck-oled") (read "yubi")];
 in {
-  # "user.age".publicKeys = [key];
-  "hosts.age".publicKeys = [key];
-  "wg.conf.age".publicKeys = [key];
+  "hosts.age".publicKeys = keys;
+  "wg.conf.age".publicKeys = keys;
 }

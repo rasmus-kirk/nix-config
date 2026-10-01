@@ -12,12 +12,12 @@ with lib; let
   # speaker keep-alive only makes sense while the TV is actually on.
   #
   # The daemon tracks the TV's REAL power state (polled over CEC), not just
-  # what it last commanded — so it wakes the TV on input no matter how it went
+  # what it last commanded, so it wakes the TV on input no matter how it went
   # to standby (its own idle timeout, the LG remote, or a manual standby).
   #
   # Security: the daemon NEVER reads keyboards. A udev rule grants it (via the
-  # `cectv` group) exactly two nodes — /dev/cec0 and the keystroke-free
-  # "System Control" sleep-key node — so the only key it can read is the
+  # `cectv` group) exactly two nodes, /dev/cec0 and the keystroke-free
+  # "System Control" sleep-key node, so the only key it can read is the
   # repurposed sleep button. Controller presence is read from world-readable
   # sysfs; the user is in neither `input` nor `video`.
   #
@@ -27,8 +27,8 @@ with lib; let
   #     TV is off.
   #   * Sleep (standby): no sleep-button press, no TV audio, and no controller
   #     connected, for idleMinutes.
-  #   (A Steam controller's input is invisible to evdev — Steam reads it over
-  #    hidraw — so we use its *presence* (sysfs) to block sleep and its
+  #   (A Steam controller's input is invisible to evdev, Steam reads it over
+  #    hidraw, so we use its *presence* (sysfs) to block sleep and its
   #    *connect* (udev) to wake; we never read its input.)
   #
   # Keep-alive (rustle, emulated): record the TV sink's monitor, RMS each ~1s;

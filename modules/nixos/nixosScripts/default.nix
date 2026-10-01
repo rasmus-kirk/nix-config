@@ -2,28 +2,23 @@
   config,
   pkgs,
   lib,
+  inputs,
   ...
 }:
 with lib; let
   cfg = config.kirk.nixosScripts;
-  nosDir =
-    if cfg.stateDir != null
-    then cfg.stateDir
-    else "${cfg.configDir}/.nos-dir";
   nos = pkgs.writeShellApplication {
     name = "nos";
-    runtimeInputs = with pkgs; [fzf git dateutils coreutils gnugrep];
+    runtimeInputs = with pkgs; [fzf git coreutils gnugrep];
     inheritPath = true;
     text = ''
       command="''${1:-}"
 
       NC='\033[0m'
       BRED='\033[1;31m'
-      BYELLOW='\033[1;33m'
       BWHITE='\033[1;37m'
 
       NOS_INFO="''${BWHITE}[NOS-INFO]:''${NC}"
-      NOS_WARNING="''${BWHITE}[''${BYELLOW}NOS-WARNING''${BWHITE}]:''${NC}"
       NOS_ERROR="''${BWHITE}[''${BRED}NOS-ERROR''${BWHITE}]:''${NC}"
 
       # Auto-escalate to root
@@ -33,7 +28,6 @@ with lib; let
       fi
 
       ORIG_USER="''${SUDO_USER:-root}"
-      NOS_DIR="${nosDir}"
 
       if [ -z "$command" ]; then
         echo "Usage: nos <command>"
@@ -48,17 +42,6 @@ with lib; let
 
       rebuild() {
         echo -e "$NOS_INFO Rebuilding NixOS configuration... \n"
-
-        if [ ! -f "$NOS_DIR/last-update" ]; then
-          echo -e "$NOS_WARNING Could not determine last full upgrade."
-        else
-          TODAY=$(date -u '+%Y-%m-%d')
-          LAST_UPDATE=$(cat "$NOS_DIR/last-update")
-          DATE_DIFF=$(ddiff "$TODAY" "$LAST_UPDATE")
-          if [ "$DATE_DIFF" -gt 30 ]; then
-            echo -e "$NOS_WARNING Last full upgrade was $DATE_DIFF days ago."
-          fi
-        fi
 
         pushd "${cfg.configDir}" > /dev/null
         sudo -u "$ORIG_USER" git add .
@@ -101,9 +84,6 @@ with lib; let
           update &&
           rebuild &&
           garbage_collect
-
-          sudo -u "$ORIG_USER" mkdir -p "$NOS_DIR"
-          sudo -u "$ORIG_USER" bash -c "date -u '+%Y-%m-%d' > '$NOS_DIR/last-update'"
           ;;
         options)
           man configuration.nix
@@ -158,10 +138,10 @@ in {
       description = "Path to the nixos configuration.";
     };
 
-    stateDir = mkOption {
-      type = types.path;
-      default = "/etc/nixos";
-      description = "Path to the NOS statedir.";
+    extraNixOptions = mkOption {
+      type = types.bool;
+      default = false;
+      description = "Apply opinionated nix defaults.";
     };
 
     pure = mkOption {
@@ -178,6 +158,30 @@ in {
   };
 
   config = mkIf cfg.enable {
+    nix = mkIf cfg.extraNixOptions {
+      # Use latest nix version
+      package = pkgs.nixVersions.latest;
+      # Use the pinned nixpkgs version that is already used, when using `nix-shell package`
+      nixPath = ["nixpkgs=${inputs.nixpkgs}"];
+      settings = {
+        # Force this, even if nix is installed through the official installer
+        experimental-features = ["nix-command" "flakes"];
+        download-buffer-size = 500000000; # 500 MB
+        # Faster builds
+        cores = 0;
+        # Return more information when errors happen
+        show-trace = true;
+      };
+      # Use the pinned nixpkgs version that is already used, when using `nix shell nixpkgs#package`
+      registry.nixpkgs = {
+        from = {
+          id = "nixpkgs";
+          type = "indirect";
+        };
+        flake = inputs.nixpkgs;
+      };
+    };
+
     environment.systemPackages = [
       nos
     ];

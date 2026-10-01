@@ -1,6 +1,8 @@
 {
   imports = [
     ./chromiumLaunchers
+    ./claudeConfig
+    ./cosmic
     ./fonts
     ./foot
     ./git
@@ -9,7 +11,6 @@
     ./homeManagerScripts
     ./stateBackup
     ./jiten
-    ./monero
     ./mpv
     ./mvi
     ./box

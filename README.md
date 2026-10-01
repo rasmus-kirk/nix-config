@@ -22,8 +22,8 @@ use any part that inspires you.
   - Home-Manager modules generalizing configuration for various tools.
 - `modules/nixos`:
   - NixOS modules generalizing configuration for various tools.
-- `pubkeys`:
-  - Public keys for my devices.
+- `ssh-keys`:
+  - Public SSH keys. `age/` holds each machine's host key, encrypted to the YubiKey.
 - `docs`:
   - Files required for building the documentation hosted at [https://nix.rasmuskirk.com/](https://nix.rasmuskirk.com/).
 

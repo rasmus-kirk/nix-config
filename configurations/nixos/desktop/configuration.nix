@@ -74,7 +74,7 @@ in {
   # -------------------- Secrets -------------------- #
 
   age = {
-    identityPaths = ["${secretDir}/server/ssh/id_ed25519"];
+    identityPaths = ["${secretDir}/ssh/${machine}" "${secretDir}/server/ssh/id_ed25519"];
     secrets = {
       "airvpn-wg.conf".file = ./age/airvpn-wg.conf.age;
       mam.file = ./age/mam.age;
@@ -186,7 +186,7 @@ in {
         ratio-limit-enabled = true;
         ratio-limit = 20.0;
       };
-      package = inputs.nixpkgs-2405.legacyPackages.${pkgs.system}.transmission_4;
+      package = inputs.nixpkgs-2405.legacyPackages.${pkgs.stdenv.hostPlatform.system}.transmission_4;
       vpn.enable = true;
       peerPort = transmissionPort;
     };
@@ -299,7 +299,7 @@ in {
 
   kirk.keyboardLayout = {
     enable = true;
-    package = inputs.keyboard-layout.packages.${pkgs.system}.rk;
+    package = inputs.keyboard-layout.packages.${pkgs.stdenv.hostPlatform.system}.rk;
   };
 
   # Steam in gamescope, Cosmic as the fallback session. AMD Radeon RX 9070
@@ -772,12 +772,14 @@ in {
 
   # -------------------- Remote builder -------------------- #
   # Build offload over SSH (port 6000) as the trusted `nixremote` user.
-  # No keys authorized right now; any added must be NON-sk (no touch prompt).
+  # These must stay NON-sk: nix-daemon cannot wait for a YubiKey touch.
   users.groups.nixremote = {};
   users.users.nixremote = {
     isNormalUser = true;
     group = "nixremote";
     openssh.authorizedKeys.keyFiles = [
+      ../../../ssh-keys/age/work.pub
+      ../../../ssh-keys/age/deck-oled.pub
     ];
   };
 

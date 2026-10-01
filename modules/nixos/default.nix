@@ -1,10 +1,12 @@
 {
   imports = [
     ./nixosScripts
-    ./youtubeDownloader
     ./steamShortcuts
     ./sandboxedGames
     ./emulation
     ./keyboardLayout
+    ./hardening
+    ./devUser
+    ./yubikey
   ];
 }

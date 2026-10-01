@@ -21,6 +21,17 @@ with lib; {
       default = true;
       description = "Whether or not to auto-sort downloads.";
     };
+
+    mediaDirs = mkOption {
+      type = types.bool;
+      default = true;
+      description = ''
+        Whether to point the media XDG dirs (documents, music, pictures,
+        videos) at `''${rootDir}/media`. When false only the downloads tree
+        is managed and those dirs keep their home-manager defaults
+        (`~/Documents`, `~/Music`, `~/Pictures`, `~/Videos`).
+      '';
+    };
   };
   config = let
     cfg = config.kirk.userDirs;
@@ -74,20 +85,22 @@ with lib; {
     };
   in
     mkIf cfg.enable {
-      xdg.userDirs = {
-        enable = true;
-        createDirectories = true;
+      xdg.userDirs =
+        {
+          enable = true;
+          createDirectories = true;
+          setSessionVariables = true;
 
-        extraConfig.XDG_DOWNLOADS_ROOT = "${cfg.rootDir}/downloads";
-        desktop = "${cfg.rootDir}";
-        documents = "${cfg.rootDir}/media/documents";
-        download = "${config.xdg.userDirs.extraConfig.XDG_DOWNLOADS_ROOT}/unsorted";
-        music = "${cfg.rootDir}/media/audio/music";
-        pictures = "${cfg.rootDir}/media/images";
-        # publicShare = "${cfg.rootDir}/.public";
-        # templates = "${cfg.rootDir}/.templates";
-        videos = "${cfg.rootDir}/media/videos";
-      };
+          extraConfig.XDG_DOWNLOADS_ROOT = "${cfg.rootDir}/downloads";
+          desktop = "${cfg.rootDir}";
+          download = "${config.xdg.userDirs.extraConfig.XDG_DOWNLOADS_ROOT}/unsorted";
+        }
+        // optionalAttrs cfg.mediaDirs {
+          documents = "${cfg.rootDir}/media/documents";
+          music = "${cfg.rootDir}/media/audio/music";
+          pictures = "${cfg.rootDir}/media/images";
+          videos = "${cfg.rootDir}/media/videos";
+        };
 
       systemd.user = mkIf cfg.autoSortDownloads {
         timers = {

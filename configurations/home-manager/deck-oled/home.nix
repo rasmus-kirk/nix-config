@@ -1,4 +1,3 @@
-# My home manager config
 {
   pkgs,
   config,
@@ -21,6 +20,7 @@ in {
     git = {
       enable = true;
       signKey = "${secretDir}/ssh/id_ed25519_yubi.pub";
+      signPubKey = ../../../ssh-keys/yubi.pub;
       userEmail = "mail@rasmuskirk.com";
       userName = "rasmus-kirk";
     };
@@ -74,28 +74,11 @@ in {
   home.stateVersion = "22.11";
 
   systemd.user.tmpfiles.rules = [
-    "d  ${stateDir}/thunderbird     0755 user users - -"
-    "d  ${stateDir}/cosmic          0755 user users - -"
-    "d  ${stateDir}/cosmic/config   0755 user users - -"
-    "d  ${stateDir}/cosmic/comp     0755 user users - -"
-    "d  ${stateDir}/cosmic/local    0755 user users - -"
-    "d  ${stateDir}/firefox         0755 user users - -"
-    "d  ${stateDir}/firefox/config  0755 user users - -"
-    "d  ${stateDir}/firefox/home    0755 user users - -"
-    "d  ${stateDir}/chromium        0755 user users - -"
-    "d  ${stateDir}/yubico          0755 user users - -"
-    "d  ${stateDir}/syncthing       0755 user users - -"
-    "d  ${stateDir}/syncthing/state 0755 user users - -"
-    "d  ${stateDir}/syncthing/sync  0755 user users - -"
-    "d  ${stateDir}/claude          0755 user users - -"
-    "d  ${stateDir}/claude/state    0755 user users - -"
-
     "L+ ${config.home.homeDirectory}/.thunderbird               - - - - ${stateDir}/thunderbird"
     "L+ ${config.home.homeDirectory}/.mozilla                   - - - - ${stateDir}/firefox/home"
     "L+ ${config.home.homeDirectory}/.config/mozilla            - - - - ${stateDir}/firefox/config"
     "L+ ${config.home.homeDirectory}/.config/chromium           - - - - ${stateDir}/chromium"
     "L+ ${config.home.homeDirectory}/.local/state/syncthing     - - - - ${stateDir}/syncthing/state"
-    "L+ ${config.home.homeDirectory}/.config/Yubico             - - - - ${stateDir}/yubico"
 
     "L+ ${config.home.homeDirectory}/.config/cosmic             - - - - ${stateDir}/cosmic/config"
     "L+ ${config.home.homeDirectory}/.local/state/cosmic        - - - - ${stateDir}/cosmic/local"
@@ -106,7 +89,6 @@ in {
   ];
 
   services.syncthing.enable = true;
-  services.protonmail-bridge.enable = true;
 
   programs.bash = {
     enable = true;

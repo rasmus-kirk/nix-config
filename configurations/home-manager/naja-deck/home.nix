@@ -1,4 +1,3 @@
-# My home manager config
 {pkgs, ...}: let
   username = "deck";
   machine = "deck";
@@ -38,7 +37,6 @@ in {
 
   home.stateVersion = "22.11";
 
-  # Let Home Manager install and manage itself.
   programs.home-manager.enable = true;
 
   targets.genericLinux.enable = true;

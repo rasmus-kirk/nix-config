@@ -5,13 +5,6 @@
   ...
 }:
 with lib; let
-  # Helix expects the `haskell-language-server-wrapper` to be named `haskell-language-server`
-  #hs-wrapper = pkgs.writeShellApplication {
-  #  name = "haskell-language-server";
-  #  text = ''
-  #    haskell-language-server-wrapper
-  #  '';
-  #};
   cfg = config.kirk.helix;
   mostLsps = with pkgs; [
     # JSON, HTML, CSS, SCSS
@@ -28,14 +21,10 @@ with lib; let
     nil
     # Scala
     metals
-    # Makdown
+    # Markdown
     marksman
     # Latex
     texlab
-    # Haskell
-    #hs-wrapper
-    #haskell-language-server
-    #ghc
     # Go
     gopls
     # Debugger: Rust/CPP/C/Zig
@@ -61,7 +50,6 @@ in {
   };
 
   config = mkIf cfg.enable {
-    # Install specified packages
     home.packages = mkMerge [
       cfg.extraPackages
       (mkIf cfg.installMostLsps mostLsps)
@@ -97,7 +85,6 @@ in {
             roots = ["Cargo.toml" "Cargo.lock"];
             language-servers = [
               "rust-analyzer"
-              # "harper-ls"
             ];
           }
           {
@@ -107,8 +94,15 @@ in {
         ];
       };
 
+      # Gruvbox renders whitespace at bg2 (#504945). bg1 sits closer to the
+      # bg0 background, so the marks read as texture rather than characters.
+      themes.gruvbox-dim-ws = {
+        inherits = "gruvbox";
+        "ui.virtual.whitespace" = "bg1";
+      };
+
       settings = {
-        theme = "gruvbox";
+        theme = "gruvbox-dim-ws";
 
         editor = {
           mouse = true;
@@ -136,24 +130,22 @@ in {
 
           whitespace = {
             render = {
-              space = "none";
+              space = "all";
               nbsp = "all";
               tab = "all";
               newline = "all";
             };
             characters = {
               newline = "⌄";
+              space = "░";
             };
           };
         };
 
         # Make Helix more like kakoune
         keys.insert = {
-          # Alt-s to save
           "A-s" = ":w";
-          # Alt-w to close buffer
           "A-w" = ":buffer-close";
-          # Ctrl-r to reload all buffers from disk
           "C-r" = ":reload-all";
 
           "A-l" = "goto_next_buffer";
@@ -166,11 +158,8 @@ in {
         };
 
         keys.normal = {
-          # Alt-s to save
           "A-s" = ":w";
-          # Alt-w to close buffer
           "A-w" = ":buffer-close";
-          # Ctrl-r to reload all buffers from disk
           "C-r" = ":reload-all";
 
           W = "extend_next_word_end";

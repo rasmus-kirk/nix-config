@@ -14,7 +14,7 @@ with lib; let
 
   hm = pkgs.writeShellApplication {
     name = "hm";
-    runtimeInputs = with pkgs; [fzf git dateutils trash-cli coreutils gnugrep man];
+    runtimeInputs = with pkgs; [fzf git trash-cli coreutils gnugrep man];
     inheritPath = true;
     text = ''
       command="''${1:-}"
@@ -22,11 +22,9 @@ with lib; let
       NC='\033[0m'               # No Color
 
       BRED='\033[1;31m'          # Red
-      BYELLOW='\033[1;33m'       # Yellow
       BWHITE='\033[1;37m'        # White
 
       HM_INFO="''${BWHITE}[HM-INFO]:''${NC}"
-      HM_WARNING="''${BWHITE}[''${BYELLOW}HM-WARNING''${BWHITE}]:''${NC}"
       HM_ERROR="''${BWHITE}[''${BRED}HM-ERROR''${BWHITE}]:''${NC}"
 
       # Check if a parameter is provided
@@ -56,18 +54,6 @@ with lib; let
 
       rebuild() {
         echo -e "$HM_INFO Rebuilding Home Manager configuration... \n"
-
-        HM_DIR=''${XDG_CACHE_HOME:-"$HOME/.cache"}/hm
-        if [ ! -f "$HM_DIR/last-update" ]; then
-          echo -e "$HM_WARNING Could not determine last full upgrade, please run \"hm upgrade\""
-        else
-          TODAY=$(date -u '+%Y-%m-%d')
-          LAST_UPDATE=$(cat "$HM_DIR/last-update" || date --date="-31 day" -u '+%Y-%m-%d')
-          DATE_DIFF=$(ddiff "$TODAY" "$LAST_UPDATE")
-          if [ "$DATE_DIFF" -gt 30 ]; then
-            echo -e "$HM_WARNING Last full upgrade was $DATE_DIFF days ago, please run \"hm upgrade\""
-          fi
-        fi
 
         MIMEAPPS_LIST="$HOME/.config/mimeapps.list.backup"
         if [ -f "$MIMEAPPS_LIST" ]; then
@@ -113,11 +99,6 @@ with lib; let
           update &&
           rebuild &&
           garbage_collect
-
-          # Log upgrade date
-          HM_DIR=''${XDG_CACHE_HOME:-"$HOME/.cache"}/hm
-          mkdir -p "$HM_DIR"
-          date -u '+%Y-%m-%d' > "$HM_DIR/last-update"
           ;;
         options)
           man home-configuration.nix
@@ -163,8 +144,7 @@ in {
 
     configDir = mkOption {
       type = types.nullOr types.path;
-      # modules are evaluated as follows: imports, options, config
-      # you don't want to refer to config. from options as they haven't been evaluated yet.
+      # Options cannot refer to config, so the let block resolves the null fallback.
       default = null;
       description = ''
         Path to the home-manager configuration. If not set, will default to:
@@ -211,7 +191,6 @@ in {
         # Use the pinned nixpkgs version that is already used, when using `nix-shell package`
         channels = let nixpkgs = inputs.nixpkgs; in {inherit nixpkgs;};
         settings = {
-          #download-buffer-size = 500000000; # 500 MB
           # Force this, even if nix is installed through the official installer
           experimental-features = ["nix-command" "flakes"];
           # Faster builds

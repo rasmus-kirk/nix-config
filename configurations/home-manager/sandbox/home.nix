@@ -1,15 +1,16 @@
-# My home manager config
 {
   pkgs,
   lib,
   config,
+  boxUser,
   ...
 }: let
   dataDir = "/data";
   secretDir = "${dataDir}/.secret";
   configDir = "${dataDir}/.system-configuration";
   stateDir = "${dataDir}/.state";
-  username = "user";
+  # Set by the flake's mkSandbox, from kirk.box.user on the host side.
+  username = boxUser;
   machine = "sandbox";
 in {
   kirk = {
@@ -17,12 +18,8 @@ in {
     xdgMime.enable = true;
     git = {
       enable = true;
-      # signKey set so kirk.git wires up SSH-format signature handling
-      # (gpg.format=ssh + allowedSignersFile). signByDefault=false because
-      # the box can't actually sign (no private key, no YubiKey) — that
-      # happens later via `git-batch-sign` on the host.
-      signKey = "${secretDir}/ssh/id_ed25519_yubi.pub";
-      signByDefault = false;
+      signKey = "/home/${username}/.ssh/id_ed25519_yubi.pub";
+      signPubKey = ../../../ssh-keys/yubi.pub;
       userEmail = "mail@rasmuskirk.com";
       userName = "rasmus-kirk";
     };
@@ -39,12 +36,7 @@ in {
       enable = true;
       configDir = configDir;
     };
-    ssh = {
-      enable = true;
-      # No identityPath — box has no SSH key access. Git push/pull/fetch
-      # flow through the host approval TUI which uses the host's YubiKey.
-    };
-    box.brokerClient.enable = true;
+    ssh.enable = true;
     userDirs = {
       enable = true;
       rootDir = dataDir;
@@ -52,8 +44,13 @@ in {
     };
     zsh = {
       enable = true;
-      # Don't override stateDir — history goes to $HOME/.zsh_history,
-      # which lives inside the box's writable state-dir home.
+      tokenDir = "/home/${username}/.secret/tokens-read-only";
+    };
+    claudeConfig.notion.enable = true;
+    claudeConfig.mcpServers.linear = {
+      type = "http";
+      url = "https://mcp.linear.app/mcp";
+      headers.Authorization = "Bearer \${LINEAR_API_KEY}";
     };
   };
 
@@ -64,7 +61,6 @@ in {
 
   home.stateVersion = "22.11";
 
-  # Let Home Manager install and manage itself.
   programs.home-manager.enable = true;
 
   targets.genericLinux.enable = true;
@@ -72,10 +68,6 @@ in {
   programs.bash = {
     enable = true;
     initExtra = ''
-      # if [[ "$PWD" == "$HOME" ]]; then
-      #   cd /data
-      # fi
-
       exec ${lib.getExe pkgs.zsh}
     '';
   };
@@ -91,20 +83,22 @@ in {
     enableZshIntegration = true;
     nix-direnv.enable = true;
     silent = true;
+    # Always trust any direnv in the box.
+    config.whitelist.prefix = ["/"];
   };
 
   home.packages = with pkgs; [
-    # Misc
-    claude-code
+    coreutils
+    python3
+    findutils
+    gawk
+    gnugrep
+    gnused
+    less
+    nix
+
     curl
 
-    # Misc Terminal Tools
     wl-clipboard
   ];
-
-  # Box no longer talks to GitHub directly — git push/pull/fetch all
-  # route through the host approval TUI, which performs the SSH op
-  # from the host (where the YubiKey lives). Commits in box are
-  # unsigned by design (signByDefault=false above); use `git-batch-sign`
-  # to amend-sign a range on the host when ready.
 }

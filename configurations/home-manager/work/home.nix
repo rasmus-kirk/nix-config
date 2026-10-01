@@ -1,4 +1,3 @@
-# My home manager config
 {
   pkgs,
   config,
@@ -10,6 +9,15 @@
   configDir = "${dataDir}/.system-configuration";
   stateDir = "${dataDir}/.state";
   username = "user";
+
+  # sudo must be the setuid wrapper, not the store path.
+  devTerm = pkgs.writeShellApplication {
+    name = "dev-term";
+    runtimeInputs = [pkgs.foot];
+    text = ''
+      exec foot --app-id=dev-term --title=dev -- /run/wrappers/bin/sudo -u dev -i
+    '';
+  };
 in {
   kirk = {
     terminalTools.enable = true;
@@ -20,11 +28,17 @@ in {
     git = {
       enable = true;
       signKey = "${secretDir}/ssh/id_ed25519_yubi.pub";
+      signPubKey = ../../../ssh-keys/yubi.pub;
       userEmail = "mail@rasmuskirk.com";
       userName = "rasmus-kirk";
     };
     helix.enable = true;
     jiten.enable = true;
+    claudeConfig = {
+      enable = true;
+      notion.enable = true;
+    };
+    cosmic.enable = true;
     scripts.enable = true;
     yazi = {
       enable = true;
@@ -39,6 +53,7 @@ in {
     userDirs = {
       enable = true;
       rootDir = dataDir;
+      mediaDirs = false;
       autoSortDownloads = true;
     };
     zathura = {
@@ -48,30 +63,21 @@ in {
     zsh = {
       enable = true;
       stateDir = stateDir;
+      tokenDir = "${secretDir}/tokens-read-only";
     };
     fonts.enable = true;
     box = {
       enable = true;
-      githubTokenFile = "${secretDir}/github/qms-pat-global-ro";
-      githubPrBroker = {
-        enable = true;
-        writeTokenFile = "${secretDir}/github/qms-pat-pr-rw";
-      };
+      homeManagerPackage = inputs.self.homeConfigurations.sandbox.activationPackage;
+      yubiHandle = "${secretDir}/ssh/id_ed25519_yubi";
+      tokenDir = "${secretDir}/tokens-read-only";
     };
     chromiumLaunchers = {
       enable = true;
       stateDir = stateDir;
       launchers = {
-        Github = "https://github.com/";
-        Youtube = "https://youtube.com/";
-        Calendar = "https://calendar.google.com/";
-        "Family Link" = "https://familylink.google.com/";
         "Claude Chat" = "https://claude.ai/new";
-        Linear = "https://linear.app/qms-finance/team/QMS";
-        Meet = "https://meet.google.com/";
-        Gmail = "https://mail.google.com/";
-        Slack = "https://app.slack.com/client/T0AGG8JCJNS/C0AGBU9AFNF";
-        Deel = "https://app.deel.com";
+        Youtube = "https://youtube.com/";
         "Proton Mail" = "https://mail.proton.me/";
       };
     };
@@ -79,42 +85,7 @@ in {
 
   home.username = username;
   home.homeDirectory = "/home/${username}";
-
   home.stateVersion = "22.11";
-
-  systemd.user.tmpfiles.rules = [
-    "d  ${stateDir}/thunderbird     0755 user users - -"
-    "d  ${stateDir}/cosmic          0755 user users - -"
-    "d  ${stateDir}/cosmic/config   0755 user users - -"
-    "d  ${stateDir}/cosmic/comp     0755 user users - -"
-    "d  ${stateDir}/cosmic/local    0755 user users - -"
-    "d  ${stateDir}/firefox         0755 user users - -"
-    "d  ${stateDir}/firefox/config  0755 user users - -"
-    "d  ${stateDir}/firefox/home    0755 user users - -"
-    "d  ${stateDir}/chromium        0755 user users - -"
-    "d  ${stateDir}/yubico          0755 user users - -"
-    "d  ${stateDir}/syncthing       0755 user users - -"
-    "d  ${stateDir}/syncthing/state 0755 user users - -"
-    "d  ${stateDir}/syncthing/sync  0755 user users - -"
-    "d  ${stateDir}/claude          0755 user users - -"
-    "d  ${stateDir}/claude/state    0755 user users - -"
-
-    "L+ ${config.home.homeDirectory}/.thunderbird               - - - - ${stateDir}/thunderbird"
-    "L+ ${config.home.homeDirectory}/.mozilla                   - - - - ${stateDir}/firefox/home"
-    "L+ ${config.home.homeDirectory}/.config/mozilla            - - - - ${stateDir}/firefox/config"
-    "L+ ${config.home.homeDirectory}/.config/chromium           - - - - ${stateDir}/chromium"
-    "L+ ${config.home.homeDirectory}/.local/state/syncthing     - - - - ${stateDir}/syncthing/state"
-    "L+ ${config.home.homeDirectory}/.config/Yubico             - - - - ${stateDir}/yubico"
-
-    "L+ ${config.home.homeDirectory}/.config/cosmic             - - - - ${stateDir}/cosmic/config"
-    "L+ ${config.home.homeDirectory}/.local/state/cosmic        - - - - ${stateDir}/cosmic/local"
-    "L+ ${config.home.homeDirectory}/.local/state/cosmic-comp   - - - - ${stateDir}/cosmic/comp"
-
-    "L+ ${config.home.homeDirectory}/.claude                    - - - - ${stateDir}/claude/state"
-    "L+ ${config.home.homeDirectory}/.claude.json               - - - - ${stateDir}/claude/claude.json"
-  ];
-
-  # services.syncthing.enable = true;
 
   programs.bash = {
     enable = true;
@@ -129,12 +100,6 @@ in {
 
   programs.zsh.profileExtra = ''
     export TERM=foot
-    # GitHub PAT for the github MCP plugin when Claude Code runs on host.
-    # In the box, ~/.secret/github/pat is exported via the sandbox initScript;
-    # this mirrors that behaviour for host shells.
-    if [ -r ${secretDir}/github/qms-pat-global-ro ]; then
-      export GITHUB_PERSONAL_ACCESS_TOKEN="$(tr -d '[:space:]' < ${secretDir}/github/qms-pat-global-ro)"
-    fi
   '';
 
   programs.direnv = {
@@ -145,32 +110,7 @@ in {
     silent = true;
   };
 
-  # box-approver is launched manually by the user from a terminal. We
-  # wrap it in a small shell script that hard-codes all the BOX_* env
-  # vars (PAT paths, notify binaries, sound file) so launches survive
-  # stale shells / non-shell launchers — no reliance on
-  # home.sessionVariables having been re-sourced.
-  home.packages = let
-    boxBrokerPkg = inputs.self.packages.${pkgs.system}.box-broker;
-    boxApproverWrapped = pkgs.writeShellApplication {
-      name = "box-approver";
-      runtimeInputs = [];
-      inheritPath = true;
-      text = ''
-        export BOX_GH_PAT_FILE="${secretDir}/github/qms-pat-pr-rw"
-        export BOX_LINEAR_PAT_FILE="${secretDir}/linear/pat"
-        export BOX_NOTIFY_BIN="${pkgs.libnotify}/bin/notify-send"
-        export BOX_PW_CAT_BIN="${pkgs.pipewire}/bin/pw-cat"
-        export BOX_NOTIFY_SOUND="${pkgs.sound-theme-freedesktop}/share/sounds/freedesktop/stereo/message.oga"
-        exec ${boxBrokerPkg}/bin/box-approver "$@"
-      '';
-    };
-  in
-    with pkgs; [
-      claude-code
-      bubblewrap
-      socat
-      finamp
-      boxApproverWrapped
-    ];
+  home.packages = with pkgs; [
+    devTerm
+  ];
 }

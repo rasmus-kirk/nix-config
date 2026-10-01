@@ -1,6 +1,3 @@
-# Edit this configuration file to define what should be installed on
-# your system.  Help is available in the configuration.nix(5) man page
-# and in the NixOS manual (accessible by running ‘nixos-help’).
 {
   config,
   pkgs,
@@ -16,57 +13,38 @@
 in {
   imports = [./hardware-configuration.nix];
 
-  kirk.nixosScripts = {
-    enable = true;
-    configDir = configDir;
-    stateDir = stateDir;
-    machine = machine;
-  };
+  age.identityPaths = ["${secretDir}/ssh/${machine}"];
 
-  age = {
-    identityPaths = ["${secretDir}/ssh/age_ed25519"];
-    secrets = {
-      hosts.file = ./age/hosts.age;
+  kirk = {
+    nixosScripts = {
+      enable = true;
+      configDir = configDir;
+      machine = machine;
+      pure = true;
+      extraNixOptions = true;
+    };
+    hardening.enable = true;
+    devUser.enable = true;
+    yubikey = {
+      enable = true;
+      lockOnUnplug = true;
+      lockOnlyWithDevices = ["17ef:6047"];
+      sshAgent = true;
+    };
+    keyboardLayout = {
+      enable = true;
+      package = inputs.keyboard-layout.packages.${pkgs.stdenv.hostPlatform.system}.rk;
     };
   };
-
-  services.udev.extraRules = ''
-    ACTION=="remove", SUBSYSTEM=="usb", ENV{PRODUCT}=="1050/*", RUN+="${pkgs.writeShellScript "yubikey-lock-on-unplug" ''
-      if ${pkgs.usbutils}/bin/lsusb -d 17ef:6047 > /dev/null; then
-        ${pkgs.systemd}/bin/loginctl lock-sessions
-      fi
-    ''}"
-
-    # Stop the lid switch from waking the laptop. The lid uses a Hall-effect
-    # (magnetic) sensor; magnetic objects placed on the closed laptop (e.g. an
-    # Onyx Boox cover) can flicker the sensor and cause spurious wake-ups.
-    # Trade-off: opening the lid no longer auto-wakes, press a key instead.
-    #
-    # PNP0C0D:00 exists twice in sysfs and both need clearing. The acpi node
-    # holds the flag that arms the lid's wakeup GPE (the one /proc/acpi/wakeup
-    # reports), the platform node holds the input device's own flag.
-    ACTION=="add", SUBSYSTEM=="acpi", KERNEL=="PNP0C0D:00", ATTR{power/wakeup}="disabled"
-    ACTION=="add", SUBSYSTEM=="platform", KERNEL=="PNP0C0D:00", ATTR{power/wakeup}="disabled"
-
-    # Yubico FIDO HID: persistent group-based access (mode 0660, group yubikey).
-    # The default systemd-logind uaccess mechanism uses ACLs whose mask doesn't
-    # carry correctly into bwrap's user namespace (open() fails with EACCES
-    # inside the box). Group-based perms bypass ACLs and work everywhere.
-    # Security: still gated by physical YubiKey touch for any signing op.
-    KERNEL=="hidraw*", SUBSYSTEM=="hidraw", ATTRS{idVendor}=="1050", MODE="0660", GROUP="yubikey"
-  '';
 
   programs.steam.enable = true;
   programs.steam.extraPackages = [pkgs.hidapi];
   hardware.steam-hardware.enable = true;
-  programs.nh.enable = true;
 
-  # Enable networking
   networking.hostName = machine;
   networking.networkmanager.enable = true;
-  networking.extraHosts = builtins.readFile config.age.secrets.hosts.path;
+  networking.extraHosts = "";
 
-  # Set your time zone.
   time.timeZone = "Europe/Copenhagen";
   i18n.defaultLocale = "en_DK.UTF-8";
   i18n.extraLocaleSettings = {
@@ -81,102 +59,33 @@ in {
     LC_TIME = "da_DK.UTF-8";
   };
 
-  nix = {
-    package = pkgs.nixVersions.latest;
-    settings = {
-      experimental-features = ["nix-command" "flakes"];
-      download-buffer-size = 500000000; # 500 MB
-      # Faster builds
-      cores = 0;
-      # Return more information when errors happen
-      show-trace = true;
-    };
-    # Use the pinned nixpkgs version that is already used, when using `nix shell nixpkgs#package`
-    registry.nixpkgs = {
-      from = {
-        id = "nixpkgs";
-        type = "indirect";
-      };
-      flake = inputs.nixpkgs;
-    };
-  };
-
-  # Enable the X11 windowing system.
-  # TODO: Why???
   services.xserver.enable = true;
 
-  # Enable the Cosmic Desktop Environment.
   services.desktopManager.cosmic.enable = true;
   services.displayManager.cosmic-greeter.enable = true;
-  services.gnome.gnome-keyring.enable = false;
-  services.gnome.gcr-ssh-agent.enable = false;
   services.displayManager.autoLogin = {
     enable = true;
     user = "user";
   };
+
   services.logind.settings.Login.HandleLidSwitch = "ignore";
-
-  services.hardware.bolt.enable = true;
   services.fwupd.enable = true;
-
   hardware.enableRedistributableFirmware = true;
-
   hardware.graphics.enable = true;
-
   hardware.bluetooth = {
     enable = true;
     powerOnBoot = true;
   };
 
-  # Lenovo + MediaTek MT7925: the BT half of the chip enters a state during
-  # suspend that no runtime reset (USB authorized cycle, PCIe remove+rescan,
-  # module reload) can clear — only a full reboot recovers it. Workaround:
-  # detach the btusb driver before the chip sleeps so it isn't stuck in
-  # mid-transaction at resume time, then reload on wake.
-  # If BT is still broken after this (rare boot-time failure), only reboot
-  # helps — no userland recovery script exists for that case.
-  powerManagement = {
-    powerDownCommands = ''
-      ${pkgs.kmod}/bin/modprobe -r btusb || true
-    '';
-    resumeCommands = ''
-      ${pkgs.kmod}/bin/modprobe btusb || true
-    '';
-  };
-
-  programs.ssh.startAgent = true;
-  environment.variables.SSH_ASKPASS = "";
-
-  programs.ssh.askPassword = "";
   programs.firefox.enable = true;
 
-  # Custom klfc keyboard layout (kirk.keyboardLayout module).
-  kirk.keyboardLayout = {
-    enable = true;
-    package = inputs.keyboard-layout.packages.${pkgs.system}.rk;
-  };
-
   # -------------------- Remote builder (client) -------------------- #
-  # Offload builds to the desktop. The desktop address is private, so the body
-  # of the alias stays out of the repo. It lives in
-  # ${stateDir}/ssh/root-remotes/desktop-builder.conf, which must set HostName,
-  # Port, User, IdentityFile and "HostKeyAlias desktop-builder".
-  #
-  # nix-daemon connects as root, so the Include belongs in the system-wide
-  # /etc/ssh/ssh_config below. ssh checks the owner of every file it includes
-  # and rejects one that neither root nor the caller owns. root-remotes/ is
-  # therefore root-owned and separate from remotes/, where 'user' keeps its
-  # own aliases. A user-owned file in the root glob is a fatal error, not a
-  # skip, so the two sets must not mix.
-  #
-  # Only root reads root-remotes/, so the .conf can stay mode 0600. ssh skips
-  # a glob that matches nothing, so a rebuild before the file exists is safe
-  # and nix falls back to a local build.
   nix.distributedBuilds = true;
   nix.buildMachines = [
     {
       hostName = "desktop-builder"; # SSH alias, configured below
       sshUser = "nixremote";
+      sshKey = "${secretDir}/ssh/${machine}";
       systems = ["x86_64-linux"];
       protocol = "ssh-ng";
       maxJobs = 8;
@@ -185,35 +94,53 @@ in {
     }
   ];
 
-  # root-remotes/ holds aliases that root uses, remotes/ holds the ones only
-  # 'user' needs (the 'desktop' alias that desktop-run wants, for example).
-  # Keep them apart, because ssh refuses to read a root include that 'user'
-  # owns.
   systemd.tmpfiles.rules = [
-    "d ${stateDir}/ssh              0755 root root  -"
-    "d ${stateDir}/ssh/root-remotes 0755 root root  -"
-    "d ${stateDir}/ssh/remotes      0755 user users -"
+    "d ${dataDir}                            0700 user users -"
+    "d ${configDir}                          0700 user users -"
+    "d ${secretDir}                          0700 user users -"
+    "d ${secretDir}/ssh                      0700 user users -"
+    "d ${dataDir}/downloads                  0700 user users -"
+    "d ${dataDir}/media                      0700 user users -"
+    "d ${dataDir}/media/images/screenshots   0700 user users -"
+
+    "d ${stateDir}                           0700 user users -"
+    "d ${stateDir}/ssh                       0700 user users -"
+    "d ${stateDir}/ssh/root-remotes          0700 root root  -"
+    "d ${stateDir}/ssh/remotes               0700 user users -"
+    "d ${stateDir}/firefox                   0755 user users -"
+    "d ${stateDir}/firefox/config            0755 user users -"
+    "d ${stateDir}/firefox/home              0755 user users -"
+    "d ${stateDir}/chromium                  0755 user users -"
+    "d ${stateDir}/cosmic                    0755 user users -"
+    "d ${stateDir}/cosmic/comp               0755 user users -"
+    "d ${stateDir}/cosmic/local              0755 user users -"
+    "d ${stateDir}/claude                    0755 user users -"
+    "d ${stateDir}/claude/state              0755 user users -"
+
+    "d /home/user/.config                    0755 user users -"
+    "d /home/user/.local                     0755 user users -"
+    "d /home/user/.local/state               0755 user users -"
+    "L+ /home/user/.mozilla                  - - - - ${stateDir}/firefox/home"
+    "L+ /home/user/.config/mozilla           - - - - ${stateDir}/firefox/config"
+    "L+ /home/user/.config/chromium          - - - - ${stateDir}/chromium"
+    "L+ /home/user/.local/state/cosmic       - - - - ${stateDir}/cosmic/local"
+    "L+ /home/user/.local/state/cosmic-comp  - - - - ${stateDir}/cosmic/comp"
+    "L+ /home/user/.claude                   - - - - ${stateDir}/claude/state"
+    "L+ /home/user/.claude.json              - - - - ${stateDir}/claude/claude.json"
+
+    # dev cannot reach /data, so secrets are copied.
+    "d  /run/dev-secret                          0550 root dev -"
+    "d  /run/dev-secret/ssh                      0550 root dev -"
+    "C+ /run/dev-secret/ssh/id_ed25519_yubi      0440 root dev - ${secretDir}/ssh/id_ed25519_yubi"
+    "C+ /run/dev-secret/ssh/id_ed25519_yubi.pub  0444 root dev - ${secretDir}/ssh/id_ed25519_yubi.pub"
+    "C+ /run/dev-secret/tokens-read-only         0550 root dev - ${secretDir}/tokens-read-only"
+    "Z  /run/dev-secret/tokens-read-only/*       0440 root dev -"
   ];
 
   programs.ssh.extraConfig = ''
     Include ${stateDir}/ssh/root-remotes/*.conf
   '';
 
-  services.fprintd.enable = true;
-
-  security.pam.services = {
-    login.u2fAuth = true;
-    login.fprintAuth = true;
-    sudo.u2fAuth = true;
-    sudo.fprintAuth = true;
-    cosmic-greeter.u2fAuth = true;
-    cosmic-greeter.fprintAuth = false;
-    cosmic-greeter.unixAuth = false;
-  };
-
-  security.pam.u2f.settings.cue = true;
-
-  # Enable sound with pipewire.
   services.pulseaudio.enable = false;
   security.rtkit.enable = true;
   services.pipewire = {
@@ -222,42 +149,22 @@ in {
     alsa.support32Bit = true;
     pulse.enable = true;
     wireplumber.enable = true;
-    # If you want to use JACK applications, uncomment this
-    #jack.enable = true;
-
-    # use the example session manager (no others are packaged yet so this is enabled by default,
-    # no need to redefine it in your config for now)
-    #media-session.enable = true;
   };
 
-  # Dedicated group for YubiKey hidraw access (see services.udev.extraRules).
-  users.groups.yubikey = {};
-
-  # Define a user account. Don't forget to set a password with ‘passwd’.
   users.users.user = {
     isNormalUser = true;
     description = "Rasmus Kirk";
     extraGroups = ["networkmanager" "wheel" "yubikey"];
   };
 
-  # Allow unfree packages
   nixpkgs.config.allowUnfree = true;
 
   security.sudo = {
-    execWheelOnly = true; # For security
     package = pkgs.sudo.override {withInsults = true;}; # For insults lol
-    extraConfig = ''
-      Defaults insults
-      Defaults timestamp_timeout=0
-    '';
+    extraConfig = "Defaults insults";
   };
 
   environment.systemPackages = with pkgs; [
-    # Misc
-    keepassxc
-    yubioath-flutter
-    claude-code
-    poppler-utils
     usbutils
     pciutils
     sshfs
@@ -269,29 +176,17 @@ in {
     scrcpy
     android-tools
 
-    # Browsers
     chromium
 
-    # Chat
     signal-desktop
 
-    # Misc Terminal Tools
     wl-clipboard
     wtype
     yt-dlp
 
-    inputs.agenix.packages."${system}".default
+    inputs.agenix.packages."${stdenv.hostPlatform.system}".default
+    age-plugin-fido2-hmac
   ];
 
-  environment.etc."systemd/system-sleep/unlock-after-hibernate" = {
-    mode = "0755";
-    text = ''
-      #!/bin/sh
-      if [ "$1" = "post" ] && [ "$2" = "hibernate" ]; then
-        ${pkgs.systemd}/bin/loginctl unlock-sessions
-      fi
-    '';
-  };
-
-  system.stateVersion = "25.11"; # Did you read the comment?
+  system.stateVersion = "25.11";
 }

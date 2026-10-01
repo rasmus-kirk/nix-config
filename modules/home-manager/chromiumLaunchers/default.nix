@@ -28,9 +28,6 @@ with lib; let
               tmpdir=$(mktemp -d)
               magick "${iconStorage}/${name}.ico" "$tmpdir/frame.png"
 
-              # echo "Workdir: $tmpdir"
-              # ls "$tmpdir"
-
               largest=""
               largest_size=0
               for f in "$tmpdir"/frame*.png; do

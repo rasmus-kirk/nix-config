@@ -48,6 +48,8 @@ in {
           term = "xterm-256color";
           font = "monospace:pixelsize=" + toString (cfg.fontSize);
         };
+        # Blocks OSC-52 clipboard reads; Ctrl+Shift+V is unaffected.
+        security.osc52 = "copy-enabled";
         colors-light = mkMerge [
           {
             alpha = cfg.alpha;
