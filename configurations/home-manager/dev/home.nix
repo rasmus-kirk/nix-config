@@ -13,10 +13,14 @@ in {
     helix.enable = true;
     scripts.enable = true;
     jiten.enable = true;
+    claudeConfig = {
+      enable = true;
+      notion.enable = true;
+    };
     git = {
       enable = true;
       signKey = "/run/dev-secret/ssh/id_ed25519_yubi.pub";
-      signPubKey = ../../../pubkeys/yubi.pub;
+      signPubKey = ../../../ssh-keys/yubi.pub;
       userEmail = "mail@rasmuskirk.com";
       userName = "rasmus-kirk";
     };
@@ -26,7 +30,10 @@ in {
       addKeysToAgent = false;
     };
     yazi.enable = true;
-    zsh.enable = true;
+    zsh = {
+      enable = true;
+      tokenDir = "/run/dev-secret/tokens-read-only";
+    };
     box = {
       enable = true;
       user = username;

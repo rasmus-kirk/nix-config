@@ -6,6 +6,7 @@
 }:
 with lib; let
   cfg = config.kirk.git;
+  tokensEnabled = config.kirk.zsh.enable && config.kirk.zsh.tokenDir != null;
 in {
   options.kirk.git = {
     enable = mkEnableOption "git";
@@ -50,6 +51,11 @@ in {
   };
 
   config = mkIf cfg.enable {
+    programs.gh = mkIf tokensEnabled {
+      enable = true;
+      gitCredentialHelper.enable = true;
+    };
+
     programs.delta = {
       enable = true;
       enableGitIntegration = true;
@@ -104,6 +110,10 @@ in {
             + "/themes.gitconfig";
         };
         pull.rebase = false;
+        url = mkIf tokensEnabled {
+          "https://github.com/".insteadOf = "git@github.com:";
+          "git@github.com:".pushInsteadOf = ["https://github.com/" "git@github.com:"];
+        };
       };
     };
   };

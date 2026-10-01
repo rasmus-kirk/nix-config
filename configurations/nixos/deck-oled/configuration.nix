@@ -13,7 +13,7 @@ in {
   imports = [./hardware-configuration.nix];
 
   age = {
-    identityPaths = ["${secretDir}/ssh/age_ed25519"];
+    identityPaths = ["${secretDir}/ssh/deck-oled" "${secretDir}/ssh/age_ed25519"];
     secrets = {
       hosts.file = ./age/hosts.age;
       "wg.conf".file = ./age/wg.conf.age;
@@ -125,6 +125,7 @@ in {
     {
       hostName = "desktop-builder"; # SSH alias, configured below
       sshUser = "nixremote";
+      sshKey = "${secretDir}/ssh/deck-oled";
       systems = ["x86_64-linux"];
       protocol = "ssh-ng";
       maxJobs = 8;
@@ -133,7 +134,7 @@ in {
     }
   ];
   programs.ssh.knownHosts."desktop-builder".publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEpERjcyDtvKx2UV9K2ErAX+60xr83yQjqOjlnGL9O29 root@desktop";
-  # TODO Add HostName and a non-sk IdentityFile. Auto-upgrades skip until then.
+  # TODO Add HostName. Auto-upgrades skip until then.
   programs.ssh.extraConfig = ''
     Host desktop-builder
       HostKeyAlias desktop-builder
@@ -224,6 +225,7 @@ in {
     yt-dlp
 
     inputs.agenix.packages."${stdenv.hostPlatform.system}".default
+    age-plugin-fido2-hmac
   ];
 
   system.stateVersion = "25.11";

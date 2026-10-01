@@ -49,7 +49,7 @@ in {
   # -------------------- Secrets -------------------- #
 
   age = {
-    identityPaths = ["${secretDir}/server/ssh/id_ed25519"];
+    identityPaths = ["${secretDir}/ssh/${machine}" "${secretDir}/server/ssh/id_ed25519"];
     secrets = {
       "airvpn-wg.conf".file = ./age/airvpn-wg.conf.age;
       mam.file = ./age/mam.age;
@@ -533,7 +533,7 @@ in {
   };
 
   users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
-    ../../../pubkeys/deck-oled.pub
+    ../../../ssh-keys/deck-oled.pub
   ];
 
   # -------------------- Impermanence -------------------- #
@@ -588,8 +588,8 @@ in {
     isNormalUser = true;
     group = "nixremote";
     openssh.authorizedKeys.keyFiles = [
-      ../../../pubkeys/work.pub
-      ../../../pubkeys/deck-oled.pub
+      ../../../ssh-keys/age/work.pub
+      ../../../ssh-keys/age/deck-oled.pub
     ];
   };
 
@@ -760,6 +760,7 @@ in {
 
     # Agenix
     inputs.agenix.packages."${stdenv.hostPlatform.system}".default
+    age-plugin-fido2-hmac
     inputs.submerger.packages."${stdenv.hostPlatform.system}".default
   ];
 

@@ -5,7 +5,7 @@
   ...
 }:
 with lib; let
-  cfg = config.kirk.claude;
+  cfg = config.kirk.claudeConfig;
 
   settings = {
     enabledPlugins = {
@@ -40,7 +40,7 @@ with lib; let
     '';
   };
 in {
-  options.kirk.claude = {
+  options.kirk.claudeConfig = {
     enable = mkEnableOption "Claude Code configuration";
 
     effortLevel = mkOption {
@@ -63,9 +63,19 @@ in {
       '';
       description = "MCP servers passed to Claude Code via `--mcp-config`. If set, a wrapped `claude` is added to `home.packages`. Works without `enable`.";
     };
+
+    notion.enable = mkEnableOption "the Notion MCP server. Reads the token from `$NOTION_TOKEN`";
   };
 
   config = mkMerge [
+    (mkIf cfg.notion.enable {
+      kirk.claudeConfig.mcpServers.notion = {
+        type = "stdio";
+        command = "${pkgs.nodejs}/bin/npx";
+        args = ["-y" "@notionhq/notion-mcp-server@2.5.2"];
+        env.NOTION_TOKEN = "\${NOTION_TOKEN}";
+      };
+    })
     (mkIf (cfg.mcpServers != {}) {
       home.packages = [claudeWithMcp];
     })

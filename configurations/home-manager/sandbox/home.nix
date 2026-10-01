@@ -19,7 +19,7 @@ in {
     git = {
       enable = true;
       signKey = "/home/${username}/.ssh/id_ed25519_yubi.pub";
-      signPubKey = ../../../pubkeys/yubi.pub;
+      signPubKey = ../../../ssh-keys/yubi.pub;
       userEmail = "mail@rasmuskirk.com";
       userName = "rasmus-kirk";
     };
@@ -42,8 +42,12 @@ in {
       rootDir = dataDir;
       autoSortDownloads = true;
     };
-    zsh.enable = true;
-    claude.mcpServers.linear = {
+    zsh = {
+      enable = true;
+      tokenDir = "/home/${username}/.secret/tokens-read-only";
+    };
+    claudeConfig.notion.enable = true;
+    claudeConfig.mcpServers.linear = {
       type = "http";
       url = "https://mcp.linear.app/mcp";
       headers.Authorization = "Bearer \${LINEAR_API_KEY}";
@@ -72,8 +76,6 @@ in {
     # Yazi
     export TERM=foot
   '';
-
-  programs.gh.enable = true;
 
   programs.direnv = {
     enable = true;

@@ -143,6 +143,7 @@
     in {
       default = website.package;
       debug = website.loop;
+      ssh-bootstrap = pkgs.callPackage ./ssh-keys/bootstrap.nix {};
     });
 
     formatter = forAllSystems ({pkgs}: pkgs.alejandra);

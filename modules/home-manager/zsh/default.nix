@@ -28,6 +28,12 @@ in {
       default = 7;
       description = "Warn in new shells when the pinned nixpkgs is older than this many days.";
     };
+    tokenDir = mkOption {
+      type = with types; nullOr str;
+      default = null;
+      example = "/data/.secret/tokens-read-only";
+      description = "Directory of read-only tokens. Each file is exported as an env var named after the file.";
+    };
   };
 
   config = mkIf cfg.enable {
@@ -38,6 +44,12 @@ in {
       autosuggestion.enable = true;
       syntaxHighlighting.enable = true;
       oh-my-zsh.enable = true;
+      envExtra = mkIf (cfg.tokenDir != null) ''
+        for token in ${cfg.tokenDir}/*(N); do
+          [ -f "$token" ] || continue
+          export "$(basename "$token")=$(< "$token")"
+        done
+      '';
       history = mkIf (cfg.stateDir != null) {
         path = "${cfg.stateDir}/zsh/history";
       };

@@ -35,7 +35,7 @@ in {
       type = with types; nullOr str;
       default = null;
       example = "/data/.secret/tokens-read-only";
-      description = "Directory of read-only tokens. Each file is exported as an env var named after the file. Used only with `--tokens`.";
+      description = "Directory of read-only tokens, mounted at ~/.secret/tokens-read-only in the box. Used only with `--tokens`.";
     };
   };
 
@@ -52,7 +52,7 @@ in {
           # @flag --rw                  Bind $PWD read-write (default is read-only).
           # @flag --yubi                Expose the YubiKey and its SSH key handle.
           # @flag --claude              Bind the host's Claude Code state (~/.claude).
-          # @flag --tokens              Export the read-only tokens in tokenDir.
+          # @flag --tokens              Mount the read-only tokens in tokenDir.
 
           main() {
             local args=(
@@ -148,10 +148,6 @@ in {
               set -e
               export HOME_MANAGER_BACKUP_EXT=backup
               ${cfg.homeManagerPackage}/activate
-              for token in ${boxTokenDir}/*; do
-                [ -f "$token" ] || continue
-                export "$(basename "$token")=$(< "$token")"
-              done
               exec ${boxHome}/.nix-profile/bin/zsh
             ''}
           }

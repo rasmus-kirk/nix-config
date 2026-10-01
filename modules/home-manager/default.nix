@@ -1,7 +1,7 @@
 {
   imports = [
     ./chromiumLaunchers
-    ./claude
+    ./claudeConfig
     ./cosmic
     ./fonts
     ./foot

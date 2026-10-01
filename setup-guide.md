@@ -40,3 +40,13 @@ mv id_ed25519_sk_rk_rasmus id_ed25519_yubi
 mv id_ed25519_sk_rk_rasmus.pub id_ed25519_yubi.pub
 chmod 600 id_ed25519_yubi
 ```
+
+## Host Key
+
+Each NixOS machine has its own SSH key at `/data/.secret/ssh/<host>`. agenix uses it to decrypt secrets, and the remote builder uses it to log in to desktop. The repository stores it in `ssh-keys/age/<host>.age`, encrypted to the YubiKey.
+
+Install the key before the first `nixos-rebuild`. The command asks for the FIDO PIN and a touch.
+
+```sh
+nix run .#ssh-bootstrap -- <host> /data/.secret/ssh
+```

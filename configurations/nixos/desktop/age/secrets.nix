@@ -1,10 +1,11 @@
 let
-  key = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKdn+qACukjNkc76tkvKf94DuUr3LBqLM/lNhlcXYSm7 mail@rasmuskirk.com";
+  read = name: builtins.replaceStrings ["\n"] [""] (builtins.readFile ../../../../ssh-keys/age/${name}.pub);
+  keys = [(read "desktop") (read "yubi")];
 in {
-  "airvpn-wg.conf.age".publicKeys = [key];
-  "domain.age".publicKeys = [key];
-  "mam.age".publicKeys = [key];
-  "mam-vpn.age".publicKeys = [key];
-  "1984.age".publicKeys = [key];
-  "user.age".publicKeys = [key];
+  "airvpn-wg.conf.age".publicKeys = keys;
+  "domain.age".publicKeys = keys;
+  "mam.age".publicKeys = keys;
+  "mam-vpn.age".publicKeys = keys;
+  "1984.age".publicKeys = keys;
+  "user.age".publicKeys = keys;
 }

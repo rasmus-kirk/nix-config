@@ -20,7 +20,7 @@ in {
     git = {
       enable = true;
       signKey = "${secretDir}/ssh/id_ed25519_yubi.pub";
-      signPubKey = ../../../pubkeys/yubi.pub;
+      signPubKey = ../../../ssh-keys/yubi.pub;
       userEmail = "mail@rasmuskirk.com";
       userName = "rasmus-kirk";
     };

@@ -13,6 +13,8 @@
 in {
   imports = [./hardware-configuration.nix];
 
+  age.identityPaths = ["${secretDir}/ssh/${machine}"];
+
   kirk = {
     nixosScripts = {
       enable = true;
@@ -83,6 +85,7 @@ in {
     {
       hostName = "desktop-builder"; # SSH alias, configured below
       sshUser = "nixremote";
+      sshKey = "${secretDir}/ssh/${machine}";
       systems = ["x86_64-linux"];
       protocol = "ssh-ng";
       maxJobs = 8;
@@ -182,6 +185,7 @@ in {
     yt-dlp
 
     inputs.agenix.packages."${stdenv.hostPlatform.system}".default
+    age-plugin-fido2-hmac
   ];
 
   system.stateVersion = "25.11";
