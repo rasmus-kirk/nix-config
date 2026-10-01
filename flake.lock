@@ -147,11 +147,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1790886330,
-        "narHash": "sha256-EHFDWNURHWfi23OuUAzqib677F0uDZV6dHFD2u5546c=",
+        "lastModified": 1790887835,
+        "narHash": "sha256-0P85H9DsdWi7QmleBo2hQuVORx3TapervKLLkTwZ0NA=",
         "owner": "rasmus-kirk",
         "repo": "keyboard-layout",
-        "rev": "6a82477bc863584d3548bf409da527959d7ba056",
+        "rev": "7f472855e37a108c185666b8970d7332ed3d827c",
         "type": "github"
       },
       "original": {

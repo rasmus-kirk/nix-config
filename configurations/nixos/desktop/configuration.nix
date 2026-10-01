@@ -73,6 +73,7 @@ in {
 
   kirk = {
     locale.enable = true;
+    hardening.enable = true;
     nixosScripts = {
       enable = true;
       configDir = configDir;
@@ -84,7 +85,6 @@ in {
       user = gameUser;
       sink = "alsa_output.pci-0000_03_00.1.hdmi-stereo";
       replaceSuspend = true;
-      debug = true;
       controllerVolume.enable = true;
     };
     yubikey.enable = true;
@@ -586,15 +586,6 @@ in {
   security.pam.rssh.settings.auth_key_file = "/etc/ssh/authorized_keys.d/user";
 
   security.pam.services.sudo.rssh = true;
-
-  security.sudo = {
-    execWheelOnly = true;
-    package = pkgs.sudo.override {withInsults = true;};
-    extraConfig = ''
-      Defaults insults
-      Defaults timestamp_timeout=0
-    '';
-  };
 
   # The rollback unit below needs systemd in initrd.
   boot.initrd.systemd.enable = true;

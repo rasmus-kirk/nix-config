@@ -21,6 +21,7 @@ in {
 
   kirk = {
     locale.enable = true;
+    hardening.enable = true;
     blockedHosts = {
       enable = true;
       file = ../../../age/shared/blocked-hosts.age;
@@ -167,15 +168,6 @@ in {
   };
 
   nixpkgs.config.allowUnfree = true;
-
-  security.sudo = {
-    execWheelOnly = true;
-    package = pkgs.sudo.override {withInsults = true;};
-    extraConfig = ''
-      Defaults insults
-      Defaults timestamp_timeout=15
-    '';
-  };
 
   environment.systemPackages = with pkgs; [
     (writeShellApplication {

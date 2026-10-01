@@ -145,11 +145,6 @@ in {
 
   nixpkgs.config.allowUnfree = true;
 
-  security.sudo = {
-    package = pkgs.sudo.override {withInsults = true;}; # For insults lol
-    extraConfig = "Defaults insults";
-  };
-
   environment.systemPackages = with pkgs; [
     usbutils
     pciutils
