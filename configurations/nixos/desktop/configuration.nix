@@ -51,12 +51,12 @@ in {
   age = {
     identityPaths = ["${secretDir}/ssh/${machine}" "${secretDir}/server/ssh/id_ed25519"];
     secrets = {
-      "airvpn-wg.conf".file = ./age/airvpn-wg.conf.age;
-      mam.file = ./age/mam.age;
-      mam-vpn.file = ./age/mam-vpn.age;
-      user.file = ./age/user.age;
-      domain.file = ./age/domain.age;
-      nineteenEightyFour.file = ./age/1984.age;
+      "airvpn-wg.conf".file = ../../../age/desktop/airvpn-wg.conf.age;
+      mam.file = ../../../age/desktop/mam.age;
+      mam-vpn.file = ../../../age/desktop/mam-vpn.age;
+      user.file = ../../../age/desktop/user.age;
+      domain.file = ../../../age/desktop/domain.age;
+      nineteenEightyFour.file = ../../../age/desktop/1984.age;
     };
   };
 

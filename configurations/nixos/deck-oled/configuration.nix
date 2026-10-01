@@ -15,16 +15,20 @@ in {
   age = {
     identityPaths = ["${secretDir}/ssh/deck-oled" "${secretDir}/ssh/age_ed25519"];
     secrets = {
-      hosts.file = ./age/hosts.age;
-      "wg.conf".file = ./age/wg.conf.age;
+      "wg.conf".file = ../../../age/deck-oled/wg.conf.age;
     };
   };
 
   kirk = {
+    blockedHosts = {
+      enable = true;
+      file = ../../../age/shared/blocked-hosts.age;
+    };
     nixosScripts = {
       enable = true;
       configDir = configDir;
       machine = "deck-oled";
+      pure = true;
       extraNixOptions = true;
     };
     yubikey = {
@@ -77,7 +81,6 @@ in {
 
   networking.hostName = "deck-oled";
   networking.networkmanager.enable = true;
-  networking.extraHosts = builtins.readFile config.age.secrets.hosts.path;
 
   time.timeZone = "Europe/Copenhagen";
   i18n.defaultLocale = "en_DK.UTF-8";
@@ -145,7 +148,7 @@ in {
   system.autoUpgrade = {
     enable = true;
     flake = "github:rasmus-kirk/nix-config#deck-oled";
-    flags = ["--impure" "--refresh" "--option" "max-jobs" "0"];
+    flags = ["--refresh" "--option" "max-jobs" "0"];
     operation = "boot";
     dates = "daily";
     persistent = true;

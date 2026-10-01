@@ -7,5 +7,6 @@
     ./hardening
     ./devUser
     ./yubikey
+    ./blockedHosts
   ];
 }

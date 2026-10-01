@@ -83,7 +83,12 @@
         ];
       };
   in {
-    nixosModules.default = import ./modules/nixos;
+    nixosModules.default = {
+      imports = [
+        ./modules/nixos
+        hosts.nixosModule
+      ];
+    };
 
     homeManagerModules.default = {
       imports = [
@@ -187,17 +192,6 @@
           jovian.nixosModules.default
           vpnconfinement.nixosModules.default
           home-manager.nixosModules.home-manager
-          hosts.nixosModule
-          {
-            networking.stevenBlackHosts = {
-              enable = true;
-              enableIPv6 = true;
-              blockFakenews = true;
-              blockGambling = true;
-              blockPorn = true;
-              blockSocial = true;
-            };
-          }
           {
             home-manager.users.user = {
               imports = [
@@ -240,17 +234,6 @@
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
             home-manager.backupFileExtension = "hm-backup";
-          }
-          hosts.nixosModule
-          {
-            networking.stevenBlackHosts = {
-              enable = true;
-              enableIPv6 = true;
-              blockFakenews = true;
-              blockGambling = true;
-              blockPorn = true;
-              blockSocial = true;
-            };
           }
         ];
 

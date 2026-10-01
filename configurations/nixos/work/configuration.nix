@@ -16,6 +16,10 @@ in {
   age.identityPaths = ["${secretDir}/ssh/${machine}"];
 
   kirk = {
+    blockedHosts = {
+      enable = true;
+      file = ../../../age/shared/blocked-hosts.age;
+    };
     nixosScripts = {
       enable = true;
       configDir = configDir;
@@ -43,7 +47,6 @@ in {
 
   networking.hostName = machine;
   networking.networkmanager.enable = true;
-  networking.extraHosts = "";
 
   time.timeZone = "Europe/Copenhagen";
   i18n.defaultLocale = "en_DK.UTF-8";
