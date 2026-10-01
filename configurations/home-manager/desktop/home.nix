@@ -65,15 +65,6 @@ in {
       yubiHandle = "${secretDir}/ssh/id_ed25519_yubi";
       tokenDir = "${secretDir}/tokens-read-only";
     };
-    chromiumLaunchers = {
-      enable = true;
-      stateDir = stateDir;
-      launchers = {
-        youtube = "https://youtube.com/";
-        discord = "https://discord.com/channels/@me";
-        proton = "https://mail.proton.me/";
-      };
-    };
   };
 
   home.username = username;

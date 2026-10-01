@@ -34,8 +34,6 @@
 
     submerger.url = "github:rasmus-kirk/submerger";
     submerger.inputs.nixpkgs.follows = "nixpkgs";
-
-    impermanence.url = "github:nix-community/impermanence";
   };
 
   outputs = inputs @ {
@@ -50,7 +48,6 @@
     hosts,
     keyboard-layout,
     nix-index-database,
-    impermanence,
     ...
   }: let
     # Systems supported
@@ -163,7 +160,6 @@
           agenix.nixosModules.default
           self.nixosModules.default
           nixarr.nixosModules.default
-          impermanence.nixosModules.impermanence
           jovian.nixosModules.default
           home-manager.nixosModules.home-manager
           {

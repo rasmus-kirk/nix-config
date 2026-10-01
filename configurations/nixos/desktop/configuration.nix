@@ -35,7 +35,6 @@
 in {
   imports = [
     ./hardware-configuration.nix
-    # TODO: re-enable the ballbrawl module and services.ballbrawl with the ballbrawl input in flake.nix.
   ];
 
   # -------------------- Secrets -------------------- #
@@ -299,7 +298,7 @@ in {
     motherboard = "intel";
   };
 
-  # No NixOS option sets a colour, and a saved startupProfile would not survive the @root rollback.
+  # No NixOS option sets a colour.
   systemd.services.openrgb-color = {
     description = "Apply static case RGB colour (candlelight)";
     # Run as a client of openrgb.service. Its own early-boot hardware detection
@@ -344,33 +343,30 @@ in {
     "d /data/media                  2770 root  media -"
     "d /data/downloads              0750 user  users -"
 
-    # The AI flake at /data/ai runs as `user` and writes models and caches here.
-    "d /persist/ai                  0755 user users -"
-
     # /persist/games/sandisk is a mountpoint, declared in fileSystems.
     "d /persist/games               0755 steam steam -"
     "d /persist/games/samsung       0755 steam steam -"
 
     # The ~/.config and ~/.local/share rules must precede the links, or tmpfiles
     # creates those parents root-owned and home-manager's linkGeneration fails.
-    "d /data/.state/steam/steam              0755 steam steam -"
-    "d /data/.state/steam/steam-compat       0755 steam steam -"
-    "d /data/.state/steam/gamescope          0755 steam steam -"
-    "d /data/.state/steam/steamos-manager    0755 steam steam -"
-    "d /data/.state/steam/jellyfin-web       0700 steam steam -"
-    "d /data/.state/steam/chromium-rasmus    0700 steam steam -"
-    "d /data/.state/steam/chromium-naja      0700 steam steam -"
+    "d /data/.state/steam/steam               0755 steam steam -"
+    "d /data/.state/steam/steam-compat        0755 steam steam -"
+    "d /data/.state/steam/gamescope           0755 steam steam -"
+    "d /data/.state/steam/steamos-manager     0755 steam steam -"
+    "d /data/.state/steam/jellyfin-web        0700 steam steam -"
+    "d /data/.state/steam/chromium-rasmus     0700 steam steam -"
+    "d /data/.state/steam/chromium-naja       0700 steam steam -"
     "d /data/.state/steam/jellyfinmediaplayer 0755 steam steam -"
-    "d /home/steam/.config          0755 steam steam -"
-    "d /home/steam/.local           0755 steam steam -"
-    "d /home/steam/.local/share     0755 steam steam -"
+    "d /home/steam/.config                    0755 steam steam -"
+    "d /home/steam/.local                     0755 steam steam -"
+    "d /home/steam/.local/share               0755 steam steam -"
+
     "L+ /home/steam/.local/share/Steam               - - - - /data/.state/steam/steam"
     "L+ /home/steam/.steam                           - - - - /data/.state/steam/steam-compat"
     "L+ /home/steam/.config/gamescope                - - - - /data/.state/steam/gamescope"
     "L+ /home/steam/.config/steamos-manager          - - - - /data/.state/steam/steamos-manager"
     "L+ /home/steam/.local/share/jellyfinmediaplayer - - - - /data/.state/steam/jellyfinmediaplayer"
 
-    # known_hosts persisted, else the @root rollback drops accepted host keys.
     "d /data/.state/user/ssh          0700 user users -"
     "d /data/.state/user/claude       0755 user users -"
     "d /data/.state/user/claude/state 0755 user users -"
@@ -403,7 +399,7 @@ in {
 
   services.logind.settings.Login.HandleLidSwitch = "ignore";
   # The power button soft-reboots, for physical recovery when Steam or gamescope hangs.
-  # Soft-reboot keeps the kernel, so FDE stays unlocked, but the @root rollback does not run.
+  # Soft-reboot keeps the kernel, so FDE stays unlocked.
   # Jovian ships powerbuttond in a package, so enable = false does not disable it.
   systemd.user.services.steamos-powerbuttond.serviceConfig.ExecStart =
     lib.mkForce ["" "${pkgs.coreutils}/bin/true"];
@@ -499,30 +495,11 @@ in {
     };
   };
 
-  networking.firewall = {
-    allowedTCPPorts = [8384 8123];
-  };
+  networking.firewall.allowedTCPPorts = [8384 8123];
 
   users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
     ../../../ssh-keys/yubi.pub
   ];
-
-  # -------------------- Impermanence -------------------- #
-  # List only state whose module has no path option; other state goes to /data/.state/<service>.
-  environment.persistence."/data/.state/persist" = {
-    hideMounts = true;
-    directories = [
-      "/var/lib/nixos" # stable uid/gid map across rebuilds
-      "/var/lib/tailscale"
-      "/var/lib/tuptime"
-      "/var/lib/systemd/timers" # Persistent=true timer stamps (mam-vpn)
-      "/var/log" # keeps initrd unlock and rollback logs for debugging
-      "/var/lib/bluetooth"
-    ];
-    files = [
-      "/etc/machine-id"
-    ];
-  };
 
   # -------------------- Boilerplate -------------------- #
 
@@ -587,49 +564,12 @@ in {
 
   security.pam.services.sudo.rssh = true;
 
-  # The rollback unit below needs systemd in initrd.
-  boot.initrd.systemd.enable = true;
-
   # Root LUKS (cryptroot) is in hardware-configuration.nix.
   boot.initrd.luks.devices.crypt_ssd1 = {
     device = "/dev/disk/by-id/ata-Samsung_SSD_870_QVO_8TB_S5SSNF0WA10922R";
     allowDiscards = true;
     # Enroll with `systemd-cryptenroll --fido2-device=auto <device>`; the passphrase stays as fallback.
     crypttabExtraOpts = ["fido2-device=auto"];
-  };
-
-  # Archive the previous @root under /old_roots and delete archives older than 30 days.
-  boot.initrd.systemd.services.rollback = {
-    description = "Rollback BTRFS root subvolume to a pristine state";
-    wantedBy = ["initrd.target"];
-    after = ["dev-mapper-cryptroot.device"];
-    before = ["sysroot.mount"];
-    unitConfig.DefaultDependencies = "no";
-    serviceConfig.Type = "oneshot";
-    script = ''
-      mkdir -p /btrfs_tmp
-      mount -o subvol=/ /dev/mapper/cryptroot /btrfs_tmp
-
-      if [[ -e /btrfs_tmp/@root ]]; then
-        mkdir -p /btrfs_tmp/old_roots
-        ts=$(date --date="@$(stat -c %Y /btrfs_tmp/@root)" "+%Y-%m-%-d_%H:%M:%S")
-        mv /btrfs_tmp/@root "/btrfs_tmp/old_roots/$ts"
-      fi
-
-      delete_subvolume_recursively() {
-        IFS=$'\n'
-        for i in $(btrfs subvolume list -o "$1" | cut -f 9- -d ' '); do
-          delete_subvolume_recursively "/btrfs_tmp/$i"
-        done
-        btrfs subvolume delete "$1"
-      }
-      for i in $(find /btrfs_tmp/old_roots/ -maxdepth 1 -mtime +30 2>/dev/null); do
-        delete_subvolume_recursively "$i"
-      done
-
-      btrfs subvolume snapshot /btrfs_tmp/@root-blank /btrfs_tmp/@root
-      umount /btrfs_tmp
-    '';
   };
 
   fileSystems."/data" = {
@@ -662,21 +602,7 @@ in {
   nixpkgs.config.allowUnfree = true;
 
   environment.systemPackages = with pkgs; [
-    (writeShellApplication {
-      name = "monero";
-      runtimeInputs = [monero-cli coreutils];
-      inheritPath = false;
-      text = ''
-        wallet_dir="/data/monero"
-        mkdir -p "$wallet_dir"
-        monero-wallet-cli \
-          --wallet-file "$wallet_dir"/user.keys \
-          --log-file "$wallet_dir"/log.log
-      '';
-    })
     claude-code
-    firefox
-    chromium
     openrgb
 
     # Compression
