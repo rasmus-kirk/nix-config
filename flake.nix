@@ -166,6 +166,12 @@
               ];
               config.home.packages = [home-manager.packages."${system}".default];
             };
+            home-manager.users.steam = {
+              imports = [
+                ./configurations/home-manager/desktop-steam/home.nix
+                self.homeManagerModules.default
+              ];
+            };
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
             home-manager.backupFileExtension = "hm-backup";

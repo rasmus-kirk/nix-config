@@ -34,7 +34,7 @@ in {
       enable = true;
       addKeysToAgent = true;
       identityPath = "${secretDir}/ssh/id_ed25519_yubi";
-      includes = [ "/data/.state/ssh/remotes/*.conf" ];
+      includes = ["/data/.state/ssh/remotes/*.conf"];
     };
     userDirs = {
       enable = true;

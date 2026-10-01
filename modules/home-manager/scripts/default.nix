@@ -259,7 +259,7 @@ with lib; let
 
   desktop-run = pkgs.writeShellApplication {
     name = "desktop-run";
-    runtimeInputs = with pkgs; [ coreutils rsync openssh git gnused ];
+    runtimeInputs = with pkgs; [coreutils rsync openssh git gnused];
     inheritPath = false;
     text = ''
       set -euo pipefail

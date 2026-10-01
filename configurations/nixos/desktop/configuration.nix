@@ -6,6 +6,7 @@
   ...
 }: let
   username = "user";
+  gameUser = "steam";
   machine = "desktop";
   dataDir = "/data";
   configDir = "${dataDir}/.system-configuration";
@@ -45,8 +46,9 @@
     '';
   # Jellyfin web UI: fullscreen kiosk on its own profile (independent instance,
   # never attaches to the plain Chromium tile).
-  jellyfin-kiosk = mkChromiumTile "jellyfin-kiosk"
-    "--user-data-dir=${stateDir}/user/jellyfin-web --app=http://localhost:8096 --kiosk --no-first-run --window-size=3840,2160 --force-device-scale-factor=2.0";
+  jellyfin-kiosk =
+    mkChromiumTile "jellyfin-kiosk"
+    "--user-data-dir=${stateDir}/${gameUser}/jellyfin-web --app=http://localhost:8096 --kiosk --no-first-run --window-size=3840,2160 --force-device-scale-factor=2.0";
   # Per-person Chromium browser tiles, fullscreen + scaled for the 4K TV. Each
   # has its OWN --user-data-dir so each person gets their own logins/YouTube
   # account. Use --start-fullscreen, NOT --window-size: Chromium treats
@@ -57,41 +59,9 @@
   # is why the --kiosk JF tile scaled fine and the windowed browser didn't).
   mkChromiumBrowser = name: profile:
     mkChromiumTile name
-    "--user-data-dir=${stateDir}/user/${profile} --window-size=3840,2160 --start-fullscreen --force-device-scale-factor=2.0";
+    "--user-data-dir=${stateDir}/${gameUser}/${profile} --window-size=3840,2160 --start-fullscreen --force-device-scale-factor=2.0";
   chromium-rasmus = mkChromiumBrowser "chromium-rasmus" "chromium-rasmus";
   chromium-naja = mkChromiumBrowser "chromium-naja" "chromium-naja";
-
-  # JFv3 — the new CEF/mpv Jellyfin Desktop client, wrapped from its prebuilt
-  # nightly AppImage. nixpkgs only ships the old Qt 2.0.0 (broken by qtwebengine
-  # 6.11.0, nixpkgs#519073), and v3 has no versioned release to package from
-  # source. The nightly.link URL always serves "latest main", so this hash goes
-  # stale whenever upstream CI rebuilds — when a rebuild fails on a hash
-  # mismatch, refresh `version` + `hash`:
-  #   nix-prefetch-url --print-path <url>
-  #   nix hash convert --hash-algo sha256 --to sri <printed-hash>
-  # Replace with a clean appimageTools wrap of a tagged release once upstream
-  # cuts one with stable asset URLs.
-  # DISABLED — switched to the old Qt5 jellyfin-media-player (nixpkgs-2405, see
-  # systemPackages). Uncomment this block AND its systemPackages line to switch
-  # back to JFv3.
-  # jellyfinDesktopV3 = let
-  #   version = "3.0.0-dev+7ecfcdf";
-  #   zip = pkgs.fetchurl {
-  #     url = "https://nightly.link/jellyfin/jellyfin-desktop/workflows/build-linux-appimage/main/linux-appimage-x86_64.zip";
-  #     hash = "sha256-FT9DoIBV3dwG3cDS1gG1IAK8vyO2kjnOpQQgOuVZoyU=";
-  #   };
-  #   appimage = pkgs.runCommandLocal "jellyfin-desktop-${version}.AppImage" {
-  #     nativeBuildInputs = [pkgs.unzip];
-  #   } ''
-  #     unzip ${zip} '*.AppImage'
-  #     mv *.AppImage $out
-  #   '';
-  # in
-  #   pkgs.appimageTools.wrapType2 {
-  #     pname = "jellyfin-desktop";
-  #     inherit version;
-  #     src = appimage;
-  #   };
 in {
   imports = [
     ./hardware-configuration.nix
@@ -109,7 +79,6 @@ in {
       "airvpn-wg.conf".file = ./age/airvpn-wg.conf.age;
       mam.file = ./age/mam.age;
       mam-vpn.file = ./age/mam-vpn.age;
-      user.file = ./age/user.age;
       domain.file = ./age/domain.age;
       nineteenEightyFour.file = ./age/1984.age;
     };
@@ -257,20 +226,6 @@ in {
   systemd.services.audiobookshelf.serviceConfig.ReadWritePaths =
     lib.mkForce ["/data/.state/nixarr/audiobookshelf" "/data/media/library/podcasts"];
 
-  # -------------------- Ballbrawl -------------------- #
-  # game.<bare-domain> served by the ballbrawl flake module. The DDNS
-  # entry (nixarr.ddns.nineteenEightyFour) already keeps subdomains of
-  # the bare domain pointing at this host, same path jellyfin and
-  # audiobookshelf use.
-  # Temporarily disabled while the ballbrawl input is commented out for
-  # the first FDE install (see flake.nix). Re-enable together with the
-  # input + the ./hardware-configuration.nix import line above.
-  # services.ballbrawl = {
-  #   enable = true;
-  #   domain = "game." + (lib.removeSuffix "\n" (builtins.readFile config.age.secrets.domain.path));
-  #   acmeMail = "slimness_bullish683@simplelogin.com";
-  # };
-
   # MAM
   systemd = {
     timers.mam-vpn = {
@@ -331,30 +286,17 @@ in {
   # -------------------- Desktop / Gaming -------------------- #
 
   services.xserver.enable = true;
-  # KDE Plasma 6 desktop. History: Cosmic -> GNOME -> Plasma. The DE churn was
-  # mostly chasing a frozen-video bug that turned out to be the Jellyfin client
-  # (qtwebengine 6.11.0), not the compositor; GNOME then kept enabling underscan
-  # on the TV and hiding its own display controls. Plasma gives explicit,
-  # predictable per-output display settings, which suits this TV box. Plasma is
-  # the Switch-to-Desktop target; Jovian's gamescope game-mode stays the boot
-  # session (no separate display manager — SDDM comes from jovian.steam).
   services.desktopManager.plasma6.enable = true;
-  # Trim the Plasma app suite (we use foot + helix, not konsole/kate). These are
-  # filtered from the optional set; add/remove freely via kdePackages.*.
   environment.plasma6.excludePackages = with pkgs.kdePackages; [
     konsole
     kate
     elisa
     khelpcenter
-    kwallet-pam # no autologin-unlockable wallet; KWallet is disabled (see home.nix)
+    kwallet-pam
     kwalletmanager
   ];
-  # jovian's Steam (Deck) module sets services.orca.enable = true (screen
-  # reader). We don't want one — force it off.
   services.orca.enable = lib.mkForce false;
 
-  # Custom klfc keyboard layout (kirk.keyboardLayout module). Same layout the
-  # deck-oled / work machines use, pulled from the keyboard-layout flake input.
   kirk.keyboardLayout = {
     enable = true;
     package = inputs.keyboard-layout.packages.${pkgs.system}.rk;
@@ -378,7 +320,7 @@ in {
       enable = true;
       autoStart = true;
       desktopSession = "plasma";
-      user = "user";
+      user = gameUser;
     };
     hardware.has.amd.gpu = true;
   };
@@ -417,28 +359,16 @@ in {
   # a reboot — and reconciles shortcuts.vdf to the declared set.
   #
   # steamRoot MUST be the real Steam data dir that ~/.local/share/Steam resolves
-  # to. home.nix persists that at ${stateDir}/steam/steam (the /steam container
-  # also holds steam-compat/gamescope/steamos-manager siblings), so it's nested
-  # one level under ${stateDir}/steam. Pointing steamRoot at the parent writes to
-  # a phantom userdata/ tree Steam never reads (the long-standing "shortcuts
-  # never apply" bug) — it needs the trailing /steam.
+  # to (the tmpfiles link below), not its parent: pointing it one level up
+  # writes a phantom userdata/ tree Steam never reads, which was the
+  # long-standing "shortcuts never apply" bug.
   kirk.steamShortcuts = {
     enable = true;
-    user = "user";
-    steamRoot = "/data/.state/user/steam/steam";
+    user = gameUser;
+    steamRoot = "${stateDir}/${gameUser}/steam";
     # Authoritative: any non-Steam shortcut NOT declared here is removed.
     pruneUnmanaged = true;
     shortcuts = {
-      # Jellyfin tile = the JF web UI in a Chromium kiosk. The native
-      # xaltsc/jellyfin-desktop client was dropped: it CANNOT run under gamescope
-      # (its renderer composites mpv as a wayland subsurface sized via
-      # wp_viewporter over a single_pixel_buffer backdrop, and gamescope
-      # implements none of wl_subcompositor / wp_viewporter /
-      # wp_single_pixel_buffer_manager_v1; its x11 backend dies with a wgpu
-      # swapchain DEVICE LOST). Chromium renders fine under gamescope, so the tile
-      # opens the web client — and it works identically in desktop mode. Dedicated
-      # --user-data-dir (own persisted profile, see home.nix tmpfiles) so it's a
-      # tracked standalone process and never attaches to the Chromium tile.
       "Jellyfin" = {
         exe = "${jellyfin-kiosk}/bin/jellyfin-kiosk";
         portrait = ../../../images/steam/jellyfin-portrait.png; # 600x900 library capsule
@@ -447,17 +377,7 @@ in {
         logo = ../../../images/steam/jellyfin-logo.png; # transparent logo
         icon = ../../../images/steam/jellyfin-icon.png; # 256x256 list icon
       };
-      "Firefox" = {
-        exe = "/run/current-system/sw/bin/firefox";
-        portrait = ../../../images/steam/firefox-portrait.png; # 600x900
-        landscape = ../../../images/steam/firefox-landscape.png; # 920x430
-        hero = ../../../images/steam/firefox-hero.png; # 3840x1240
-        logo = ../../../images/steam/firefox-logo.png; # 1363x480
-        icon = ../../../images/steam/firefox-icon.png; # 1024x1024
-      };
       "Chromium" = {
-        # Wrapper (strips Steam's overlay LD_PRELOAD, fills the 4K TV, own
-        # profile); raw chromium + %command% launch options fails from game mode.
         exe = "${chromium-rasmus}/bin/chromium-rasmus";
         portrait = ../../../images/steam/chromium-portrait.png; # 600x900
         landscape = ../../../images/steam/chromium-landscape.png; # 920x430
@@ -465,9 +385,6 @@ in {
         logo = ../../../images/steam/chromium-logo.png; # 4315x1024
         icon = ../../../images/steam/chromium-icon.png; # 256x256
       };
-      # Naja's browser — separate profile (own logins/YouTube). Uses Google
-      # Chrome artwork (chrome-*, from SteamGridDB) so it's visually distinct from
-      # Rasmus's Chromium tile above.
       "Chromium (Naja)" = {
         exe = "${chromium-naja}/bin/chromium-naja";
         portrait = ../../../images/steam/chrome-portrait.png; # 600x900
@@ -486,6 +403,9 @@ in {
   # mirrors the library and saves to the Steam Deck.
   kirk.emulation = {
     enable = true;
+    user = gameUser;
+    group = gameUser;
+    stateDir = "${stateDir}/${gameUser}";
     ps1.enable = true;
     switch.enable = true;
     # Declare games here to get a tile each (rom + SteamGridDB artwork); same
@@ -511,20 +431,9 @@ in {
   services.hardware.bolt.enable = true;
   services.fwupd.enable = true;
 
-  # Case / motherboard RGB (ASRock Z890 Pro-A, Polychrome over SMBus).
-  # motherboard = "intel" loads i2c-dev + i2c-i801 so OpenRGB can reach the
-  # SMBus controllers. Run `openrgb` to detect devices and set colours; save
-  # a profile, then set `startupProfile` here to persist it across reboots.
   services.hardware.openrgb = {
     enable = true;
     motherboard = "intel";
-    # ASRock RX 9070 (GPU subvendor 0x1849) GPU RGB is NOT in OpenRGB
-    # 1.0rc2 (what nixpkgs ships). Build OpenRGB master + the still-unmerged
-    # ASRock GPU controller patch from upstream issue #5225 (download the
-    # .patch into ./patches/ and `git add` it — flakes only see tracked
-    # files). We replace nixpkgs' two rc2-era patches: one is an upstream
-    # commit already present in master, the other is a plugin-path tweak we
-    # don't use — both would break against master.
     package = pkgs.openrgb.overrideAttrs (old: {
       version = "git-asrock-4306603";
       src = pkgs.fetchFromGitLab {
@@ -537,47 +446,23 @@ in {
     });
   };
 
-  # No NixOS option sets a specific colour (only startupProfile, which needs
-  # an interactively-saved profile that wouldn't survive the @root rollback).
-  # So apply the colour declaratively via the CLI once at boot. Applies to
-  # all detected controllers (add `--device N` to target one).
-  # 1A0500 = rgb(26,5,0), warm candlelight. Dimmer: 0D0300 (13,3,0), 070100 (7,1,0).
-  # Disable the persistent OpenRGB SERVER: idle, it keeps the GPU i2c bus
-  # claimed, and that bus is shared with the display's DDC — which stutters
-  # the desktop (confirmed: `systemctl stop openrgb` cleared it). We don't
-  # need a running server; openrgb-color sets the colour once at boot and
-  # exits, and both controllers hold it (GPU Direct, board Static).
-  # systemd.services.openrgb.enable = lib.mkForce false;
-
   systemd.services.openrgb-color = {
     description = "Apply static case RGB colour (candlelight)";
-    # Order strictly after the persistent openrgb.service so the CLI connects
-    # to the running server as a *client* instead of doing its own early-boot
-    # hardware detection. Direct detection racing the server (and an amdgpu
-    # i2c bus that isn't ready yet) segfaulted this oneshot at boot, so the
-    # colour never got applied. As a client it just talks to the server.
     requires = ["openrgb.service"];
     after = ["openrgb.service" "systemd-modules-load.service"];
     wantedBy = ["multi-user.target"];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
-      # The server can take a moment to finish detection and open its socket;
-      # retry so we don't lose the race on a slow boot.
       Restart = "on-failure";
       RestartSec = 3;
       ExecStart = [
-        # Steady candlelight, same colour on both. 0E0200 = rgb(14,2,0).
         "${config.services.hardware.openrgb.package}/bin/openrgb --mode static --color 0E0200"
         "${config.services.hardware.openrgb.package}/bin/openrgb --device \"ASRock GPU\" --mode direct --color 0E0200"
       ];
     };
   };
 
-  # The GPU (Taichi) RGB resets to its default on resume from sleep — Direct
-  # is software-driven, not a stored hardware mode — so re-apply on wake.
-  # (The board's Static mode survives sleep, but re-applying is harmless.)
-  # NOTE: keep these colours in sync with the openrgb-color oneshot above.
   powerManagement.resumeCommands = ''
     ${config.services.hardware.openrgb.package}/bin/openrgb --mode static --color 0E0200
     ${config.services.hardware.openrgb.package}/bin/openrgb --device "ASRock GPU" --mode direct --color 0E0200
@@ -595,16 +480,21 @@ in {
   # /data/.state/user, created here once. home.nix then manages the
   # per-app subdirs under it via its own user-tmpfiles (which work now
   # that the parent is writable by 'user').
-  systemd.tmpfiles.rules = [
-    "d /data                        0755 root root  -"
-    "d /data/.state                 0755 root root  -"
-    "d /data/.state/user            0755 user users -"
-
-    # XDG user dirs (kirk.userDirs.rootDir = /data): downloads sits
-    # directly in root-owned /data — not under /data/.state/user — so it
-    # is created here. The /data/media/* XDG dirs already work via the
-    # setgid 'media' group on /data/media.
-    "d /data/downloads              0755 user users -"
+  # mkBefore: systemd-tmpfiles honours the FIRST line for a path, and nixarr
+  # also declares /data/media (2775). Ours has to come first to win.
+  systemd.tmpfiles.rules = lib.mkBefore [
+    # /data and /data/.state keep o+x so `steam` can traverse to its own two
+    # subdirs; everything else is closed to other, which is `steam`.
+    "d /data                        0755 root  root  -"
+    "d /data/.state                 0755 root  root  -"
+    "d /data/.state/user            0700 user  users -"
+    "d /data/.state/steam           0755 steam steam -"
+    "d /data/.secret                0700 user  users -"
+    "d /data/monero                 0700 user  users -"
+    "d /data/tmp                    0700 user  users -"
+    "d /data/cold-storage           0750 root  users -"
+    "d /data/media                  2770 root  media -"
+    "d /data/downloads              0750 user  users -"
 
     # @persist NVMe subvol (mounted at /persist). The AI flake at
     # /data/ai/flake.nix runs as 'user' and writes models/caches here, so the
@@ -614,8 +504,28 @@ in {
 
     # Steam libraries: parent + the samsung dir (a plain dir on the root NVMe).
     # /persist/games/sandisk is a mountpoint (the SanDisk), handled by fileSystems.
-    "d /persist/games               0755 user users -"
-    "d /persist/games/samsung       0755 user users -"
+    "d /persist/games               0755 steam steam -"
+    "d /persist/games/samsung       0755 steam steam -"
+
+    # `steam` home persistence. The ~/.config and ~/.local/share "d" rules
+    # must precede the links, or tmpfiles creates those parents root-owned
+    # and home-manager's linkGeneration then fails.
+    "d /data/.state/steam/steam              0755 steam steam -"
+    "d /data/.state/steam/steam-compat       0755 steam steam -"
+    "d /data/.state/steam/gamescope          0755 steam steam -"
+    "d /data/.state/steam/steamos-manager    0755 steam steam -"
+    "d /data/.state/steam/jellyfin-web       0700 steam steam -"
+    "d /data/.state/steam/chromium-rasmus    0700 steam steam -"
+    "d /data/.state/steam/chromium-naja      0700 steam steam -"
+    "d /data/.state/steam/jellyfinmediaplayer 0755 steam steam -"
+    "d /home/steam/.config          0755 steam steam -"
+    "d /home/steam/.local           0755 steam steam -"
+    "d /home/steam/.local/share     0755 steam steam -"
+    "L+ /home/steam/.local/share/Steam               - - - - /data/.state/steam/steam"
+    "L+ /home/steam/.steam                           - - - - /data/.state/steam/steam-compat"
+    "L+ /home/steam/.config/gamescope                - - - - /data/.state/steam/gamescope"
+    "L+ /home/steam/.config/steamos-manager          - - - - /data/.state/steam/steamos-manager"
+    "L+ /home/steam/.local/share/jellyfinmediaplayer - - - - /data/.state/steam/jellyfinmediaplayer"
   ];
 
   # -------------------- Server Defaults -------------------- #
@@ -698,7 +608,6 @@ in {
     };
   };
 
-
   # -------------------- Syncthing -------------------- #
 
   services = {
@@ -780,8 +689,8 @@ in {
 
   programs.mosh.enable = true;
   networking.firewall = {
-    allowedUDPPorts = [ 6000 ];
-    allowedTCPPorts = [ 8384 ];
+    allowedUDPPorts = [6000];
+    allowedTCPPorts = [8384];
   };
 
   users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
@@ -862,16 +771,13 @@ in {
   };
 
   # -------------------- Remote builder -------------------- #
-  # work + deck offload builds here over SSH (port 6000), authenticating as the
-  # dedicated `nixremote` user with each machine's key from /pubkeys. nixremote
-  # is a trusted nix user (see nix.settings.trusted-users) so it may populate
-  # the store. WAN/work case needs port 6000 forwarded at the router.
+  # Build offload over SSH (port 6000) as the trusted `nixremote` user.
+  # No keys authorized right now; any added must be NON-sk (no touch prompt).
   users.groups.nixremote = {};
   users.users.nixremote = {
     isNormalUser = true;
     group = "nixremote";
     openssh.authorizedKeys.keyFiles = [
-      ../../../pubkeys/builder-work.pub
     ];
   };
 
@@ -894,15 +800,20 @@ in {
     SUBSYSTEM=="input", KERNEL=="event[0-9]*", ATTRS{name}=="*System Control*", GROUP="cectv", MODE="0660"
     SUBSYSTEM=="input", KERNEL=="event[0-9]*", ATTRS{name}=="*Consumer Control*", GROUP="cectv", MODE="0660"
   '';
-  users.users."user" = {
+  # No password on either account: auth is the YubiKey (pam_u2f) only, so a
+  # locked `!` hash is the correct and only credential state.
+  users.users."${username}" = {
     isNormalUser = true;
-    hashedPasswordFile = config.age.secrets.user.path;
-    # cectv is the CEC TV-liveness daemon's entire privileged surface: a udev
-    # rule (below) puts /dev/cec0 and the keystroke-free "System Control"
-    # sleep-key node into it, and nothing else. Deliberately NOT in `input`
-    # (no keyboard access -> no keylogging), `video` (no screen/scanout or
-    # webcam), or `render`. sync: syncthing data access.
-    extraGroups = ["networkmanager" "wheel" "sync" "cectv"];
+    extraGroups = ["networkmanager" "wheel" "sync"];
+  };
+
+  # Graphical seat. Not in wheel, no SSH keys. cectv is the CEC daemon's
+  # entire privileged surface; deliberately NOT in `input`/`video`/`render`.
+  users.groups."${gameUser}" = {};
+  users.users."${gameUser}" = {
+    isNormalUser = true;
+    group = gameUser;
+    extraGroups = ["networkmanager" "cectv"];
   };
 
   hardware.graphics.enable = true; # Wayland / Cosmic / Vulkan
@@ -927,16 +838,22 @@ in {
   # `prompt suse` + `hostname --fqdn` break the box shell.
 
   # -------------------- YubiKey (U2F) -------------------- #
-  # Touch-to-authenticate for local sudo, TTY login, and the Cosmic
-  # greeter. Both pam_u2f and pam_rssh below are stacked "sufficient";
-  # in the auth order rssh is tried first, so an SSH session with a
-  # forwarded agent still satisfies sudo without a key (see rssh block),
-  # and U2F is the local fallback. Password remains the final fallback.
-  # Key mapping lives in ~/.config/Yubico/u2f_keys (symlinked to
-  # /data/.state/yubico in home.nix); register with `pamu2fcfg`.
+  # Touch-to-authenticate for sudo, TTY login, the SDDM greeter and the Plasma
+  # lock screen. pam_u2f and pam_rssh are stacked "sufficient"; rssh is tried
+  # first, so a forwarded SSH agent satisfies sudo without a key.
+  #
+  # System-wide authfile, not per-home: /home is wiped every boot. Public
+  # credentials only, so not a secret. Both lines are the same YubiKey (U2F
+  # binds to the origin, not the account). Register: `pamu2fcfg -o pam://desktop`.
+  environment.etc."u2f_keys".text = ''
+    user:TYg4k09qkMagOBBfoTdCgGo9Az7v/PiIV4wvEuMd2IK+BBicWtkiSexaDfnndS77+QW96YBnfdcrfPd1tzJH0w==,36ZOFFeRKCBl6SEEbw31Xw7tS8H+bRP7ZTBUmYlq6WMbNhdXfwfkHOL7J7WOQvvvxlcW0eEzNAjex1QIPnzjJQ==,es256,+presence
+    steam:TYg4k09qkMagOBBfoTdCgGo9Az7v/PiIV4wvEuMd2IK+BBicWtkiSexaDfnndS77+QW96YBnfdcrfPd1tzJH0w==,36ZOFFeRKCBl6SEEbw31Xw7tS8H+bRP7ZTBUmYlq6WMbNhdXfwfkHOL7J7WOQvvvxlcW0eEzNAjex1QIPnzjJQ==,es256,+presence
+  '';
+  security.pam.u2f.settings.authfile = "/etc/u2f_keys";
   security.pam.services.sudo.u2fAuth = true;
   security.pam.services.login.u2fAuth = true;
-  security.pam.services.cosmic-greeter.u2fAuth = true;
+  security.pam.services.sddm.u2fAuth = true;
+  security.pam.services.kde.u2fAuth = true; # Plasma screen locker
   security.pam.u2f.settings.cue = true; # prints "touch your key" prompt
 
   # 1. Enable the module globally
@@ -951,7 +868,10 @@ in {
   security.sudo = {
     execWheelOnly = true; # For security
     package = pkgs.sudo.override {withInsults = true;}; # For insults lol
-    extraConfig = "Defaults insults";
+    extraConfig = ''
+      Defaults insults
+      Defaults timestamp_timeout=0
+    '';
   };
 
   # systemd in initrd: cleaner cryptsetup passphrase prompts and

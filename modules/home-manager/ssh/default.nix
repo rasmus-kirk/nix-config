@@ -24,7 +24,7 @@ in {
     includes = mkOption {
       type = with types; listOf str;
       default = [];
-      example = [ "/data/.state/ssh/remotes/*.conf" ];
+      example = ["/data/.state/ssh/remotes/*.conf"];
       description = ''
         Paths (glob-supporting) to add as SSH `Include` directives. Lets
         per-machine host definitions live outside the nix config — the

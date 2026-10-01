@@ -146,6 +146,12 @@ in {
       description = "User whose Steam library gets the tiles and whose ~/.config holds the emulator config.";
     };
 
+    group = mkOption {
+      type = types.str;
+      default = "users";
+      description = "Primary group of `user`, owning the dirs created below.";
+    };
+
     stateDir = mkOption {
       type = types.str;
       default = "/data/.state/user";
@@ -219,7 +225,7 @@ in {
     # Ryujinx's whole data dir lives in the synced tree (saves can't be split out).
     systemd.tmpfiles.rules =
       [
-        "d ${cfg.gamesDir}                     0755 ${cfg.user} users -"
+        "d ${cfg.gamesDir}                     0755 ${cfg.user} ${cfg.group} -"
         # The L+ rules below place symlinks under ~/.config. On this impermanence
         # box ~/.config is wiped every boot, so if systemd-tmpfiles (running as
         # root) auto-creates it as the parent of an L+ target, it becomes
@@ -227,19 +233,19 @@ in {
         # then can't write into it, failing home-manager-user.service. Create
         # ~/.config user-owned first (tmpfiles processes rules in path-sorted
         # order, so this precedes the .config/* links).
-        "d /home/${cfg.user}/.config           0755 ${cfg.user} users -"
+        "d /home/${cfg.user}/.config           0755 ${cfg.user} ${cfg.group} -"
       ]
       ++ optionals cfg.ps1.enable [
-        "d ${ps1Dir}                           0755 ${cfg.user} users -"
-        "d ${ps1Bios}                          0755 ${cfg.user} users -"
-        "d ${ps1Games}                         0755 ${cfg.user} users -"
-        "d ${cfg.stateDir}/retroarch           0755 ${cfg.user} users -"
+        "d ${ps1Dir}                           0755 ${cfg.user} ${cfg.group} -"
+        "d ${ps1Bios}                          0755 ${cfg.user} ${cfg.group} -"
+        "d ${ps1Games}                         0755 ${cfg.user} ${cfg.group} -"
+        "d ${cfg.stateDir}/retroarch           0755 ${cfg.user} ${cfg.group} -"
         "L+ /home/${cfg.user}/.config/retroarch - - - - ${cfg.stateDir}/retroarch"
       ]
       ++ optionals cfg.switch.enable [
-        "d ${switchDir}                        0755 ${cfg.user} users -"
-        "d ${switchGames}                      0755 ${cfg.user} users -"
-        "d ${switchData}                       0755 ${cfg.user} users -"
+        "d ${switchDir}                        0755 ${cfg.user} ${cfg.group} -"
+        "d ${switchGames}                      0755 ${cfg.user} ${cfg.group} -"
+        "d ${switchData}                       0755 ${cfg.user} ${cfg.group} -"
         "L+ /home/${cfg.user}/.config/Ryujinx   - - - - ${switchData}"
       ];
 
