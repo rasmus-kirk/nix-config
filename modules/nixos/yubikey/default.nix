@@ -52,6 +52,7 @@ in {
     security.pam.services = {
       login.u2fAuth = true;
       sudo.u2fAuth = true;
+      sddm.u2fAuth = mkIf config.services.displayManager.sddm.enable true;
       cosmic-greeter = mkIf config.services.displayManager.cosmic-greeter.enable {
         u2fAuth = true;
         unixAuth = false;

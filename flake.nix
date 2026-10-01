@@ -48,6 +48,7 @@
     website-builder,
     vpnconfinement,
     hosts,
+    keyboard-layout,
     nix-index-database,
     impermanence,
     ...
@@ -86,6 +87,7 @@
       imports = [
         ./modules/nixos
         hosts.nixosModule
+        keyboard-layout.nixosModules.default
       ];
     };
 
@@ -249,20 +251,6 @@
     homeConfigurations = {
       sandbox = mkSandbox "user";
       sandbox-dev = mkSandbox "dev";
-
-      naja-deck = home-manager.lib.homeManagerConfiguration {
-        pkgs = import nixpkgs {
-          system = "x86_64-linux";
-          config.allowUnfree = true;
-        };
-
-        extraSpecialArgs = {inherit inputs;};
-
-        modules = [
-          ./configurations/home-manager/naja-deck/home.nix
-          self.homeManagerModules.default
-        ];
-      };
     };
   };
 }

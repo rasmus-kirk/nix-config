@@ -4,10 +4,11 @@
     ./steamShortcuts
     ./sandboxedGames
     ./emulation
-    ./keyboardLayout
+    ./locale
     ./hardening
     ./devUser
     ./yubikey
     ./blockedHosts
+    ./cec
   ];
 }

@@ -85,7 +85,7 @@ in {
             }
             {
               on = "e";
-              run = ''shell --block --confirm "$EDITOR $0"'';
+              run = "shell --block -- $EDITOR %s";
               desc = "Open the selected files in editor";
             }
             {
