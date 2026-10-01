@@ -76,11 +76,12 @@ in {
   age = {
     identityPaths = ["${secretDir}/ssh/${machine}"];
     secrets = {
-      "airvpn-wg.conf".file = ./age/airvpn-wg.conf.age;
-      mam.file = ./age/mam.age;
-      mam-vpn.file = ./age/mam-vpn.age;
-      domain.file = ./age/domain.age;
-      nineteenEightyFour.file = ./age/1984.age;
+      "airvpn-wg.conf".file = ../../../age/desktop/airvpn-wg.conf.age;
+      mam.file = ../../../age/desktop/mam.age;
+      mam-vpn.file = ../../../age/desktop/mam-vpn.age;
+      user.file = ../../../age/desktop/user.age;
+      domain.file = ../../../age/desktop/domain.age;
+      nineteenEightyFour.file = ../../../age/desktop/1984.age;
     };
   };
 
@@ -686,7 +687,7 @@ in {
   };
 
   users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
-    ../../../pubkeys/yubi-key.pub
+    ../../../ssh-keys/yubi.pub
   ];
 
   # -------------------- Impermanence -------------------- #
@@ -972,6 +973,7 @@ in {
 
     # Agenix
     inputs.agenix.packages."${system}".default
+    age-plugin-fido2-hmac
     inputs.submerger.packages."${system}".default
   ];
 
