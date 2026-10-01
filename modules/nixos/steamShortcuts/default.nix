@@ -94,7 +94,7 @@ in {
       example = literalExpression ''
         {
           # shorthand: name = exe
-          "Plezy" = "/run/current-system/sw/bin/plezy";
+          "Firefox" = "/run/current-system/sw/bin/firefox";
           # rich: exe + optional launch options + SteamGridDB artwork
           "Jellyfin Desktop" = {
             exe = "/run/current-system/sw/bin/jellyfin-desktop";

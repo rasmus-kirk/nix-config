@@ -7,7 +7,6 @@ in {
   "desktop/mam.age" = to ["desktop"];
   "desktop/mam-vpn.age" = to ["desktop"];
   "desktop/1984.age" = to ["desktop"];
-  "desktop/user.age" = to ["desktop"];
 
   "deck-oled/hosts.age" = to ["deck-oled"];
   "deck-oled/wg.conf.age" = to ["deck-oled"];
