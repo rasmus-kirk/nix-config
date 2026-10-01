@@ -24,7 +24,6 @@ in {
       enable = true;
       configDir = configDir;
       machine = machine;
-      pure = true;
       extraNixOptions = true;
     };
     hardening.enable = true;

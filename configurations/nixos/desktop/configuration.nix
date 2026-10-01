@@ -55,8 +55,6 @@ in {
       "airvpn-wg.conf".file = ../../../age/desktop/airvpn-wg.conf.age;
       mam.file = ../../../age/desktop/mam.age;
       mam-vpn.file = ../../../age/desktop/mam-vpn.age;
-      domain.file = ../../../age/desktop/domain.age;
-      nineteenEightyFour.file = ../../../age/desktop/1984.age;
     };
   };
 
@@ -107,26 +105,15 @@ in {
       accessibleFrom = ["192.168.1.0/24"];
     };
 
-    ddns.nineteenEightyFour = {
-      enable = true;
-      keysFile = config.age.secrets.nineteenEightyFour.path;
-    };
-
     jellyfin = {
       enable = true;
       openFirewall = true;
-      expose.https.enable = true;
-      expose.https.acmeMail = "slimness_bullish683@simplelogin.com";
-      expose.https.domainName = "jellyfin." + (lib.removeSuffix "\n" (builtins.readFile config.age.secrets.domain.path));
     };
 
     audiobookshelf = {
       enable = true;
       host = "0.0.0.0";
       openFirewall = true;
-      expose.https.enable = true;
-      expose.https.acmeMail = "slimness_bullish683@simplelogin.com";
-      expose.https.domainName = "audiobookshelf." + (lib.removeSuffix "\n" (builtins.readFile config.age.secrets.domain.path));
     };
 
     transmission = {
@@ -453,6 +440,10 @@ in {
       overrideFolders = false;
     };
     tuptime.enable = true;
+    tailscale = {
+      enable = true;
+      openFirewall = true;
+    };
     btrfs.autoScrub = {
       enable = true;
       fileSystems = ["/data"];
@@ -533,7 +524,7 @@ in {
     hideMounts = true;
     directories = [
       "/var/lib/nixos" # stable uid/gid map across rebuilds
-      "/var/lib/acme" # avoids Let's Encrypt rate limits
+      "/var/lib/tailscale"
       "/var/lib/tuptime"
       "/var/lib/systemd/timers" # Persistent=true timer stamps (mam-vpn)
       "/var/log" # keeps initrd unlock and rollback logs for debugging

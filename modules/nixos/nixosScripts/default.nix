@@ -106,7 +106,7 @@ with lib; let
           popd > /dev/null
 
           pushd "$tmpdir" > /dev/null
-          nixos-rebuild build --show-trace --impure --flake "${cfg.configDir}#${cfg.machine}"
+          nixos-rebuild build --show-trace ${if !cfg.pure then "--impure" else ""} --flake "${cfg.configDir}#${cfg.machine}"
           popd > /dev/null
           ;;
         *)
@@ -146,7 +146,7 @@ in {
 
     pure = mkOption {
       type = types.bool;
-      default = false;
+      default = true;
       description = "Only allow pure builds.";
     };
 

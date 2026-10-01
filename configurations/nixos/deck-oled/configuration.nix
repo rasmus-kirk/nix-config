@@ -28,7 +28,6 @@ in {
       enable = true;
       configDir = configDir;
       machine = "deck-oled";
-      pure = true;
       extraNixOptions = true;
     };
     yubikey = {
