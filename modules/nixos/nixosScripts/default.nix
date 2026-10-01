@@ -161,8 +161,7 @@ in {
     nix = mkIf cfg.extraNixOptions {
       # Use latest nix version
       package = pkgs.nixVersions.latest;
-      # Use the pinned nixpkgs version that is already used, when using `nix-shell package`
-      nixPath = ["nixpkgs=${inputs.nixpkgs}"];
+      channel.enable = false;
       settings = {
         # Force this, even if nix is installed through the official installer
         experimental-features = ["nix-command" "flakes"];
@@ -171,6 +170,8 @@ in {
         cores = 0;
         # Return more information when errors happen
         show-trace = true;
+        # Use the pinned nixpkgs version that is already used, when using `nix-shell package`
+        nix-path = ["nixpkgs=${inputs.nixpkgs}"];
       };
       # Use the pinned nixpkgs version that is already used, when using `nix shell nixpkgs#package`
       registry.nixpkgs = {

@@ -133,7 +133,7 @@ in {
       supportedFeatures = ["nixos-test" "benchmark" "big-parallel" "kvm"];
     }
   ];
-  programs.ssh.knownHosts."desktop-builder".publicKey = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEpERjcyDtvKx2UV9K2ErAX+60xr83yQjqOjlnGL9O29 root@desktop";
+  programs.ssh.knownHosts."desktop-builder".publicKeyFile = ../../../ssh-keys/age/desktop.pub;
   programs.ssh.extraConfig = ''
     Host desktop-builder
       HostKeyAlias desktop-builder

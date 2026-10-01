@@ -74,7 +74,7 @@ in {
   # -------------------- Secrets -------------------- #
 
   age = {
-    identityPaths = ["${secretDir}/ssh/${machine}" "${secretDir}/server/ssh/id_ed25519"];
+    identityPaths = ["${secretDir}/ssh/${machine}"];
     secrets = {
       "airvpn-wg.conf".file = ./age/airvpn-wg.conf.age;
       mam.file = ./age/mam.age;
@@ -131,6 +131,7 @@ in {
       enable = true;
       configDir = configDir;
       machine = machine;
+      extraNixOptions = true;
     };
   };
 
@@ -434,16 +435,6 @@ in {
   services.hardware.openrgb = {
     enable = true;
     motherboard = "intel";
-    package = pkgs.openrgb.overrideAttrs (old: {
-      version = "git-asrock-4306603";
-      src = pkgs.fetchFromGitLab {
-        owner = "CalcProgrammer1";
-        repo = "OpenRGB";
-        rev = "4306603a28c86e91f4dd4f89b41efd3005f0b810";
-        sha256 = "0idkmwxkzw7681zdz57sd0r9z11bjvh7ixls1dlzjkgblnpshpjk";
-      };
-      patches = [./patches/0001-asrock-gpu.patch];
-    });
   };
 
   systemd.services.openrgb-color = {
@@ -458,14 +449,12 @@ in {
       RestartSec = 3;
       ExecStart = [
         "${config.services.hardware.openrgb.package}/bin/openrgb --mode static --color 0E0200"
-        "${config.services.hardware.openrgb.package}/bin/openrgb --device \"ASRock GPU\" --mode direct --color 0E0200"
       ];
     };
   };
 
   powerManagement.resumeCommands = ''
     ${config.services.hardware.openrgb.package}/bin/openrgb --mode static --color 0E0200
-    ${config.services.hardware.openrgb.package}/bin/openrgb --device "ASRock GPU" --mode direct --color 0E0200
   '';
 
   # schedutil scales dynamically without `powersave`'s aggressive power-down.
@@ -661,7 +650,6 @@ in {
     };
     home-assistant = {
       enable = true;
-      openFirewall = true;
       configDir = "${stateDir}/home-assistant";
       extraComponents = [
         "analytics"
@@ -684,13 +672,17 @@ in {
       openFirewall = true;
       settings.PasswordAuthentication = false;
       ports = [6000];
+      hostKeys = [
+        {
+          path = "${secretDir}/ssh/${machine}";
+          type = "ed25519";
+        }
+      ];
     };
   };
 
-  programs.mosh.enable = true;
   networking.firewall = {
-    allowedUDPPorts = [6000];
-    allowedTCPPorts = [8384];
+    allowedTCPPorts = [8384 8123];
   };
 
   users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
@@ -719,10 +711,6 @@ in {
     ];
     files = [
       "/etc/machine-id"
-      "/etc/ssh/ssh_host_ed25519_key"
-      "/etc/ssh/ssh_host_ed25519_key.pub"
-      "/etc/ssh/ssh_host_rsa_key"
-      "/etc/ssh/ssh_host_rsa_key.pub"
     ];
   };
 
@@ -745,30 +733,7 @@ in {
     LC_TIME = "da_DK.UTF-8";
   };
 
-  nix = {
-    package = pkgs.nixVersions.latest;
-    settings = {
-      experimental-features = ["nix-command" "flakes"];
-      download-buffer-size = 500000000; # 500 MB
-      # Faster builds: run derivations in parallel (max-jobs = auto = #cores)
-      # and let each use all cores. Oversubscribes on big parallel builds but
-      # maximizes throughput, which suits this box (it's also the remote builder).
-      max-jobs = "auto";
-      cores = 0;
-      # Return more information when errors happen
-      show-trace = true;
-      # Let the nixremote build user (work + deck offload here) write the store.
-      trusted-users = ["root" "nixremote"];
-    };
-    # Use the pinned nixpkgs version that is already used, when using `nix shell nixpkgs#package`
-    registry.nixpkgs = {
-      from = {
-        id = "nixpkgs";
-        type = "indirect";
-      };
-      flake = inputs.nixpkgs;
-    };
-  };
+  nix.settings.trusted-users = ["root" "nixremote"];
 
   # -------------------- Remote builder -------------------- #
   # Build offload over SSH (port 6000) as the trusted `nixremote` user.

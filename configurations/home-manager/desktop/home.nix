@@ -60,6 +60,7 @@ in {
       stateDir = stateDir;
     };
     fonts.enable = true;
+    claudeConfig.enable = true;
     box = {
       enable = true;
       homeManagerPackage = inputs.self.homeConfigurations.sandbox.activationPackage;
