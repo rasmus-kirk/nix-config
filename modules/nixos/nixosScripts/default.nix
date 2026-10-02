@@ -7,6 +7,40 @@
 }:
 with lib; let
   cfg = config.kirk.nixosScripts;
+  remoteStateDir = "/var/lib/nos-remotes";
+  staleCheck = pkgs.writeShellApplication {
+    name = "nos-stale-check";
+    runtimeInputs = with pkgs; [argc coreutils];
+    inheritPath = false;
+    text = ''
+      # @describe Warn when the pinned nixpkgs of this machine or a remote is older than maxNixpkgsAge.
+      # @meta version 0.1.0
+
+      check() {
+        local name="$1" pinnedAt="$2"
+        local staleAt=$((pinnedAt + ${toString cfg.maxNixpkgsAge} * 24 * 60 * 60))
+        local warning='\033[1;37m[\033[1;33mWARNING\033[1;37m]:\033[0m'
+
+        [ "$(date +%s)" -gt "$staleAt" ] || return 0
+        echo -e "$warning $name nixpkgs is from $(date -d "@$pinnedAt" +%F), which is older than ${toString cfg.maxNixpkgsAge} days, please run upgrade"
+      }
+
+      main() {
+        local remotes=(${escapeShellArgs (attrNames cfg.remotes)})
+        local name version pinnedAt
+
+        check ${cfg.machine} ${toString inputs.nixpkgs.lastModified}
+
+        for name in "''${remotes[@]}"; do
+          version=$(cat "${remoteStateDir}/$name" 2>/dev/null) || continue
+          pinnedAt=$(date -d "$(echo "$version" | cut -d. -f3)" +%s 2>/dev/null) || continue
+          check "$name" "$pinnedAt"
+        done
+      }
+
+      eval "$(argc --argc-eval "$0" "$@")"
+    '';
+  };
   nos = pkgs.writeShellApplication {
     name = "nos";
     runtimeInputs = with pkgs; [fzf git coreutils gnugrep];
@@ -150,6 +184,35 @@ in {
       description = "Only allow pure builds.";
     };
 
+    maxNixpkgsAge = mkOption {
+      type = types.int;
+      default = 7;
+      description = "Warn when the pinned nixpkgs of this machine or a remote is older than this many days.";
+    };
+
+    enableZshIntegration = mkOption {
+      type = types.bool;
+      default = true;
+      description = "Run `nos-stale-check` in new zsh shells of all home-manager users.";
+    };
+
+    remotes = mkOption {
+      type = types.attrsOf (types.submodule {
+        options = {
+          host = mkOption {
+            type = types.str;
+            description = "SSH host that root fetches `nixos-version` from.";
+          };
+          sshKey = mkOption {
+            type = types.str;
+            description = "Private key for the SSH login. Must not be an sk key.";
+          };
+        };
+      });
+      default = {};
+      description = "Remotes whose nixpkgs age `nos-stale-check` reports. A systemd timer fetches each one every 15 minutes.";
+    };
+
     garbageCollectionDays = mkOption {
       type = types.int;
       default = 30;
@@ -185,6 +248,41 @@ in {
 
     environment.systemPackages = [
       nos
+      staleCheck
     ];
+
+    home-manager.sharedModules = mkIf cfg.enableZshIntegration [
+      ({config, ...}: {
+        programs.zsh.initContent = mkIf config.programs.zsh.enable "${staleCheck}/bin/nos-stale-check";
+      })
+    ];
+
+    systemd.services = mapAttrs' (name: remote:
+      nameValuePair "nos-remote-${name}" {
+        description = "Fetch the NixOS version of ${name}";
+        after = ["network-online.target"];
+        wants = ["network-online.target"];
+        path = [config.programs.ssh.package];
+        serviceConfig = {
+          Type = "oneshot";
+          StateDirectory = "nos-remotes";
+        };
+        script = ''
+          version=$(ssh -o BatchMode=yes -o ConnectTimeout=10 -i ${remote.sshKey} ${remote.host} nixos-version)
+          echo "$version" > "$STATE_DIRECTORY/${name}.tmp"
+          mv "$STATE_DIRECTORY/${name}.tmp" "$STATE_DIRECTORY/${name}"
+        '';
+      })
+    cfg.remotes;
+
+    systemd.timers = mapAttrs' (name: _:
+      nameValuePair "nos-remote-${name}" {
+        wantedBy = ["timers.target"];
+        timerConfig = {
+          OnBootSec = "2min";
+          OnUnitActiveSec = "15min";
+        };
+      })
+    cfg.remotes;
   };
 }

@@ -26,6 +26,10 @@ in {
       configDir = configDir;
       machine = machine;
       extraNixOptions = true;
+      remotes.desktop = {
+        host = "desktop-builder";
+        sshKey = "${secretDir}/ssh/${machine}";
+      };
     };
     hardening.enable = true;
     devUser.enable = true;

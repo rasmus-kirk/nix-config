@@ -86,6 +86,7 @@ in {
     HostName = "desktop.tailb0eb01.ts.net";
     Port = 6000;
     User = "user";
+    ForwardAgent = "yes";
   };
 
   home.username = username;

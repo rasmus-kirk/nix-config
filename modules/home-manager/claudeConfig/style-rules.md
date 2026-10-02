@@ -27,9 +27,13 @@ Do:
 
 ## Code style for this response
 
-Absolutely no comments unless explicitly requested
+Absolutely no comments unless explicitly requested. Especially not inline
+comments.
 
-If you do write a comment, then never:
-- Use colons (unless it's preceded by a list)
-- Use em-dashes
-- Use semicolons
+If you do write a comment:
+- Never:
+  - Use colons (unless it's preceded by a list)
+  - Use em-dashes
+  - Use semicolons
+- Always:
+  - Use telegraphic style for inline comments.
