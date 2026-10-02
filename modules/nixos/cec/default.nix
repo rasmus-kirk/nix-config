@@ -7,15 +7,23 @@
 with lib; let
   cfg = config.kirk.cec;
 
-  python = pkgs.python3.withPackages (ps: [ps.evdev ps.typer]);
-  main = "${./src}/main.py";
+  package = pkgs.rustPlatform.buildRustPackage {
+    pname = "cec-tv-liveness";
+    version = "0.1.0";
+    src = fileset.toSource {
+      root = ./.;
+      fileset = fileset.unions [./Cargo.toml ./Cargo.lock ./src];
+    };
+    cargoLock.lockFile = ./Cargo.lock;
+  };
+  exe = "${package}/bin/cec-tv-liveness";
 
   settings = pkgs.writeText "cec-tv-liveness.json" (builtins.toJSON (removeAttrs cfg ["enable" "user" "replaceSuspend"]));
 
   sleepToTv = [
     ""
     "${pkgs.writeShellScript "sleep-to-tv-standby" ''
-      ${pkgs.procps}/bin/pkill -USR1 -f ${main} || true
+      ${pkgs.procps}/bin/pkill -USR1 -f ${exe} || true
     ''}"
   ];
 in {
@@ -184,7 +192,7 @@ in {
         unitConfig.ConditionUser = cfg.user;
         path = with pkgs; [v4l-utils pipewire pulseaudio];
         serviceConfig = {
-          ExecStart = "${python}/bin/python ${main} ${settings}";
+          ExecStart = "${exe} ${settings}";
           Restart = "always";
           RestartSec = 5;
         };
