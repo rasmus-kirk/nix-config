@@ -28,11 +28,12 @@ Do:
 ## Code style for this response
 
 Absolutely no comments unless explicitly requested. Especially not inline
-comments.
+comments. Updating existing comments to keep them accurate is allowed, change
+only the words that became wrong, and keep the rest of the comment as written.
 
 If you do write a comment:
 - Never:
-  - Use colons (unless it's preceded by a list)
+  - Use colons (unless it introduces a list)
   - Use em-dashes
   - Use semicolons
 - Always:
