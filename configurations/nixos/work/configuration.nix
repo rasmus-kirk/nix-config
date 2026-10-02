@@ -40,6 +40,10 @@ in {
       sshAgent = true;
     };
     keyboardLayout.enable = true;
+    remoteBuilds.client = {
+      enable = true;
+      sshKey = "${secretDir}/ssh/${machine}";
+    };
   };
 
   programs.steam.enable = true;
@@ -69,12 +73,6 @@ in {
   };
 
   programs.firefox.enable = true;
-
-  # -------------------- Remote builder (client) -------------------- #
-  kirk.remoteBuilds.client = {
-    enable = true;
-    sshKey = "${secretDir}/ssh/${machine}";
-  };
 
   systemd.tmpfiles.rules = [
     "d ${dataDir}                            0700 user users -"

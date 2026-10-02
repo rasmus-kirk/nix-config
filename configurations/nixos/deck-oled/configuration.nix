@@ -37,6 +37,12 @@ in {
       lockOnUnplug = true;
       sshAgent = true;
     };
+    keyboardLayout.enable = true;
+    # Offload builds to the desktop.
+    remoteBuilds.client = {
+      enable = true;
+      sshKey = "${secretDir}/ssh/deck-oled";
+    };
   };
 
   vpnNamespaces.wg = {
@@ -103,14 +109,6 @@ in {
   hardware.enableRedistributableFirmware = true;
 
   programs.firefox.enable = true;
-
-  kirk.keyboardLayout.enable = true;
-
-  # Offload builds to the desktop.
-  kirk.remoteBuilds.client = {
-    enable = true;
-    sshKey = "${secretDir}/ssh/deck-oled";
-  };
 
   system.autoUpgrade = {
     enable = true;
