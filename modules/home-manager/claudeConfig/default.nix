@@ -29,6 +29,13 @@ with lib; let
     outputStyle = "Concise";
   };
 
+  mattpocockSkills = pkgs.fetchFromGitHub {
+    owner = "mattpocock";
+    repo = "skills";
+    rev = "d81f3a183412e71a5b1e84ca21bc1a35eea03a60";
+    hash = "sha256-zQ/wVrcHjIC+UjP4nDw3HARMqZd6LIDFmHKlp8AADYI=";
+  };
+
   mcpConfig = pkgs.writeText "claude-mcp.json" (builtins.toJSON {mcpServers = cfg.mcpServers;});
 
   claudeWithMcp = pkgs.symlinkJoin {
@@ -95,6 +102,14 @@ in {
         };
         ".claude/skills/ask/SKILL.md" = {
           source = ./skills/ask/SKILL.md;
+          force = true;
+        };
+        ".claude/skills/grill-me/SKILL.md" = {
+          source = "${mattpocockSkills}/skills/productivity/grill-me/SKILL.md";
+          force = true;
+        };
+        ".claude/skills/grilling/SKILL.md" = {
+          source = "${mattpocockSkills}/skills/productivity/grilling/SKILL.md";
           force = true;
         };
       };

@@ -1,3 +1,6 @@
+*x* should be designed not by piling feature on top of feature, but by removing
+the weaknesses and restrictions that make additional features appear necessary.
+
 ## Reading CI status
 
 `gh pr checks` and `statusCheckRollup` fail with "Resource not accessible by personal access token", because the fine-grained `GH_TOKEN` can't read the Checks API. Use the Actions API instead:
