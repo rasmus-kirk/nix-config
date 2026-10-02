@@ -1,6 +1,6 @@
 (
     output: "eDP-1",
-    source: Path("/data/.system-configuration/wallpapers/carina-nebula-4k.png"),
+    source: Path("/data/.system-configuration/images/wallpapers/carina-nebula-4k.png"),
     filter_by_theme: false,
     rotation_frequency: 300,
     filter_method: Lanczos,

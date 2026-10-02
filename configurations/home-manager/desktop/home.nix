@@ -1,7 +1,6 @@
 # My home manager config
 {
   pkgs,
-  config,
   inputs,
   ...
 }: let
@@ -18,7 +17,6 @@ in {
     mpv.enable = true;
     mvi.enable = true;
     xdgMime.enable = true;
-    stateBackup.enable = false;
     git = {
       enable = true;
       signKey = "${secretDir}/ssh/id_ed25519_yubi.pub";
@@ -67,58 +65,12 @@ in {
       yubiHandle = "${secretDir}/ssh/id_ed25519_yubi";
       tokenDir = "${secretDir}/tokens-read-only";
     };
-    chromiumLaunchers = {
-      enable = true;
-      stateDir = stateDir;
-      launchers = {
-        youtube = "https://youtube.com/";
-        discord = "https://discord.com/channels/@me";
-        proton = "https://mail.proton.me/";
-      };
-    };
   };
 
   home.username = username;
   home.homeDirectory = "/home/${username}";
 
   home.stateVersion = "22.11";
-
-  # User state lives under ${stateDir}, a user-owned subtree created at system
-  # level. The "d" rules make the per-app subdirs, the "L+" rules point the
-  # home dotfiles at them.
-  systemd.user.tmpfiles.rules = [
-    "d ${stateDir}/thunderbird     0755 user users - -"
-    "d ${stateDir}/firefox         0755 user users - -"
-    "d ${stateDir}/firefox/config  0755 user users - -"
-    "d ${stateDir}/firefox/home    0755 user users - -"
-    "d ${stateDir}/chromium        0755 user users - -"
-    "d ${stateDir}/yubico          0755 user users - -"
-    # known_hosts persisted, else the @root rollback drops accepted host keys.
-    "d ${stateDir}/ssh             0700 user users - -"
-    "d ${stateDir}/claude          0755 user users - -"
-    "d ${stateDir}/claude/state    0755 user users - -"
-    "d ${stateDir}/zsh             0755 user users - -"
-    "d ${stateDir}/cosmic          0755 user users - -"
-    "d ${stateDir}/cosmic/config   0755 user users - -"
-    "d ${stateDir}/cosmic/comp     0755 user users - -"
-    "d ${stateDir}/cosmic/local    0755 user users - -"
-    "d ${stateDir}/btop            0755 user users - -"
-
-    "L+ ${config.home.homeDirectory}/.thunderbird               - - - - ${stateDir}/thunderbird"
-    "L+ ${config.home.homeDirectory}/.mozilla                   - - - - ${stateDir}/firefox/home"
-    "L+ ${config.home.homeDirectory}/.config/mozilla            - - - - ${stateDir}/firefox/config"
-    "L+ ${config.home.homeDirectory}/.config/chromium           - - - - ${stateDir}/chromium"
-    "L+ ${config.home.homeDirectory}/.config/Yubico             - - - - ${stateDir}/yubico"
-    "L+ ${config.home.homeDirectory}/.ssh/known_hosts           - - - - ${stateDir}/ssh/known_hosts"
-    "L+ ${config.home.homeDirectory}/.config/btop/btop.conf     - - - - ${stateDir}/btop/btop.conf"
-
-    "L+ ${config.home.homeDirectory}/.config/cosmic             - - - - ${stateDir}/cosmic/config"
-    "L+ ${config.home.homeDirectory}/.local/state/cosmic        - - - - ${stateDir}/cosmic/local"
-    "L+ ${config.home.homeDirectory}/.local/state/cosmic-comp   - - - - ${stateDir}/cosmic/comp"
-
-    "L+ ${config.home.homeDirectory}/.claude                    - - - - ${stateDir}/claude/state"
-    "L+ ${config.home.homeDirectory}/.claude.json               - - - - ${stateDir}/claude/claude.json"
-  ];
 
   programs.bash = {
     enable = true;
@@ -131,14 +83,6 @@ in {
     '';
   };
 
-  programs.zsh.profileExtra = ''
-    export TERM=foot
-    # GitHub PAT for the github MCP plugin when Claude Code runs on host.
-    if [ -r ${secretDir}/github/qms-pat-global-ro ]; then
-      export GITHUB_PERSONAL_ACCESS_TOKEN="$(tr -d '[:space:]' < ${secretDir}/github/qms-pat-global-ro)"
-    fi
-  '';
-
   programs.direnv = {
     enable = true;
     enableBashIntegration = true;
@@ -146,9 +90,4 @@ in {
     nix-direnv.enable = true;
     silent = true;
   };
-
-  home.packages = with pkgs; [
-    bubblewrap
-    socat
-  ];
 }

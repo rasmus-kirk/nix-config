@@ -34,8 +34,6 @@
 
     submerger.url = "github:rasmus-kirk/submerger";
     submerger.inputs.nixpkgs.follows = "nixpkgs";
-
-    impermanence.url = "github:nix-community/impermanence";
   };
 
   outputs = inputs @ {
@@ -48,8 +46,8 @@
     website-builder,
     vpnconfinement,
     hosts,
+    keyboard-layout,
     nix-index-database,
-    impermanence,
     ...
   }: let
     # Systems supported
@@ -86,6 +84,7 @@
       imports = [
         ./modules/nixos
         hosts.nixosModule
+        keyboard-layout.nixosModules.default
       ];
     };
 
@@ -161,7 +160,6 @@
           agenix.nixosModules.default
           self.nixosModules.default
           nixarr.nixosModules.default
-          impermanence.nixosModules.impermanence
           jovian.nixosModules.default
           home-manager.nixosModules.home-manager
           {
@@ -249,20 +247,6 @@
     homeConfigurations = {
       sandbox = mkSandbox "user";
       sandbox-dev = mkSandbox "dev";
-
-      naja-deck = home-manager.lib.homeManagerConfiguration {
-        pkgs = import nixpkgs {
-          system = "x86_64-linux";
-          config.allowUnfree = true;
-        };
-
-        extraSpecialArgs = {inherit inputs;};
-
-        modules = [
-          ./configurations/home-manager/naja-deck/home.nix
-          self.homeManagerModules.default
-        ];
-      };
     };
   };
 }

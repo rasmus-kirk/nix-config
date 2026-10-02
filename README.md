@@ -15,7 +15,7 @@ use any part that inspires you.
 **Directions:**
 
 - `configurations/home-manager`:
-  - Home-Manager configurations for my devices (deck, NAS, and work).
+  - Home-Manager configurations for my devices (deck, NAS, and work) and the bubblewrap sandbox.
 - `configurations/nixos`:
   - NixOS configurations for my devices.
 - `modules/home-manager`:
@@ -30,13 +30,13 @@ use any part that inspires you.
 ## The Configurations
 
 The Home-Manager configurations are fairly straightforward since they mostly
-reuse modules, but the NixOS configuration has some notable features:
+reuse modules, but the NixOS configurations have some notable features:
 
 - [Agenix](https://github.com/ryantm/agenix) for secrets management
 - [Nixarr](https://nixarr.com/) integration
 - Syncthing
-- SSH tunneling
-- Sudo insults
+- [Jovian](https://github.com/Jovian-Experiments/Jovian-NixOS) Steam game mode
+- YubiKey login and sudo
 
 ## The Modules
 
@@ -71,11 +71,7 @@ An example follows below:
 
 ```nix
   kirk = {
-    helix = {
-      enable = true;
-      installMostLsps = false;
-      extraPackages = with pkgs; [ nil marksman nodePackages_latest.bash-language-server ];
-    };
+    helix.enable = true;
     yazi = {
       enable = true;
       configDir = configDir;
@@ -85,7 +81,10 @@ An example follows below:
       userEmail = "mail@rasmuskirk.com";
       userName = "rasmus-kirk";
     };
-    zsh.enable = true;
+    zsh = {
+      enable = true;
+      stateDir = stateDir;
+    };
     fonts.enable = true;
     terminalTools.enable = true;
   };
@@ -107,7 +106,7 @@ for personal use, it's possible for others to reuse them:
     kirk-modules.url = "github:rasmus-kirk/nix-config";
     kirk-modules.inputs.nixpkgs.follows = "nixpkgs";
 
-    home-manager.url = "github:nix-community/home-manager/release-23.11";
+    home-manager.url = "github:nix-community/home-manager";
     home-manager.inputs.nixpkgs.follows = "nixpkgs";
   };
 
@@ -115,7 +114,7 @@ for personal use, it's possible for others to reuse them:
     self,
     nixpkgs,
     kirk-modules,
-    flake-parts,
+    home-manager,
     ...
   }: let
     inherit (self) outputs;

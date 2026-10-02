@@ -14,15 +14,6 @@
   stateDir = "${dataDir}/.state";
   transmissionPort = 33915;
 
-  # This always-on box must not suspend, so a suspend request puts the TV in standby.
-  # The empty first entry resets the unit's ExecStart.
-  sleepToTv = [
-    ""
-    "${pkgs.writeShellScript "sleep-to-tv-standby" ''
-      ${pkgs.procps}/bin/pkill -USR1 -f cec-tv-liveness || true
-    ''}"
-  ];
-
   # Steam's %command% is empty for non-Steam shortcuts, so the args live in a script.
   # Steam's overlay LD_PRELOAD crashes the Chromium zygote; unsetting it keeps the sandbox.
   mkChromiumTile = name: args:
@@ -44,7 +35,6 @@
 in {
   imports = [
     ./hardware-configuration.nix
-    # TODO: re-enable the ballbrawl module and services.ballbrawl with the ballbrawl input in flake.nix.
   ];
 
   # -------------------- Secrets -------------------- #
@@ -81,12 +71,22 @@ in {
   # -------------------- Kirk Modules -------------------- #
 
   kirk = {
+    locale.enable = true;
+    hardening.enable = true;
     nixosScripts = {
       enable = true;
       configDir = configDir;
       machine = machine;
       extraNixOptions = true;
     };
+    cec = {
+      enable = true;
+      user = gameUser;
+      sink = "alsa_output.pci-0000_03_00.1.hdmi-stereo";
+      replaceSuspend = true;
+      controllerVolume.enable = true;
+    };
+    yubikey.enable = true;
   };
 
   # -------------------- Nixarr -------------------- #
@@ -208,26 +208,10 @@ in {
 
   # -------------------- Desktop / Gaming -------------------- #
 
-  services.xserver.enable = true;
-  # Plasma is the Switch-to-Desktop target; gamescope game mode is the boot session.
-  # jovian.steam provides SDDM, so no separate display manager is set.
-  services.desktopManager.plasma6.enable = true;
-  # foot and helix replace konsole and kate.
-  environment.plasma6.excludePackages = with pkgs.kdePackages; [
-    konsole
-    kate
-    elisa
-    khelpcenter
-    kwallet-pam
-    kwalletmanager
-  ];
   # jovian's Steam module enables the Orca screen reader.
   services.orca.enable = lib.mkForce false;
 
-  kirk.keyboardLayout = {
-    enable = true;
-    package = inputs.keyboard-layout.packages.${pkgs.stdenv.hostPlatform.system}.rk;
-  };
+  kirk.keyboardLayout.enable = true;
 
   # useSteamOSConfig defaults to true with jovian.steam and adds Deck APU amdgpu params
   # and SteamOS services, which are wrong for a desktop dGPU server.
@@ -236,7 +220,7 @@ in {
     steam = {
       enable = true;
       autoStart = true;
-      desktopSession = "plasma";
+      desktopSession = "gamescope-wayland";
       user = gameUser;
     };
     hardware.has.amd.gpu = true;
@@ -314,7 +298,7 @@ in {
     motherboard = "intel";
   };
 
-  # No NixOS option sets a colour, and a saved startupProfile would not survive the @root rollback.
+  # No NixOS option sets a colour.
   systemd.services.openrgb-color = {
     description = "Apply static case RGB colour (candlelight)";
     # Run as a client of openrgb.service. Its own early-boot hardware detection
@@ -359,31 +343,42 @@ in {
     "d /data/media                  2770 root  media -"
     "d /data/downloads              0750 user  users -"
 
-    # The AI flake at /data/ai runs as `user` and writes models and caches here.
-    "d /persist/ai                  0755 user users -"
-
     # /persist/games/sandisk is a mountpoint, declared in fileSystems.
     "d /persist/games               0755 steam steam -"
     "d /persist/games/samsung       0755 steam steam -"
 
     # The ~/.config and ~/.local/share rules must precede the links, or tmpfiles
     # creates those parents root-owned and home-manager's linkGeneration fails.
-    "d /data/.state/steam/steam              0755 steam steam -"
-    "d /data/.state/steam/steam-compat       0755 steam steam -"
-    "d /data/.state/steam/gamescope          0755 steam steam -"
-    "d /data/.state/steam/steamos-manager    0755 steam steam -"
-    "d /data/.state/steam/jellyfin-web       0700 steam steam -"
-    "d /data/.state/steam/chromium-rasmus    0700 steam steam -"
-    "d /data/.state/steam/chromium-naja      0700 steam steam -"
+    "d /data/.state/steam/steam               0755 steam steam -"
+    "d /data/.state/steam/steam-compat        0755 steam steam -"
+    "d /data/.state/steam/gamescope           0755 steam steam -"
+    "d /data/.state/steam/steamos-manager     0755 steam steam -"
+    "d /data/.state/steam/jellyfin-web        0700 steam steam -"
+    "d /data/.state/steam/chromium-rasmus     0700 steam steam -"
+    "d /data/.state/steam/chromium-naja       0700 steam steam -"
     "d /data/.state/steam/jellyfinmediaplayer 0755 steam steam -"
-    "d /home/steam/.config          0755 steam steam -"
-    "d /home/steam/.local           0755 steam steam -"
-    "d /home/steam/.local/share     0755 steam steam -"
+    "d /home/steam/.config                    0755 steam steam -"
+    "d /home/steam/.local                     0755 steam steam -"
+    "d /home/steam/.local/share               0755 steam steam -"
+
     "L+ /home/steam/.local/share/Steam               - - - - /data/.state/steam/steam"
     "L+ /home/steam/.steam                           - - - - /data/.state/steam/steam-compat"
     "L+ /home/steam/.config/gamescope                - - - - /data/.state/steam/gamescope"
     "L+ /home/steam/.config/steamos-manager          - - - - /data/.state/steam/steamos-manager"
     "L+ /home/steam/.local/share/jellyfinmediaplayer - - - - /data/.state/steam/jellyfinmediaplayer"
+
+    "d /data/.state/user/ssh          0700 user users -"
+    "d /data/.state/user/claude       0755 user users -"
+    "d /data/.state/user/claude/state 0755 user users -"
+    "d /data/.state/user/zsh          0755 user users -"
+    "d /data/.state/user/btop         0755 user users -"
+    "d /home/user/.ssh                0700 user users -"
+    "d /home/user/.config             0755 user users -"
+    "d /home/user/.config/btop        0755 user users -"
+    "L+ /home/user/.ssh/known_hosts       - - - - /data/.state/user/ssh/known_hosts"
+    "L+ /home/user/.config/btop/btop.conf - - - - /data/.state/user/btop/btop.conf"
+    "L+ /home/user/.claude                - - - - /data/.state/user/claude/state"
+    "L+ /home/user/.claude.json           - - - - /data/.state/user/claude/claude.json"
   ];
 
   # -------------------- Server Defaults -------------------- #
@@ -403,18 +398,8 @@ in {
   };
 
   services.logind.settings.Login.HandleLidSwitch = "ignore";
-  # The suspend key is repurposed as a TV wake button (see kirk.cec).
-  services.logind.settings.Login.HandleSuspendKey = "ignore";
-  services.logind.settings.Login.HandleSuspendKeyLongPress = "ignore";
-
-  # HandleSuspendKey covers only the hardware key. Steam's power-menu "Sleep" is a
-  # software suspend through login1.
-  systemd.services.systemd-suspend.serviceConfig.ExecStart = lib.mkForce sleepToTv;
-  systemd.services.systemd-hibernate.serviceConfig.ExecStart = lib.mkForce sleepToTv;
-  systemd.services.systemd-hybrid-sleep.serviceConfig.ExecStart = lib.mkForce sleepToTv;
-
   # The power button soft-reboots, for physical recovery when Steam or gamescope hangs.
-  # Soft-reboot keeps the kernel, so FDE stays unlocked, but the @root rollback does not run.
+  # Soft-reboot keeps the kernel, so FDE stays unlocked.
   # Jovian ships powerbuttond in a package, so enable = false does not disable it.
   systemd.user.services.steamos-powerbuttond.serviceConfig.ExecStart =
     lib.mkForce ["" "${pkgs.coreutils}/bin/true"];
@@ -510,47 +495,13 @@ in {
     };
   };
 
-  networking.firewall = {
-    allowedTCPPorts = [8384 8123];
-  };
+  networking.firewall.allowedTCPPorts = [8384 8123];
 
   users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
     ../../../ssh-keys/yubi.pub
   ];
 
-  # -------------------- Impermanence -------------------- #
-  # List only state whose module has no path option; other state goes to /data/.state/<service>.
-  environment.persistence."/data/.state/persist" = {
-    hideMounts = true;
-    directories = [
-      "/var/lib/nixos" # stable uid/gid map across rebuilds
-      "/var/lib/tailscale"
-      "/var/lib/tuptime"
-      "/var/lib/systemd/timers" # Persistent=true timer stamps (mam-vpn)
-      "/var/log" # keeps initrd unlock and rollback logs for debugging
-      "/var/lib/bluetooth"
-    ];
-    files = [
-      "/etc/machine-id"
-    ];
-  };
-
   # -------------------- Boilerplate -------------------- #
-
-  time.timeZone = "Europe/Copenhagen";
-
-  i18n.defaultLocale = "en_DK.UTF-8";
-  i18n.extraLocaleSettings = {
-    LC_ADDRESS = "da_DK.UTF-8";
-    LC_IDENTIFICATION = "da_DK.UTF-8";
-    LC_MEASUREMENT = "da_DK.UTF-8";
-    LC_MONETARY = "da_DK.UTF-8";
-    LC_NAME = "da_DK.UTF-8";
-    LC_NUMERIC = "da_DK.UTF-8";
-    LC_PAPER = "da_DK.UTF-8";
-    LC_TELEPHONE = "da_DK.UTF-8";
-    LC_TIME = "da_DK.UTF-8";
-  };
 
   nix.settings.trusted-users = ["root" "nixremote"];
 
@@ -575,15 +526,6 @@ in {
 
   users.mutableUsers = false;
   users.groups.sync = {};
-  users.groups.cectv = {};
-
-  # The CEC daemon gets the CEC adapter and the keystroke-free control nodes, so no
-  # user process needs `input` access to keyboards.
-  services.udev.extraRules = ''
-    SUBSYSTEM=="cec", KERNEL=="cec[0-9]*", GROUP="cectv", MODE="0660"
-    SUBSYSTEM=="input", KERNEL=="event[0-9]*", ATTRS{name}=="*System Control*", GROUP="cectv", MODE="0660"
-    SUBSYSTEM=="input", KERNEL=="event[0-9]*", ATTRS{name}=="*Consumer Control*", GROUP="cectv", MODE="0660"
-  '';
   # No password on either account: auth is the YubiKey (pam_u2f) only, so a
   # locked `!` hash is the correct and only credential state.
   users.users."${username}" = {
@@ -591,13 +533,12 @@ in {
     extraGroups = ["networkmanager" "wheel" "sync"];
   };
 
-  # Graphical seat. Not in wheel, no SSH keys. cectv is the CEC daemon's
-  # entire privileged surface; deliberately NOT in `input`/`video`/`render`.
+  # Graphical seat. Not in wheel, no SSH keys, and not in `input`, `video` or `render`.
   users.groups."${gameUser}" = {};
   users.users."${gameUser}" = {
     isNormalUser = true;
     group = gameUser;
-    extraGroups = ["networkmanager" "cectv"];
+    extraGroups = ["networkmanager"];
   };
 
   hardware.graphics.enable = true;
@@ -615,19 +556,6 @@ in {
   # sandbox and break the shell there.
 
   # -------------------- YubiKey (U2F) -------------------- #
-  # Touch-to-authenticate for sudo, TTY login, the SDDM greeter and the Plasma lock screen.
-  # /home is wiped every boot, so the authfile is system-wide. It holds public credentials only.
-  # Both lines are the same YubiKey. Register with `pamu2fcfg -o pam://desktop`.
-  environment.etc."u2f_keys".text = ''
-    user:TYg4k09qkMagOBBfoTdCgGo9Az7v/PiIV4wvEuMd2IK+BBicWtkiSexaDfnndS77+QW96YBnfdcrfPd1tzJH0w==,36ZOFFeRKCBl6SEEbw31Xw7tS8H+bRP7ZTBUmYlq6WMbNhdXfwfkHOL7J7WOQvvvxlcW0eEzNAjex1QIPnzjJQ==,es256,+presence
-    steam:TYg4k09qkMagOBBfoTdCgGo9Az7v/PiIV4wvEuMd2IK+BBicWtkiSexaDfnndS77+QW96YBnfdcrfPd1tzJH0w==,36ZOFFeRKCBl6SEEbw31Xw7tS8H+bRP7ZTBUmYlq6WMbNhdXfwfkHOL7J7WOQvvvxlcW0eEzNAjex1QIPnzjJQ==,es256,+presence
-  '';
-  security.pam.u2f.settings.authfile = "/etc/u2f_keys";
-  security.pam.services.sudo.u2fAuth = true;
-  security.pam.services.login.u2fAuth = true;
-  security.pam.services.sddm.u2fAuth = true;
-  security.pam.services.kde.u2fAuth = true;
-  security.pam.u2f.settings.cue = true;
 
   # rssh is tried before U2F, so sudo over SSH with a forwarded agent needs no key.
   security.pam.rssh.enable = true;
@@ -636,58 +564,12 @@ in {
 
   security.pam.services.sudo.rssh = true;
 
-  security.sudo = {
-    execWheelOnly = true;
-    package = pkgs.sudo.override {withInsults = true;};
-    extraConfig = ''
-      Defaults insults
-      Defaults timestamp_timeout=0
-    '';
-  };
-
-  # The rollback unit below needs systemd in initrd.
-  boot.initrd.systemd.enable = true;
-
   # Root LUKS (cryptroot) is in hardware-configuration.nix.
   boot.initrd.luks.devices.crypt_ssd1 = {
     device = "/dev/disk/by-id/ata-Samsung_SSD_870_QVO_8TB_S5SSNF0WA10922R";
     allowDiscards = true;
     # Enroll with `systemd-cryptenroll --fido2-device=auto <device>`; the passphrase stays as fallback.
     crypttabExtraOpts = ["fido2-device=auto"];
-  };
-
-  # Archive the previous @root under /old_roots and delete archives older than 30 days.
-  boot.initrd.systemd.services.rollback = {
-    description = "Rollback BTRFS root subvolume to a pristine state";
-    wantedBy = ["initrd.target"];
-    after = ["dev-mapper-cryptroot.device"];
-    before = ["sysroot.mount"];
-    unitConfig.DefaultDependencies = "no";
-    serviceConfig.Type = "oneshot";
-    script = ''
-      mkdir -p /btrfs_tmp
-      mount -o subvol=/ /dev/mapper/cryptroot /btrfs_tmp
-
-      if [[ -e /btrfs_tmp/@root ]]; then
-        mkdir -p /btrfs_tmp/old_roots
-        ts=$(date --date="@$(stat -c %Y /btrfs_tmp/@root)" "+%Y-%m-%-d_%H:%M:%S")
-        mv /btrfs_tmp/@root "/btrfs_tmp/old_roots/$ts"
-      fi
-
-      delete_subvolume_recursively() {
-        IFS=$'\n'
-        for i in $(btrfs subvolume list -o "$1" | cut -f 9- -d ' '); do
-          delete_subvolume_recursively "/btrfs_tmp/$i"
-        done
-        btrfs subvolume delete "$1"
-      }
-      for i in $(find /btrfs_tmp/old_roots/ -maxdepth 1 -mtime +30 2>/dev/null); do
-        delete_subvolume_recursively "$i"
-      done
-
-      btrfs subvolume snapshot /btrfs_tmp/@root-blank /btrfs_tmp/@root
-      umount /btrfs_tmp
-    '';
   };
 
   fileSystems."/data" = {
@@ -720,23 +602,8 @@ in {
   nixpkgs.config.allowUnfree = true;
 
   environment.systemPackages = with pkgs; [
-    (writeShellApplication {
-      name = "monero";
-      runtimeInputs = [monero-cli coreutils];
-      inheritPath = false;
-      text = ''
-        wallet_dir="/data/monero"
-        mkdir -p "$wallet_dir"
-        monero-wallet-cli \
-          --wallet-file "$wallet_dir"/user.keys \
-          --log-file "$wallet_dir"/log.log
-      '';
-    })
     claude-code
-    firefox
-    chromium
     openrgb
-    v4l-utils # cec-ctl: HDMI-CEC control (TV power/input over /dev/cec0)
 
     # Compression
     zip

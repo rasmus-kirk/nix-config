@@ -7,7 +7,7 @@
 }:
 with lib; let
   cfg = config.kirk.steamShortcuts;
-  pyEnv = pkgs.python3.withPackages (ps: [ps.vdf]);
+  pyEnv = pkgs.python3.withPackages (ps: [ps.vdf ps.typer]);
 
   shortcutType = types.submodule {
     options = {
@@ -61,10 +61,8 @@ with lib; let
     }
     else {inherit (v) exe launchOptions icon portrait landscape hero logo;};
 
-  desiredFile = pkgs.writeText "steam-shortcuts.json" (builtins.toJSON {
-    prune = cfg.pruneUnmanaged;
-    shortcuts = mapAttrs normalize cfg.shortcuts;
-  });
+  settings = pkgs.writeText "steam-shortcuts.json" (builtins.toJSON (removeAttrs cfg ["enable" "user"]
+    // {shortcuts = mapAttrs normalize cfg.shortcuts;}));
 in {
   options.kirk.steamShortcuts = {
     enable = mkEnableOption "declaratively-managed non-Steam shortcuts";
@@ -130,7 +128,7 @@ in {
       path = [pkgs.procps]; # pgrep, for the "is Steam running?" guard
       serviceConfig = {
         Type = "oneshot";
-        ExecStart = "${pyEnv}/bin/python3 ${./apply-steam-shortcuts.py} ${desiredFile} ${cfg.steamRoot}";
+        ExecStart = "${pyEnv}/bin/python3 ${./src}/main.py ${settings}";
       };
     };
   };

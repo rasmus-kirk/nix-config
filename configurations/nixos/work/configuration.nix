@@ -16,6 +16,7 @@ in {
   age.identityPaths = ["${secretDir}/ssh/${machine}"];
 
   kirk = {
+    locale.enable = true;
     blockedHosts = {
       enable = true;
       file = ../../../age/shared/blocked-hosts.age;
@@ -34,10 +35,7 @@ in {
       lockOnlyWithDevices = ["17ef:6047"];
       sshAgent = true;
     };
-    keyboardLayout = {
-      enable = true;
-      package = inputs.keyboard-layout.packages.${pkgs.stdenv.hostPlatform.system}.rk;
-    };
+    keyboardLayout.enable = true;
   };
 
   programs.steam.enable = true;
@@ -46,20 +44,6 @@ in {
 
   networking.hostName = machine;
   networking.networkmanager.enable = true;
-
-  time.timeZone = "Europe/Copenhagen";
-  i18n.defaultLocale = "en_DK.UTF-8";
-  i18n.extraLocaleSettings = {
-    LC_ADDRESS = "da_DK.UTF-8";
-    LC_IDENTIFICATION = "da_DK.UTF-8";
-    LC_MEASUREMENT = "da_DK.UTF-8";
-    LC_MONETARY = "da_DK.UTF-8";
-    LC_NAME = "da_DK.UTF-8";
-    LC_NUMERIC = "da_DK.UTF-8";
-    LC_PAPER = "da_DK.UTF-8";
-    LC_TELEPHONE = "da_DK.UTF-8";
-    LC_TIME = "da_DK.UTF-8";
-  };
 
   services.xserver.enable = true;
 
@@ -164,11 +148,6 @@ in {
   };
 
   nixpkgs.config.allowUnfree = true;
-
-  security.sudo = {
-    package = pkgs.sudo.override {withInsults = true;}; # For insults lol
-    extraConfig = "Defaults insults";
-  };
 
   environment.systemPackages = with pkgs; [
     usbutils

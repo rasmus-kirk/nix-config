@@ -9,12 +9,10 @@
     ./gruvboxTheme
     ./helix
     ./homeManagerScripts
-    ./stateBackup
     ./jiten
     ./mpv
     ./mvi
     ./box
-    ./cec
     ./scripts
     ./ssh
     ./terminalTools

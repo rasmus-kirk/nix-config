@@ -20,6 +20,8 @@ in {
   };
 
   kirk = {
+    locale.enable = true;
+    hardening.enable = true;
     blockedHosts = {
       enable = true;
       file = ../../../age/shared/blocked-hosts.age;
@@ -82,20 +84,6 @@ in {
   networking.hostName = "deck-oled";
   networking.networkmanager.enable = true;
 
-  time.timeZone = "Europe/Copenhagen";
-  i18n.defaultLocale = "en_DK.UTF-8";
-  i18n.extraLocaleSettings = {
-    LC_ADDRESS = "da_DK.UTF-8";
-    LC_IDENTIFICATION = "da_DK.UTF-8";
-    LC_MEASUREMENT = "da_DK.UTF-8";
-    LC_MONETARY = "da_DK.UTF-8";
-    LC_NAME = "da_DK.UTF-8";
-    LC_NUMERIC = "da_DK.UTF-8";
-    LC_PAPER = "da_DK.UTF-8";
-    LC_TELEPHONE = "da_DK.UTF-8";
-    LC_TIME = "da_DK.UTF-8";
-  };
-
   # TODO: find out why this is needed.
   services.xserver.enable = true;
 
@@ -116,10 +104,7 @@ in {
 
   programs.firefox.enable = true;
 
-  kirk.keyboardLayout = {
-    enable = true;
-    package = inputs.keyboard-layout.packages.${pkgs.stdenv.hostPlatform.system}.rk;
-  };
+  kirk.keyboardLayout.enable = true;
 
   # Offload builds to the desktop.
   nix.distributedBuilds = true;
@@ -184,15 +169,6 @@ in {
   };
 
   nixpkgs.config.allowUnfree = true;
-
-  security.sudo = {
-    execWheelOnly = true;
-    package = pkgs.sudo.override {withInsults = true;};
-    extraConfig = ''
-      Defaults insults
-      Defaults timestamp_timeout=15
-    '';
-  };
 
   environment.systemPackages = with pkgs; [
     (writeShellApplication {

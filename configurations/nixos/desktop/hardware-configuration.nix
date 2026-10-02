@@ -41,7 +41,7 @@
     options = ["subvol=@nix" "noatime" "nodiratime" "compress=zstd"];
   };
 
-  # Large, re-downloadable data. It survives the @root rollback but is not backed up like /data.
+  # Large, re-downloadable data, not backed up like /data.
   fileSystems."/persist" = {
     device = "/dev/mapper/cryptroot";
     fsType = "btrfs";
