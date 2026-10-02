@@ -72,6 +72,7 @@ in {
 
   services.logind.settings.Login.HandleLidSwitch = "ignore";
   services.fwupd.enable = true;
+  services.tailscale.enable = true;
   hardware.enableRedistributableFirmware = true;
   hardware.graphics.enable = true;
   hardware.bluetooth = {
@@ -107,8 +108,6 @@ in {
 
     "d ${stateDir}                           0700 user users -"
     "d ${stateDir}/ssh                       0700 user users -"
-    "d ${stateDir}/ssh/root-remotes          0700 root root  -"
-    "d ${stateDir}/ssh/remotes               0700 user users -"
     "d ${stateDir}/firefox                   0755 user users -"
     "d ${stateDir}/firefox/config            0755 user users -"
     "d ${stateDir}/firefox/home              0755 user users -"
@@ -139,8 +138,13 @@ in {
     "Z  /run/dev-secret/tokens-read-only/*       0440 root dev -"
   ];
 
+  programs.ssh.knownHosts."desktop-builder".publicKeyFile = ../../../ssh-keys/age/desktop.pub;
   programs.ssh.extraConfig = ''
-    Include ${stateDir}/ssh/root-remotes/*.conf
+    Host desktop-builder
+      HostKeyAlias desktop-builder
+      HostName desktop.tailb0eb01.ts.net
+      Port 6000
+      User nixremote
   '';
 
   services.pulseaudio.enable = false;

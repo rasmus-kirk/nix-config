@@ -21,13 +21,5 @@ in {
   home.homeDirectory = "/home/${username}";
   home.stateVersion = "22.11";
 
-  # With autologin KWallet can never auto-unlock, so it just nags, and
-  # Chromium blocks on that prompt (its KDE "safe storage" backend).
-  xdg.configFile."kwalletrc".text = ''
-    [Wallet]
-    Enabled=false
-    First Use=false
-  '';
-
   home.shellAliases.restart-steam = "systemctl --user restart steam-launcher.service";
 }

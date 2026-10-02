@@ -77,6 +77,7 @@ in {
   };
 
   services.udev.packages = [pkgs.ledger-udev-rules];
+  services.tailscale.enable = true;
 
   networking.hostName = "deck-oled";
   networking.networkmanager.enable = true;
@@ -120,8 +121,7 @@ in {
     package = inputs.keyboard-layout.packages.${pkgs.stdenv.hostPlatform.system}.rk;
   };
 
-  # Offload builds to the desktop. Nix builds locally until the ssh block has a HostName
-  # and an IdentityFile for a non-sk key, because nix-daemon cannot wait for a YubiKey touch.
+  # Offload builds to the desktop.
   nix.distributedBuilds = true;
   nix.buildMachines = [
     {
@@ -139,6 +139,7 @@ in {
   programs.ssh.extraConfig = ''
     Host desktop-builder
       HostKeyAlias desktop-builder
+      HostName desktop.tailb0eb01.ts.net
       Port 6000
       User nixremote
   '';

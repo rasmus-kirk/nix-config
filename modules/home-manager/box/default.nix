@@ -102,6 +102,8 @@ in {
                 grep -q ':00001050:' "$h/device/uevent" 2>/dev/null || continue
                 args+=(--dev-bind-try "/dev/''${h##*/}" "/dev/''${h##*/}")
               done
+              args+=(--ro-bind-try /sys/class/hidraw /sys/class/hidraw)
+              args+=(--ro-bind-try /sys/devices /sys/devices)
               ${optionalString (cfg.yubiHandle != null) ''
                 args+=(--ro-bind-try ${cfg.yubiHandle} ${boxHome}/.ssh/id_ed25519_yubi)
                 args+=(--ro-bind-try ${cfg.yubiHandle}.pub ${boxHome}/.ssh/id_ed25519_yubi.pub)

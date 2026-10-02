@@ -68,6 +68,12 @@ in {
     };
   };
 
+  programs.ssh.settings.desktop = {
+    HostName = "desktop.tailb0eb01.ts.net";
+    Port = 6000;
+    User = "user";
+  };
+
   home.username = username;
   home.homeDirectory = "/home/${username}";
 

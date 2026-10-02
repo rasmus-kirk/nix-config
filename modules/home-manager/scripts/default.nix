@@ -274,8 +274,7 @@ with lib; let
       rsyncs $PWD to /persist/work$PWD on the desktop, then runs
       <command...> inside 'nix develop --impure --command' on that dir.
 
-      The 'desktop' alias must be defined in your ssh config (e.g. in
-      /data/.state/ssh/remotes/desktop.conf) with HostName/User/Port/etc.
+      The 'desktop' alias is defined in programs.ssh.settings.desktop.
 
       Anything git ignores is excluded (.gitignore, .git/info/exclude and
       the global excludesfile). Outside a work tree, falls back to

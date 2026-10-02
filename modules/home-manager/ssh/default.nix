@@ -20,18 +20,6 @@ in {
       default = false;
       description = "Whether or not to enable adding ssh keys to ssh-agent.";
     };
-
-    includes = mkOption {
-      type = with types; listOf str;
-      default = [];
-      example = ["/data/.state/ssh/remotes/*.conf"];
-      description = ''
-        Paths (glob-supporting) to add as SSH `Include` directives. Lets
-        per-machine host definitions live outside the nix config. The
-        file just has to exist on disk at ssh time; a missing match is
-        silently ignored.
-      '';
-    };
   };
 
   config = mkIf cfg.enable {
@@ -44,10 +32,7 @@ in {
           then "yes"
           else "no";
       };
-      extraConfig = concatStringsSep "\n" (
-        optional (cfg.identityPath != null) "IdentityFile ${cfg.identityPath}"
-        ++ map (p: "Include ${p}") cfg.includes
-      );
+      extraConfig = optionalString (cfg.identityPath != null) "IdentityFile ${cfg.identityPath}";
     };
   };
 }
