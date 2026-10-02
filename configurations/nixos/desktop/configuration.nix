@@ -501,10 +501,6 @@ in {
     ../../../ssh-keys/yubi.pub
   ];
 
-  # -------------------- Boilerplate -------------------- #
-
-  nix.settings.trusted-users = ["root" "nixremote"];
-
   # -------------------- Remote builder -------------------- #
   # work and deck offload builds here over SSH on port 6000.
   # Builds over WAN need port 6000 forwarded at the router.

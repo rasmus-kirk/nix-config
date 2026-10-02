@@ -90,6 +90,7 @@ in {
     "d ${configDir}                          0700 user users -"
     "d ${secretDir}                          0700 user users -"
     "d ${secretDir}/ssh                      0700 user users -"
+    "z ${secretDir}/ssh/${machine}           0400 root root  -"
     "d ${dataDir}/downloads                  0700 user users -"
     "d ${dataDir}/media                      0700 user users -"
     "d ${dataDir}/media/images/screenshots   0700 user users -"

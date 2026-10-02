@@ -55,6 +55,8 @@ in {
       (mkIf cfg.installMostLsps mostLsps)
     ];
 
+    home.shellAliases.hx-git = "hx $(git diff --name-only --diff-filter=d HEAD)";
+
     programs.helix = {
       enable = true;
       defaultEditor = true;

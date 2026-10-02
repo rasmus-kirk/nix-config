@@ -47,8 +47,6 @@ in {
       sessionVariables = {
         NIXPKGS_ALLOW_UNFREE = "1";
         TERMINAL = "foot";
-        # Fix nix path, see: https://github.com/nix-community/home-manager/issues/2564#issuecomment-994943471
-        NIX_PATH = "\${NIX_PATH:+$NIX_PATH:}$HOME/.nix-defexpr/channels:/nix/var/nix/profiles/per-user/root/channels";
       };
 
       shellAliases = {
