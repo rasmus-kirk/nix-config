@@ -56,6 +56,7 @@ in {
     zsh = {
       enable = true;
       stateDir = stateDir;
+      tokenDir = "${secretDir}/tokens-read-only";
     };
     fonts.enable = true;
     claudeConfig.enable = true;
