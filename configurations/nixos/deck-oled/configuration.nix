@@ -37,6 +37,12 @@ in {
       lockOnUnplug = true;
       sshAgent = true;
     };
+    keyboardLayout.enable = true;
+    # Offload builds to the desktop.
+    remoteBuilds.client = {
+      enable = true;
+      sshKey = "${secretDir}/ssh/deck-oled";
+    };
   };
 
   vpnNamespaces.wg = {
@@ -104,31 +110,6 @@ in {
 
   programs.firefox.enable = true;
 
-  kirk.keyboardLayout.enable = true;
-
-  # Offload builds to the desktop.
-  nix.distributedBuilds = true;
-  nix.buildMachines = [
-    {
-      hostName = "desktop-builder"; # SSH alias, configured below
-      sshUser = "nixremote";
-      sshKey = "${secretDir}/ssh/deck-oled";
-      systems = ["x86_64-linux"];
-      protocol = "ssh-ng";
-      maxJobs = 8;
-      speedFactor = 2;
-      supportedFeatures = ["nixos-test" "benchmark" "big-parallel" "kvm"];
-    }
-  ];
-  programs.ssh.knownHosts."desktop-builder".publicKeyFile = ../../../ssh-keys/age/desktop.pub;
-  programs.ssh.extraConfig = ''
-    Host desktop-builder
-      HostKeyAlias desktop-builder
-      HostName desktop.tailb0eb01.ts.net
-      Port 6000
-      User nixremote
-  '';
-
   system.autoUpgrade = {
     enable = true;
     flake = "github:rasmus-kirk/nix-config#deck-oled";
@@ -137,8 +118,7 @@ in {
     dates = "daily";
     persistent = true;
   };
-  systemd.services.nixos-upgrade.serviceConfig.ExecCondition =
-    "${config.nix.package}/bin/nix store info --store ssh-ng://desktop-builder";
+  systemd.services.nixos-upgrade.serviceConfig.ExecCondition = "${config.nix.package}/bin/nix store info --store ssh-ng://desktop-builder";
 
   systemd.tmpfiles.rules = [
     "d ${stateDir}                 0700 user users -"

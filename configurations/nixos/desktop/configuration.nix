@@ -87,6 +87,63 @@ in {
       controllerVolume.enable = true;
     };
     yubikey.enable = true;
+    keyboardLayout.enable = true;
+    # steamRoot must be the dir that ~/.local/share/Steam resolves to (see the tmpfiles links).
+    # Its parent holds a userdata/ tree that Steam never reads.
+    steamShortcuts = {
+      enable = true;
+      user = gameUser;
+      steamRoot = "${stateDir}/${gameUser}/steam";
+      pruneUnmanaged = true;
+      shortcuts = {
+        # The native Jellyfin client needs Wayland protocols that gamescope does not implement.
+        "Jellyfin" = {
+          exe = "${jellyfin-kiosk}/bin/jellyfin-kiosk";
+          portrait = ../../../images/steam/jellyfin-portrait.png; # 600x900
+          landscape = ../../../images/steam/jellyfin-landscape.png; # 920x430
+          hero = ../../../images/steam/jellyfin-hero.png; # 3840x1240
+          logo = ../../../images/steam/jellyfin-logo.png; # 1363x480
+          icon = ../../../images/steam/jellyfin-icon.png; # 1024x1024
+        };
+        "Chromium" = {
+          exe = "${chromium-rasmus}/bin/chromium-rasmus";
+          portrait = ../../../images/steam/chromium-portrait.png; # 600x900
+          landscape = ../../../images/steam/chromium-landscape.png; # 920x430
+          hero = ../../../images/steam/chromium-hero.png; # 1920x620
+          logo = ../../../images/steam/chromium-logo.png; # 4315x1024
+          icon = ../../../images/steam/chromium-icon.png; # 256x256
+        };
+        # Chrome artwork distinguishes this tile from the Chromium tile.
+        "Chromium (Naja)" = {
+          exe = "${chromium-naja}/bin/chromium-naja";
+          portrait = ../../../images/steam/chrome-portrait.png; # 600x900
+          landscape = ../../../images/steam/chrome-landscape.png; # 920x430
+          hero = ../../../images/steam/chrome-hero.png; # 1920x620
+          logo = ../../../images/steam/chrome-logo.png; # 1271x337
+          icon = ../../../images/steam/chrome-icon.png; # 256x256
+        };
+      };
+    };
+    # ROMs, BIOS and saves live in /data/.state/games/<system>, so Syncthing mirrors
+    # them to the Steam Deck. Declared games become tiles through kirk.steamShortcuts.
+    emulation = {
+      enable = true;
+      user = gameUser;
+      group = gameUser;
+      stateDir = "${stateDir}/${gameUser}";
+      ps1.enable = true;
+      switch.enable = true;
+    };
+    # work and deck offload builds here over SSH on port 6000.
+    # Builds over WAN need port 6000 forwarded at the router.
+    # These keys must not be sk keys, because nix-daemon cannot wait for a YubiKey touch.
+    remoteBuilds.server = {
+      enable = true;
+      authorizedKeyFiles = [
+        ../../../ssh-keys/age/work.pub
+        ../../../ssh-keys/age/deck-oled.pub
+      ];
+    };
   };
 
   # -------------------- Nixarr -------------------- #
@@ -211,8 +268,6 @@ in {
   # jovian's Steam module enables the Orca screen reader.
   services.orca.enable = lib.mkForce false;
 
-  kirk.keyboardLayout.enable = true;
-
   # useSteamOSConfig defaults to true with jovian.steam and adds Deck APU amdgpu params
   # and SteamOS services, which are wrong for a desktop dGPU server.
   jovian = {
@@ -233,54 +288,6 @@ in {
   environment.sessionVariables = {
     DXVK_FILTER_DEVICE_NAME = "Radeon";
     VKD3D_FILTER_DEVICE_NAME = "Radeon";
-  };
-
-  # steamRoot must be the dir that ~/.local/share/Steam resolves to (see the tmpfiles links).
-  # Its parent holds a userdata/ tree that Steam never reads.
-  kirk.steamShortcuts = {
-    enable = true;
-    user = gameUser;
-    steamRoot = "${stateDir}/${gameUser}/steam";
-    pruneUnmanaged = true;
-    shortcuts = {
-      # The native Jellyfin client needs Wayland protocols that gamescope does not implement.
-      "Jellyfin" = {
-        exe = "${jellyfin-kiosk}/bin/jellyfin-kiosk";
-        portrait = ../../../images/steam/jellyfin-portrait.png; # 600x900
-        landscape = ../../../images/steam/jellyfin-landscape.png; # 920x430
-        hero = ../../../images/steam/jellyfin-hero.png; # 3840x1240
-        logo = ../../../images/steam/jellyfin-logo.png; # 1363x480
-        icon = ../../../images/steam/jellyfin-icon.png; # 1024x1024
-      };
-      "Chromium" = {
-        exe = "${chromium-rasmus}/bin/chromium-rasmus";
-        portrait = ../../../images/steam/chromium-portrait.png; # 600x900
-        landscape = ../../../images/steam/chromium-landscape.png; # 920x430
-        hero = ../../../images/steam/chromium-hero.png; # 1920x620
-        logo = ../../../images/steam/chromium-logo.png; # 4315x1024
-        icon = ../../../images/steam/chromium-icon.png; # 256x256
-      };
-      # Chrome artwork distinguishes this tile from the Chromium tile.
-      "Chromium (Naja)" = {
-        exe = "${chromium-naja}/bin/chromium-naja";
-        portrait = ../../../images/steam/chrome-portrait.png; # 600x900
-        landscape = ../../../images/steam/chrome-landscape.png; # 920x430
-        hero = ../../../images/steam/chrome-hero.png; # 1920x620
-        logo = ../../../images/steam/chrome-logo.png; # 1271x337
-        icon = ../../../images/steam/chrome-icon.png; # 256x256
-      };
-    };
-  };
-
-  # ROMs, BIOS and saves live in /data/.state/games/<system>, so Syncthing mirrors
-  # them to the Steam Deck. Declared games become tiles through kirk.steamShortcuts.
-  kirk.emulation = {
-    enable = true;
-    user = gameUser;
-    group = gameUser;
-    stateDir = "${stateDir}/${gameUser}";
-    ps1.enable = true;
-    switch.enable = true;
   };
 
   hardware.enableRedistributableFirmware = true;
@@ -335,7 +342,7 @@ in {
     "d /data                        0755 root  root  -"
     "d /data/.state                 0755 root  root  -"
     "d /data/.state/user            0700 user  users -"
-    "d /data/.state/steam           0755 steam steam -"
+    "d /data/.state/steam           0700 steam steam -"
     "d /data/.secret                0700 user  users -"
     "d /data/monero                 0700 user  users -"
     "d /data/tmp                    0700 user  users -"
@@ -349,14 +356,14 @@ in {
 
     # The ~/.config and ~/.local/share rules must precede the links, or tmpfiles
     # creates those parents root-owned and home-manager's linkGeneration fails.
-    "d /data/.state/steam/steam               0755 steam steam -"
-    "d /data/.state/steam/steam-compat        0755 steam steam -"
-    "d /data/.state/steam/gamescope           0755 steam steam -"
-    "d /data/.state/steam/steamos-manager     0755 steam steam -"
+    "d /data/.state/steam/steam               0700 steam steam -"
+    "d /data/.state/steam/steam-compat        0700 steam steam -"
+    "d /data/.state/steam/gamescope           0700 steam steam -"
+    "d /data/.state/steam/steamos-manager     0700 steam steam -"
     "d /data/.state/steam/jellyfin-web        0700 steam steam -"
     "d /data/.state/steam/chromium-rasmus     0700 steam steam -"
     "d /data/.state/steam/chromium-naja       0700 steam steam -"
-    "d /data/.state/steam/jellyfinmediaplayer 0755 steam steam -"
+    "d /data/.state/steam/jellyfinmediaplayer 0700 steam steam -"
     "d /home/steam/.config                    0755 steam steam -"
     "d /home/steam/.local                     0755 steam steam -"
     "d /home/steam/.local/share               0755 steam steam -"
@@ -500,20 +507,6 @@ in {
   users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
     ../../../ssh-keys/yubi.pub
   ];
-
-  # -------------------- Remote builder -------------------- #
-  # work and deck offload builds here over SSH on port 6000.
-  # Builds over WAN need port 6000 forwarded at the router.
-  # These keys must not be sk keys, because nix-daemon cannot wait for a YubiKey touch.
-  users.groups.nixremote = {};
-  users.users.nixremote = {
-    isNormalUser = true;
-    group = "nixremote";
-    openssh.authorizedKeys.keyFiles = [
-      ../../../ssh-keys/age/work.pub
-      ../../../ssh-keys/age/deck-oled.pub
-    ];
-  };
 
   boot.loader.systemd-boot.enable = true;
   boot.loader.efi.canTouchEfiVariables = true;
