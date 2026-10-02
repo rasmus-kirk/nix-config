@@ -10,5 +10,6 @@
     ./yubikey
     ./blockedHosts
     ./cec
+    ./remoteBuilds
   ];
 }

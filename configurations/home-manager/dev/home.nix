@@ -76,7 +76,6 @@ in {
     zsh.shellAliases.wl-copy = "osc-copy";
   };
 
-
   home.packages = with pkgs; [
     curl
     oscclip

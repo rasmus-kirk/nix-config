@@ -335,7 +335,7 @@ in {
     "d /data                        0755 root  root  -"
     "d /data/.state                 0755 root  root  -"
     "d /data/.state/user            0700 user  users -"
-    "d /data/.state/steam           0755 steam steam -"
+    "d /data/.state/steam           0700 steam steam -"
     "d /data/.secret                0700 user  users -"
     "d /data/monero                 0700 user  users -"
     "d /data/tmp                    0700 user  users -"
@@ -349,14 +349,14 @@ in {
 
     # The ~/.config and ~/.local/share rules must precede the links, or tmpfiles
     # creates those parents root-owned and home-manager's linkGeneration fails.
-    "d /data/.state/steam/steam               0755 steam steam -"
-    "d /data/.state/steam/steam-compat        0755 steam steam -"
-    "d /data/.state/steam/gamescope           0755 steam steam -"
-    "d /data/.state/steam/steamos-manager     0755 steam steam -"
+    "d /data/.state/steam/steam               0700 steam steam -"
+    "d /data/.state/steam/steam-compat        0700 steam steam -"
+    "d /data/.state/steam/gamescope           0700 steam steam -"
+    "d /data/.state/steam/steamos-manager     0700 steam steam -"
     "d /data/.state/steam/jellyfin-web        0700 steam steam -"
     "d /data/.state/steam/chromium-rasmus     0700 steam steam -"
     "d /data/.state/steam/chromium-naja       0700 steam steam -"
-    "d /data/.state/steam/jellyfinmediaplayer 0755 steam steam -"
+    "d /data/.state/steam/jellyfinmediaplayer 0700 steam steam -"
     "d /home/steam/.config                    0755 steam steam -"
     "d /home/steam/.local                     0755 steam steam -"
     "d /home/steam/.local/share               0755 steam steam -"
@@ -505,11 +505,9 @@ in {
   # work and deck offload builds here over SSH on port 6000.
   # Builds over WAN need port 6000 forwarded at the router.
   # These keys must not be sk keys, because nix-daemon cannot wait for a YubiKey touch.
-  users.groups.nixremote = {};
-  users.users.nixremote = {
-    isNormalUser = true;
-    group = "nixremote";
-    openssh.authorizedKeys.keyFiles = [
+  kirk.remoteBuilds.server = {
+    enable = true;
+    authorizedKeyFiles = [
       ../../../ssh-keys/age/work.pub
       ../../../ssh-keys/age/deck-oled.pub
     ];

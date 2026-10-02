@@ -71,19 +71,10 @@ in {
   programs.firefox.enable = true;
 
   # -------------------- Remote builder (client) -------------------- #
-  nix.distributedBuilds = true;
-  nix.buildMachines = [
-    {
-      hostName = "desktop-builder"; # SSH alias, configured below
-      sshUser = "nixremote";
-      sshKey = "${secretDir}/ssh/${machine}";
-      systems = ["x86_64-linux"];
-      protocol = "ssh-ng";
-      maxJobs = 8;
-      speedFactor = 2;
-      supportedFeatures = ["nixos-test" "benchmark" "big-parallel" "kvm"];
-    }
-  ];
+  kirk.remoteBuilds.client = {
+    enable = true;
+    sshKey = "${secretDir}/ssh/${machine}";
+  };
 
   systemd.tmpfiles.rules = [
     "d ${dataDir}                            0700 user users -"
@@ -126,15 +117,6 @@ in {
     "C+ /run/dev-secret/tokens-read-only         0550 root dev - ${secretDir}/tokens-read-only"
     "Z  /run/dev-secret/tokens-read-only/*       0440 root dev -"
   ];
-
-  programs.ssh.knownHosts."desktop-builder".publicKeyFile = ../../../ssh-keys/age/desktop.pub;
-  programs.ssh.extraConfig = ''
-    Host desktop-builder
-      HostKeyAlias desktop-builder
-      HostName desktop.tailb0eb01.ts.net
-      Port 6000
-      User nixremote
-  '';
 
   services.pulseaudio.enable = false;
   security.rtkit.enable = true;
