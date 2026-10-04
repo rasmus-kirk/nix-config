@@ -93,7 +93,6 @@ dependencies = [
  "clap",
  "env_logger",
  "evdev",
- "libc",
  "log",
  "serde",
  "serde_json",

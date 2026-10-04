@@ -44,6 +44,7 @@ in {
     };
     zsh = {
       enable = true;
+      stateDir = "/home/${username}/.local/state";
       tokenDir = "/home/${username}/.secret/tokens-read-only";
     };
     claudeConfig.notion.enable = true;

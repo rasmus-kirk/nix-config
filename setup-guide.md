@@ -22,10 +22,7 @@ After the first boot, `nos rebuild` rebuilds the host.
 
 ## YubiKey
 
-SSH, git signing and pam_u2f read the handle of the resident FIDO key from
-`/data/.secret/ssh/id_ed25519_yubi`. To recover it, run the commands below.
-`ssh-keygen -K` asks for the FIDO PIN and a touch. From the installer, use
-`/mnt/data/.secret/ssh`.
+To recover the master key handle of the resident FIDO key, run the commands below:
 
 ```sh
   mkdir -p /data/.secret/ssh
@@ -43,7 +40,8 @@ to decrypt its agenix secrets. `work` and `deck-oled` also use it to log in to
 the remote builder on `desktop`.
 
 The repository keeps each key in `ssh-keys/age/<host>.age`, encrypted to the
-YubiKey. Run `ssh-bootstrap` from the repository to decrypt it.
+YubiKey. Run `ssh-bootstrap` from the repository to decrypt it (requires
+the master key handle).
 
 ```sh
   nix run .#ssh-bootstrap -- <host> /data/.secret/ssh

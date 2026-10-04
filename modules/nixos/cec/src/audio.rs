@@ -1,22 +1,19 @@
 use std::{
-    env,
     f64::consts::PI,
-    fs,
-    io::{BufRead, BufReader},
-    path::PathBuf,
+    io::{BufRead, BufReader, Write},
     process::{Child, Command, Stdio},
-    sync::{Arc, Mutex},
+    sync::{Arc, mpsc::Sender},
     thread,
     time::{Duration, Instant},
 };
 
-use anyhow::Result;
 use log::{debug, info};
 
 use crate::{
     Config, KeepAwake,
-    cec::Cec,
-    util::{quiet, read_full, run, start, stdout},
+    cec::{Cec, UiCmd},
+    daemon::Event,
+    util::{read_full, run, start, stdout},
 };
 
 const AUDIO_WINDOW: Duration = Duration::from_secs(2);
@@ -26,17 +23,14 @@ const TONE_GRACE: Duration = Duration::from_secs(2);
 const RATE: u32 = 8000;
 const TONE_NAME: &str = "cec-keepalive";
 
-/// The sink monitor state that the recorder thread writes and the main loop reads.
-#[derive(Default)]
-struct Monitor {
-    last_heard: Option<Instant>,
-    last_rms: f64,
-    ignore_until: Option<Instant>,
-}
-
-/// Returns the pw-play and pw-record argument that pins a stream to the TV sink.
-fn target(cfg: &Config) -> Option<String> {
-    cfg.sink.as_ref().map(|sink| format!("--target={sink}"))
+/// Returns the pw-play and pw-record arguments that select raw mono samples at RATE and pin the
+/// stream to the TV sink.
+fn stream_args(cfg: &Config) -> impl Iterator<Item = String> {
+    ["--raw", "--format=s16", "--channels=1"]
+        .map(String::from)
+        .into_iter()
+        .chain([format!("--rate={RATE}")])
+        .chain(cfg.sink.as_ref().map(|sink| format!("--target={sink}")))
 }
 
 /// Returns the RMS of the signed 16-bit little-endian samples in buf, or None if buf has no
@@ -54,19 +48,12 @@ fn rms(buf: &[u8]) -> Option<f64> {
     Some((samples.iter().map(|s| s * s).sum::<f64>() / samples.len() as f64).sqrt())
 }
 
-/// Records the TV sink monitor and stores the RMS of each one-second chunk. Sound at or above
-/// threshold sets last_heard. Chunks are skipped until ignore_until, so the keep-alive tone does
-/// not count as sound. Restarts pw-record if it exits.
-fn record(cfg: &Config, monitor: &Mutex<Monitor>) {
+/// Records the TV sink monitor and sends the RMS of each one-second chunk as Rms. Restarts
+/// pw-record if it exits.
+fn record(cfg: &Config, tx: &Sender<Event>) {
     loop {
         let child = Command::new("pw-record")
-            .args([
-                "--raw",
-                "--format=s16",
-                &format!("--rate={RATE}"),
-                "--channels=1",
-            ])
-            .args(target(cfg))
+            .args(stream_args(cfg))
             .args(["-P", "stream.capture.sink=true", "-"])
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
@@ -75,16 +62,8 @@ fn record(cfg: &Config, monitor: &Mutex<Monitor>) {
             let mut out = child.stdout.take().unwrap();
             let mut buf = vec![0; RATE as usize * 2];
             while let Ok(n @ 1..) = read_full(&mut out, &mut buf) {
-                let mut m = monitor.lock().unwrap();
-                if m.ignore_until.is_some_and(|t| Instant::now() < t) {
-                    continue;
-                }
-                let Some(rms) = rms(&buf[..n]) else {
-                    continue;
-                };
-                m.last_rms = rms;
-                if rms >= cfg.keep_awake.threshold {
-                    m.last_heard = Some(Instant::now());
+                if let Some(rms) = rms(&buf[..n]) {
+                    let _ = tx.send(Event::Rms(rms));
                 }
             }
             let _ = child.kill();
@@ -94,33 +73,13 @@ fn record(cfg: &Config, monitor: &Mutex<Monitor>) {
     }
 }
 
-/// Writes the keep-alive tone to a WAV file in XDG_RUNTIME_DIR and returns its path.
-fn make_wav(keep: &KeepAwake) -> Result<PathBuf> {
-    let n = RATE * keep.pulse_seconds.max(1);
+/// Returns the keep-alive tone as signed 16-bit little-endian mono samples at RATE.
+fn tone(keep: &KeepAwake) -> Vec<u8> {
     let amp = keep.amplitude * 32767.0;
     let step = 2.0 * PI * f64::from(keep.frequency) / f64::from(RATE);
-    let dir = env::var_os("XDG_RUNTIME_DIR").map_or_else(|| PathBuf::from("/tmp"), PathBuf::from);
-    let path = dir.join("cec-keepalive.wav");
-    let data_len = n * 2;
-    let mut wav = Vec::with_capacity(44 + data_len as usize);
-    wav.extend_from_slice(b"RIFF");
-    wav.extend_from_slice(&(36 + data_len).to_le_bytes());
-    wav.extend_from_slice(b"WAVEfmt ");
-    wav.extend_from_slice(&16u32.to_le_bytes());
-    wav.extend_from_slice(&1u16.to_le_bytes());
-    wav.extend_from_slice(&1u16.to_le_bytes());
-    wav.extend_from_slice(&RATE.to_le_bytes());
-    wav.extend_from_slice(&(RATE * 2).to_le_bytes());
-    wav.extend_from_slice(&2u16.to_le_bytes());
-    wav.extend_from_slice(&16u16.to_le_bytes());
-    wav.extend_from_slice(b"data");
-    wav.extend_from_slice(&data_len.to_le_bytes());
-    for i in 0..n {
-        let sample = (amp * (step * f64::from(i)).sin()) as i16;
-        wav.extend_from_slice(&sample.to_le_bytes());
-    }
-    fs::write(&path, wav)?;
-    Ok(path)
+    (0..RATE * keep.pulse_seconds.max(1))
+        .flat_map(|i| ((amp * (step * f64::from(i)).sin()) as i16).to_le_bytes())
+        .collect()
 }
 
 /// Returns the first number directly before a percent sign in text, or None if there is none.
@@ -149,7 +108,7 @@ fn sink_state(sink: &str) -> Option<(u32, bool)> {
 
 /// Sets the TV sink volume to pct percent.
 fn set_sink(sink: &str, pct: u32) {
-    let _ = quiet(
+    let _ = run(
         Command::new("pactl").args(["set-sink-volume", sink, &format!("{pct}%")]),
         PACTL_TIMEOUT,
     );
@@ -169,9 +128,9 @@ fn relay(cfg: &Config, cec: &Cec, sink: &str) {
     let steps =
         ((delta.abs() as f64 / f64::from(relay.step_percent)).round_ties_even() as u64).max(1);
     let cmd = if delta > 0 {
-        "volume-up"
+        UiCmd::VolumeUp
     } else {
-        "volume-down"
+        UiCmd::VolumeDown
     };
     for _ in 0..steps {
         cec.volume_key(cmd, false);
@@ -205,78 +164,89 @@ fn watch_volume(cfg: &Config, cec: &Cec, sink: &str) {
     }
 }
 
-/// The TV sink. Records the sink monitor to detect sound, plays the keep-alive tone, and relays
-/// sink volume changes to the AVR.
+/// The TV sink. Tracks sound on the sink monitor, plays the keep-alive tone, and relays sink
+/// volume changes to the AVR.
 pub struct Audio {
     cfg: Arc<Config>,
     cec: Arc<Cec>,
-    monitor: Arc<Mutex<Monitor>>,
+    tone: Arc<[u8]>,
+    player: Option<Child>,
+    last_heard: Option<Instant>,
+    ignore_until: Option<Instant>,
+    pub last_rms: f64,
     pub last_sound: Instant,
-    wav_path: Option<PathBuf>,
-    tone: Option<Child>,
 }
 
 impl Audio {
-    /// Stores cfg and cec. Silence counts from the time the daemon starts.
+    /// Stores cfg and cec and makes the tone. Silence counts from the time the daemon starts.
     pub fn new(cfg: Arc<Config>, cec: Arc<Cec>) -> Self {
         Self {
+            tone: tone(&cfg.keep_awake).into(),
             cfg,
             cec,
-            monitor: Arc::default(),
+            player: None,
+            last_heard: None,
+            ignore_until: None,
+            last_rms: 0.0,
             last_sound: Instant::now(),
-            wav_path: None,
-            tone: None,
+        }
+    }
+
+    /// Stores the RMS of a monitor chunk. Sound at or above threshold sets last_heard. Chunks are
+    /// skipped until ignore_until, so the keep-alive tone does not count as sound.
+    pub fn heard(&mut self, now: Instant, rms: f64) {
+        if self.ignore_until.is_some_and(|t| now < t) {
+            return;
+        }
+        self.last_rms = rms;
+        if rms >= self.cfg.keep_awake.threshold {
+            self.last_heard = Some(now);
         }
     }
 
     /// Returns true if the monitor heard sound in the last AUDIO_WINDOW.
     pub fn playing(&self, now: Instant) -> bool {
-        let last_heard = self.monitor.lock().unwrap().last_heard;
-        last_heard.is_some_and(|t| now - t < AUDIO_WINDOW)
-    }
-
-    /// Returns the RMS of the last monitor chunk.
-    pub fn last_rms(&self) -> f64 {
-        self.monitor.lock().unwrap().last_rms
+        self.last_heard.is_some_and(|t| now - t < AUDIO_WINDOW)
     }
 
     /// Returns true while the keep-alive tone plays.
     fn pulsing(&mut self) -> bool {
-        self.tone
+        self.player
             .as_mut()
             .is_some_and(|c| matches!(c.try_wait(), Ok(None)))
     }
 
-    /// Starts the keep-alive tone on the TV sink, unless it already plays. The monitor ignores the
-    /// sink until TONE_GRACE after the tone ends, so the tone and its tail do not count as sound.
+    /// Starts the keep-alive tone on the TV sink, unless it already plays. A thread writes the
+    /// samples to pw-play. The monitor ignores the sink until TONE_GRACE after the tone ends, so
+    /// the tone and its tail do not count as sound.
     fn pulse(&mut self) {
         if self.pulsing() {
             return;
         }
-        let Some(wav) = &self.wav_path else {
-            return;
-        };
         let child = Command::new("pw-play")
-            .args(["-P", &format!("media.name={TONE_NAME}")])
-            .args(target(&self.cfg))
-            .arg(wav)
+            .args(stream_args(&self.cfg))
+            .args(["-P", &format!("media.name={TONE_NAME}"), "-"])
+            .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .spawn();
-        let Ok(child) = child else {
+        let Ok(mut child) = child else {
             return;
         };
-        self.tone = Some(child);
-        let ignore_until = Instant::now() + self.cfg.keep_awake.pulse() + TONE_GRACE;
-        self.monitor.lock().unwrap().ignore_until = Some(ignore_until);
+        let (mut stdin, tone) = (child.stdin.take().unwrap(), Arc::clone(&self.tone));
+        start(move || {
+            let _ = stdin.write_all(&tone);
+        });
+        self.player = Some(child);
+        self.ignore_until = Some(Instant::now() + self.cfg.keep_awake.pulse() + TONE_GRACE);
         debug!("keep-alive pulse");
     }
 
     /// Kills the keep-alive tone.
     fn stop_pulse(&mut self) {
-        if let Some(mut tone) = self.tone.take() {
-            let _ = tone.kill();
-            let _ = tone.wait();
+        if let Some(mut player) = self.player.take() {
+            let _ = player.kill();
+            let _ = player.wait();
         }
     }
 
@@ -298,13 +268,11 @@ impl Audio {
         }
     }
 
-    /// Writes the tone and starts the recorder if keepAwake is on. Starts the volume relay if
-    /// controllerVolume is on.
-    pub fn start(&mut self) {
+    /// Starts the recorder if keepAwake is on. Starts the volume relay if controllerVolume is on.
+    pub fn start(&self, tx: &Sender<Event>) {
         if self.cfg.keep_awake.enable {
-            self.wav_path = make_wav(&self.cfg.keep_awake).ok();
-            let (cfg, monitor) = (Arc::clone(&self.cfg), Arc::clone(&self.monitor));
-            start(move || record(&cfg, &monitor));
+            let (cfg, tx) = (Arc::clone(&self.cfg), tx.clone());
+            start(move || record(&cfg, &tx));
         }
         if let (true, Some(sink)) = (self.cfg.controller_volume.enable, self.cfg.sink.clone()) {
             let (cfg, cec) = (Arc::clone(&self.cfg), Arc::clone(&self.cec));

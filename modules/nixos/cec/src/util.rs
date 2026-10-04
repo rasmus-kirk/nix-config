@@ -1,23 +1,25 @@
 use std::{
+    collections::HashSet,
     io::{self, Read},
-    os::fd::RawFd,
-    process::{Child, Command, ExitStatus, Output, Stdio},
+    path::{Path, PathBuf},
+    process::{Command, Output, Stdio},
+    sync::{Arc, Mutex},
     thread,
     time::{Duration, Instant},
 };
 
 use anyhow::{Result, bail};
 
-pub const POLL: Duration = Duration::from_secs(1);
-
-/// Waits up to timeout for child to exit and returns its status. Kills child and returns an error
-/// if it does not exit in time.
-fn wait(child: &mut Child, timeout: Duration) -> Result<ExitStatus> {
+/// Runs cmd and returns the completed process with stdout and stderr. Kills cmd and returns an
+/// error if it fails to start or does not exit within timeout.
+pub fn run(cmd: &mut Command, timeout: Duration) -> Result<Output> {
+    let mut child = cmd
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
     let deadline = Instant::now() + timeout;
-    loop {
-        if let Some(status) = child.try_wait()? {
-            return Ok(status);
-        }
+    while child.try_wait()?.is_none() {
         if Instant::now() >= deadline {
             let _ = child.kill();
             let _ = child.wait();
@@ -25,41 +27,7 @@ fn wait(child: &mut Child, timeout: Duration) -> Result<ExitStatus> {
         }
         thread::sleep(Duration::from_millis(10));
     }
-}
-
-/// Runs cmd and returns the completed process with stdout and stderr. Returns an error if cmd
-/// fails to start or does not exit within timeout.
-pub fn run(cmd: &mut Command, timeout: Duration) -> Result<Output> {
-    let mut child = cmd
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()?;
-    let status = wait(&mut child, timeout)?;
-    let mut stdout = Vec::new();
-    let mut stderr = Vec::new();
-    if let Some(mut out) = child.stdout.take() {
-        out.read_to_end(&mut stdout)?;
-    }
-    if let Some(mut err) = child.stderr.take() {
-        err.read_to_end(&mut stderr)?;
-    }
-    Ok(Output {
-        status,
-        stdout,
-        stderr,
-    })
-}
-
-/// Runs cmd and discards its output. Returns an error if cmd fails to start or does not exit
-/// within timeout.
-pub fn quiet(cmd: &mut Command, timeout: Duration) -> Result<ExitStatus> {
-    let mut child = cmd
-        .stdin(Stdio::null())
-        .stdout(Stdio::null())
-        .stderr(Stdio::null())
-        .spawn()?;
-    wait(&mut child, timeout)
+    Ok(child.wait_with_output()?)
 }
 
 /// Returns the stdout of p as text.
@@ -84,30 +52,32 @@ pub fn read_full(r: &mut impl Read, buf: &mut [u8]) -> io::Result<usize> {
     Ok(n)
 }
 
-/// Waits up to timeout for one of fds to be ready and returns the indices of the ready fds. A
-/// node with an error or hangup counts as ready, so its read reports the error. Returns no
-/// indices on timeout or if poll fails, for example on a signal.
-pub fn poll_ready(fds: &[RawFd], timeout: Duration) -> Vec<usize> {
-    let mut pfds: Vec<libc::pollfd> = fds
-        .iter()
-        .map(|&fd| libc::pollfd {
-            fd,
-            events: libc::POLLIN,
-            revents: 0,
-        })
-        .collect();
-    let ms = timeout.as_millis() as libc::c_int;
-    if unsafe { libc::poll(pfds.as_mut_ptr(), pfds.len() as libc::nfds_t, ms) } <= 0 {
-        return Vec::new();
-    }
-    pfds.iter()
-        .enumerate()
-        .filter(|(_, p)| p.revents != 0)
-        .map(|(i, _)| i)
-        .collect()
-}
-
 /// Runs f in a detached thread.
 pub fn start(f: impl FnOnce() + Send + 'static) {
     thread::spawn(f);
+}
+
+/// Every interval, starts a thread that runs read for each node that list returns and no thread
+/// reads. A node is read again only after its read returns, for example at EOF or after the
+/// device is gone.
+pub fn watch_nodes(
+    interval: Duration,
+    list: fn() -> Vec<PathBuf>,
+    read: impl Fn(&Path) + Send + Sync + 'static,
+) {
+    let read = Arc::new(read);
+    let open = Arc::new(Mutex::new(HashSet::new()));
+    loop {
+        for path in list() {
+            if !open.lock().unwrap().insert(path.clone()) {
+                continue;
+            }
+            let (read, open) = (Arc::clone(&read), Arc::clone(&open));
+            start(move || {
+                read(&path);
+                open.lock().unwrap().remove(&path);
+            });
+        }
+        thread::sleep(interval);
+    }
 }

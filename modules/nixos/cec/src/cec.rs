@@ -1,4 +1,5 @@
 use std::{
+    fmt,
     process::{Command, Output},
     sync::{
         Arc, Mutex,
@@ -17,6 +18,42 @@ use crate::{
 
 const CEC_TIMEOUT: Duration = Duration::from_secs(4);
 const POWER_POLL: Duration = Duration::from_secs(5);
+
+/// A power command for the TV.
+#[derive(Clone, Copy, PartialEq)]
+pub enum TvAction {
+    Standby,
+    ImageViewOn,
+}
+
+impl fmt::Display for TvAction {
+    /// Writes the cec-ctl name of the command.
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(match self {
+            Self::Standby => "standby",
+            Self::ImageViewOn => "image-view-on",
+        })
+    }
+}
+
+/// A user control command for the audio system.
+#[derive(Clone, Copy)]
+pub enum UiCmd {
+    VolumeUp,
+    VolumeDown,
+    Mute,
+}
+
+impl fmt::Display for UiCmd {
+    /// Writes the cec-ctl name of the command.
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(match self {
+            Self::VolumeUp => "volume-up",
+            Self::VolumeDown => "volume-down",
+            Self::Mute => "mute",
+        })
+    }
+}
 
 /// Returns ok, no reply, nack/timeout or rc=N for a cec-ctl transmit, for the journal.
 fn transmit_result(p: &Option<Output>) -> String {
@@ -44,8 +81,8 @@ fn pwr_state(text: &str) -> Option<bool> {
     Some(state.starts_with("on"))
 }
 
-/// The CEC bus and the TV power state. All cec-ctl calls go through one lock, so the power poll
-/// thread and the main loop do not interleave on the adapter.
+/// The CEC bus and the TV power state. All cec-ctl calls go through one lock, so the threads do
+/// not interleave on the adapter.
 pub struct Cec {
     cfg: Arc<Config>,
     lock: Mutex<()>,
@@ -120,19 +157,19 @@ impl Cec {
     }
 
     /// Sends action to the TV, logs reason and the result, and records the new TV power state.
-    pub fn tv(&self, action: &str, reason: &str) {
+    pub fn tv(&self, action: TvAction, reason: &str) {
         info!("{reason} -> {action}");
         let la = self.cfg.tv_logical_address.to_string();
         let p = self.send(&["--to", &la, &format!("--{action}")]);
         info!("{reason} -> {action}: {}", transmit_result(&p));
         self.tv_on
-            .store(action == "image-view-on", Ordering::Relaxed);
+            .store(action == TvAction::ImageViewOn, Ordering::Relaxed);
     }
 
     /// Sends ui_cmd to the audio system as a user control press and release. CEC volume goes to the
     /// AVR because the TV has no CEC control of its own speakers. Logs only when log_it is true, so
     /// autorepeat does not fill the journal.
-    pub fn volume_key(&self, ui_cmd: &str, log_it: bool) {
+    pub fn volume_key(&self, ui_cmd: UiCmd, log_it: bool) {
         if log_it {
             info!("{ui_cmd} pressed -> audio system");
         }
