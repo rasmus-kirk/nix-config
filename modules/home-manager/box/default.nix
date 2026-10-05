@@ -18,6 +18,13 @@ in {
       description = "User account inside the box.";
     };
 
+    stateDir = mkOption {
+      type = types.str;
+      default = "${config.xdg.stateHome}/box";
+      defaultText = literalExpression ''"''${config.xdg.stateHome}/box"'';
+      description = "Host directory for persistent box state, ie. the nix cache and zsh history.";
+    };
+
     homeManagerPackage = mkOption {
       type = types.package;
       example = literalExpression "inputs.self.homeConfigurations.sandbox.activationPackage";
@@ -130,8 +137,9 @@ in {
               ''}
             fi
 
-            mkdir -p ${config.xdg.cacheHome}/box/nix
-            args+=(--bind ${config.xdg.cacheHome}/box/nix ${boxHome}/.cache/nix)
+            mkdir -p ${cfg.stateDir}/nix ${cfg.stateDir}/zsh
+            args+=(--bind ${cfg.stateDir}/nix ${boxHome}/.cache/nix)
+            args+=(--bind ${cfg.stateDir}/zsh ${boxHome}/.local/state/zsh)
 
             if [ "''${argc_rw:-0}" = 1 ]; then
               # Read-write mode.

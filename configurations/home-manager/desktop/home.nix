@@ -62,6 +62,7 @@ in {
     claudeConfig.enable = true;
     box = {
       enable = true;
+      stateDir = "${stateDir}/box";
       homeManagerPackage = inputs.self.homeConfigurations.sandbox.activationPackage;
       yubiHandle = "${secretDir}/ssh/id_ed25519_yubi";
       tokenDir = "${secretDir}/tokens-read-only";
