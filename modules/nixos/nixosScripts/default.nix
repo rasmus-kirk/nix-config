@@ -54,6 +54,10 @@ with lib; let
         echo -e "\033[1;37m[NOS-INFO]:\033[0m $*"
       }
 
+      error() {
+        echo -e "\033[1;37m[\033[1;31mNOS-ERROR\033[1;37m]:\033[0m $*" >&2
+      }
+
       # @cmd Rebuild and switch to the NixOS configuration.
       rebuild() {
         info "Rebuilding NixOS configuration..."
@@ -102,6 +106,11 @@ with lib; let
         git -C "${cfg.configDir}" add .
         nixos-rebuild build ${rebuildFlags}
       }
+
+      if [[ $EUID -eq 0 ]]; then
+        error "Do not run nos as root, it calls sudo itself."
+        exit 1
+      fi
 
       eval "$(argc --argc-eval "$0" "$@")"
     '';

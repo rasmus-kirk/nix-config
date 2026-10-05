@@ -124,6 +124,17 @@ in {
         };
       };
     };
+    sandboxedGames = {
+      enable = true;
+      stateDir = "/persist/games/samsung/sandboxed";
+      games."Red Dead Redemption 2" = {
+        exe = "TmpGame/Launcher.exe";
+        portrait = ../../../images/steam/rdr2-portrait.png;
+        landscape = ../../../images/steam/rdr2-landscape.png;
+        hero = ../../../images/steam/rdr2-hero.png;
+        logo = ../../../images/steam/rdr2-logo.png;
+      };
+    };
     # ROMs, BIOS and saves live in /data/.state/games/<system>, so Syncthing mirrors
     # them to the Steam Deck. Declared games become tiles through kirk.steamShortcuts.
     emulation = {
@@ -265,6 +276,19 @@ in {
 
   # -------------------- Desktop / Gaming -------------------- #
 
+  services.xserver.enable = true;
+  # Plasma is the Switch-to-Desktop target; gamescope game mode is the boot session.
+  # jovian.steam provides SDDM, so no separate display manager is set.
+  services.desktopManager.plasma6.enable = true;
+  # foot and helix replace konsole and kate.
+  environment.plasma6.excludePackages = with pkgs.kdePackages; [
+    konsole
+    kate
+    elisa
+    khelpcenter
+    kwallet-pam
+    kwalletmanager
+  ];
   # jovian's Steam module enables the Orca screen reader.
   services.orca.enable = lib.mkForce false;
 
@@ -275,7 +299,7 @@ in {
     steam = {
       enable = true;
       autoStart = true;
-      desktopSession = "gamescope-wayland";
+      desktopSession = "plasma";
       user = gameUser;
     };
     hardware.has.amd.gpu = true;
@@ -519,7 +543,7 @@ in {
   # locked `!` hash is the correct and only credential state.
   users.users."${username}" = {
     isNormalUser = true;
-    extraGroups = ["networkmanager" "wheel" "sync"];
+    extraGroups = ["networkmanager" "wheel" "sync" gameUser];
   };
 
   # Graphical seat. Not in wheel, no SSH keys, and not in `input`, `video` or `render`.

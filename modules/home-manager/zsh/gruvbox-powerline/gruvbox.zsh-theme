@@ -102,7 +102,7 @@ prompt_context() {
     # Without this the box shows "dev", since the box keeps the launching
     # account's identity rather than rewriting it.
     ctx="%m"
-  elif [[ $UID -eq 0 || $USERNAME == dev ]]; then
+  elif [[ $UID -eq 0 || $USERNAME != user ]]; then
     ctx="%n"
   else
     ctx="%m"
@@ -222,20 +222,20 @@ prompt_hg() {
 }
 
 # Dir: current working directory. Colour identifies which account the shell
-# belongs to: box green, dev yellow, user red.
+# belongs to: box green, user and root red, every other account yellow.
 #
 # The box check comes first and keys off BOX (set via bwrap --setenv) rather
 # than the username: the box is a bwrap sandbox running as the *same* uid as
-# the launching account, so $USERNAME is unchanged in there. Root, and any
-# account not named here, falls through to red.
+# the launching account, so $USERNAME is unchanged in there. Any
+# account not named here falls through to yellow.
 prompt_dir() {
   local dir_bg
   if [[ -n ${BOX:-} ]]; then
     dir_bg=2
-  elif [[ $USERNAME == dev ]]; then
-    dir_bg=214
-  else
+  elif [[ $USERNAME == user || $UID -eq 0 ]]; then
     dir_bg=1
+  else
+    dir_bg=214
   fi
   prompt_segment $dir_bg $CURRENT_FG '%~'
 }
