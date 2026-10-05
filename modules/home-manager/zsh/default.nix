@@ -21,7 +21,7 @@ in {
     tokenDir = mkOption {
       type = with types; nullOr str;
       default = null;
-      example = "/data/.secret/tokens-read-only";
+      example = "/run/tokens/user";
       description = "Directory of read-only tokens. Each file is exported as an env var named after the file.";
     };
   };

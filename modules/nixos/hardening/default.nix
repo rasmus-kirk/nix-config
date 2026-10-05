@@ -13,6 +13,8 @@ in {
   config = mkIf cfg.enable {
     boot.tmp.cleanOnBoot = true;
 
+    boot.kernel.sysctl."dev.tty.legacy_tiocsti" = 0;
+
     security.sudo = {
       execWheelOnly = true;
       extraConfig = ''

@@ -247,6 +247,7 @@
     homeConfigurations = {
       sandbox = mkSandbox "user";
       sandbox-dev = mkSandbox "dev";
+      installer = mkSandbox "nixos";
     };
   };
 }

@@ -32,14 +32,14 @@ in {
     yazi.enable = true;
     zsh = {
       enable = true;
-      tokenDir = "/run/dev-secret/tokens-read-only";
+      tokenDir = "/run/tokens/dev";
     };
     box = {
       enable = true;
       user = username;
       homeManagerPackage = inputs.self.homeConfigurations."sandbox-dev".activationPackage;
       yubiHandle = "/run/dev-secret/ssh/id_ed25519_yubi";
-      tokenDir = "/run/dev-secret/tokens-read-only";
+      tokenDir = "/run/tokens/dev";
     };
   };
 

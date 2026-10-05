@@ -62,7 +62,7 @@ in {
     zsh = {
       enable = true;
       stateDir = stateDir;
-      tokenDir = "${secretDir}/tokens-read-only";
+      tokenDir = "/run/tokens/user";
     };
     fonts.enable = true;
     box = {
@@ -70,7 +70,7 @@ in {
       stateDir = "${stateDir}/box";
       homeManagerPackage = inputs.self.homeConfigurations.sandbox.activationPackage;
       yubiHandle = "${secretDir}/ssh/id_ed25519_yubi";
-      tokenDir = "${secretDir}/tokens-read-only";
+      tokenDir = "/run/tokens/user";
     };
     chromiumLaunchers = {
       enable = true;

@@ -57,6 +57,7 @@ in {
 
     (mkIf cfg.client.enable {
       nix.distributedBuilds = true;
+      nix.settings.builders-use-substitutes = true;
       nix.buildMachines = [
         {
           hostName = "desktop-builder";

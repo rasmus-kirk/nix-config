@@ -22,7 +22,7 @@ in {
       type = types.str;
       default = "${config.xdg.stateHome}/box";
       defaultText = literalExpression ''"''${config.xdg.stateHome}/box"'';
-      description = "Host directory for persistent box state, ie. the nix cache and zsh history.";
+      description = "Host directory for persistent box state, ie. the nix cache, zsh history and Claude Code state.";
     };
 
     homeManagerPackage = mkOption {
@@ -41,7 +41,7 @@ in {
     tokenDir = mkOption {
       type = with types; nullOr str;
       default = null;
-      example = "/data/.secret/tokens-read-only";
+      example = "/run/tokens/user";
       description = "Directory of read-only tokens, mounted at ~/.secret/tokens-read-only in the box. Used only with `--tokens`.";
     };
   };
@@ -54,17 +54,16 @@ in {
         inheritPath = false;
         text = ''
           # @describe Bubblewrap sandbox.
-          # @meta version 0.6.0
+          # @meta version 0.7.0
           # @flag --net                 Share the host's network.
           # @flag --rw                  Bind $PWD read-write (default is read-only).
           # @flag --yubi                Expose the YubiKey and its SSH key handle.
-          # @flag --claude              Bind the host's Claude Code state (~/.claude).
           # @flag --tokens              Mount the read-only tokens in tokenDir.
 
           main() {
             local args=(
               --tmpfs /
-              --ro-bind /nix /nix
+              --ro-bind /nix/store /nix/store
               --bind-try /nix/var/nix/daemon-socket /nix/var/nix/daemon-socket
               --proc /proc
               --dev /dev
@@ -117,16 +116,6 @@ in {
               ''}
             fi
 
-            # Mount Claude state dir.
-            if [ "''${argc_claude:-0}" = 1 ]; then
-              mkdir -p ${config.home.homeDirectory}/.claude
-              if [ ! -e ${config.home.homeDirectory}/.claude.json ]; then
-                echo '{}' > ${config.home.homeDirectory}/.claude.json
-              fi
-              args+=(--bind ${config.home.homeDirectory}/.claude ${boxHome}/.claude)
-              args+=(--bind ${config.home.homeDirectory}/.claude.json ${boxHome}/.claude.json)
-            fi
-
             if [ "''${argc_tokens:-0}" = 1 ]; then
               ${optionalString (cfg.tokenDir != null) ''
                 args+=(--ro-bind-try ${cfg.tokenDir} ${boxTokenDir})
@@ -137,9 +126,12 @@ in {
               ''}
             fi
 
-            mkdir -p ${cfg.stateDir}/nix ${cfg.stateDir}/zsh
+            mkdir -p ${cfg.stateDir}/nix ${cfg.stateDir}/zsh ${cfg.stateDir}/claude
+            [ -e ${cfg.stateDir}/claude.json ] || echo '{}' > ${cfg.stateDir}/claude.json
             args+=(--bind ${cfg.stateDir}/nix ${boxHome}/.cache/nix)
             args+=(--bind ${cfg.stateDir}/zsh ${boxHome}/.local/state/zsh)
+            args+=(--bind ${cfg.stateDir}/claude ${boxHome}/.claude)
+            args+=(--bind ${cfg.stateDir}/claude.json ${boxHome}/.claude.json)
 
             if [ "''${argc_rw:-0}" = 1 ]; then
               # Read-write mode.

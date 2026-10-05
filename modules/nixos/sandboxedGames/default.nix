@@ -28,7 +28,7 @@ with lib; let
     pkgs.writeShellScriptBin (binOf name) ''
       exec ${pkgs.bubblewrap}/bin/bwrap \
         --unshare-net --unshare-pid --unshare-ipc --unshare-uts --unshare-cgroup \
-        --new-session --die-with-parent \
+        --new-session --die-with-parent --clearenv \
         --proc /proc --dev /dev --dev-bind /dev/dri /dev/dri \
         --ro-bind /sys /sys \
         --ro-bind /nix/store /nix/store \
@@ -37,11 +37,13 @@ with lib; let
         --tmpfs /tmp \
         --tmpfs "$XDG_RUNTIME_DIR" \
         --ro-bind "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" \
-        --ro-bind-try "$XDG_RUNTIME_DIR/pipewire-0" "$XDG_RUNTIME_DIR/pipewire-0" \
         --ro-bind-try "$XDG_RUNTIME_DIR/pulse" "$XDG_RUNTIME_DIR/pulse" \
         --bind ${stateOf name} "$HOME" \
         --ro-bind ${builtins.dirOf exe} ${builtins.dirOf exe} \
-        --unsetenv DISPLAY \
+        --setenv HOME "$HOME" \
+        --setenv XDG_RUNTIME_DIR "$XDG_RUNTIME_DIR" \
+        --setenv WAYLAND_DISPLAY "$WAYLAND_DISPLAY" \
+        --setenv LANG "''${LANG:-C.UTF-8}" \
         --setenv SDL_VIDEODRIVER wayland \
         -- ${exe} "$@"
     '';

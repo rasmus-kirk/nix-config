@@ -33,6 +33,10 @@ in {
     };
     hardening.enable = true;
     devUser.enable = true;
+    tokens = {
+      user = ["CLAUDE_CODE_OAUTH_TOKEN" "GH_TOKEN" "LINEAR_API_KEY" "NOTION_TOKEN"];
+      dev = ["CLAUDE_CODE_OAUTH_TOKEN" "GH_TOKEN" "LINEAR_API_KEY" "NOTION_TOKEN"];
+    };
     yubikey = {
       enable = true;
       lockOnUnplug = true;
@@ -112,8 +116,6 @@ in {
     "d  /run/dev-secret/ssh                      0550 root dev -"
     "C+ /run/dev-secret/ssh/id_ed25519_yubi      0440 root dev - ${secretDir}/ssh/id_ed25519_yubi"
     "C+ /run/dev-secret/ssh/id_ed25519_yubi.pub  0444 root dev - ${secretDir}/ssh/id_ed25519_yubi.pub"
-    "C+ /run/dev-secret/tokens-read-only         0550 root dev - ${secretDir}/tokens-read-only"
-    "Z  /run/dev-secret/tokens-read-only/*       0440 root dev -"
   ];
 
   services.pulseaudio.enable = false;

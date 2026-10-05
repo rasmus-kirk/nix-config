@@ -47,6 +47,7 @@ in {
       stateDir = "/home/${username}/.local/state";
       tokenDir = "/home/${username}/.secret/tokens-read-only";
     };
+    claudeConfig.enable = true;
     claudeConfig.notion.enable = true;
     claudeConfig.mcpServers.linear = {
       type = "http";
@@ -101,5 +102,8 @@ in {
     curl
 
     wl-clipboard
+
+    age
+    age-plugin-fido2-hmac
   ];
 }

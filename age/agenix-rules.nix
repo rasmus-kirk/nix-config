@@ -1,13 +1,22 @@
 let
-  key = name: builtins.replaceStrings ["\n"] [""] (builtins.readFile ../ssh-keys/age/${name}.pub);
-  to = hosts: {publicKeys = map key (hosts ++ ["yubi"]);};
+  desktop = builtins.replaceStrings ["\n"] [""] (builtins.readFile ../ssh-keys/age/desktop.pub);
+  deck-oled = builtins.replaceStrings ["\n"] [""] (builtins.readFile ../ssh-keys/age/deck-oled.pub);
+  work = builtins.replaceStrings ["\n"] [""] (builtins.readFile ../ssh-keys/age/work.pub);
+  yubi = builtins.replaceStrings ["\n"] [""] (builtins.readFile ../ssh-keys/age/yubi.pub);
 in {
-  "desktop/airvpn-wg.conf.age" = to ["desktop"];
-  "desktop/mam.age" = to ["desktop"];
-  "desktop/mam-vpn.age" = to ["desktop"];
+  # Desktop
+  "desktop/airvpn-wg.conf.age".publicKeys = [yubi desktop];
+  "desktop/mam.age".publicKeys = [yubi desktop];
+  "desktop/mam-vpn.age".publicKeys = [yubi desktop];
 
-  "deck-oled/hosts.age" = to ["deck-oled"];
-  "deck-oled/wg.conf.age" = to ["deck-oled"];
+  # Deck-oled
+  "deck-oled/hosts.age".publicKeys = [yubi deck-oled];
+  "deck-oled/wg.conf.age".publicKeys = [yubi deck-oled];
 
-  "shared/blocked-hosts.age" = to ["work" "deck-oled"];
+  # Shared
+  "shared/blocked-hosts.age".publicKeys = [yubi desktop work deck-oled];
+  "shared/tokens/CLAUDE_CODE_OAUTH_TOKEN.age".publicKeys = [yubi desktop work];
+  "shared/tokens/GH_TOKEN.age".publicKeys = [yubi desktop work];
+  "shared/tokens/LINEAR_API_KEY.age".publicKeys = [yubi desktop work];
+  "shared/tokens/NOTION_TOKEN.age".publicKeys = [yubi desktop work];
 }

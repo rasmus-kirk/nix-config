@@ -20,6 +20,18 @@ No account has a password, and login reads the YubiKey handle. Recover it into
 
 After the first boot, `nos rebuild` rebuilds the host.
 
+## Installer Environment
+
+To get zsh, helix, yazi and a logged-in `claude` on the USB, run this from the
+cloned repository with the YubiKey plugged in:
+
+```sh
+  nix run .#homeConfigurations.installer.activationPackage
+  mkdir -p -m 700 ~/.secret/tokens-read-only
+  age -d -j fido2-hmac -o ~/.secret/tokens-read-only/CLAUDE_CODE_OAUTH_TOKEN age/shared/tokens/CLAUDE_CODE_OAUTH_TOKEN.age
+  zsh
+```
+
 ## YubiKey
 
 To recover the master key handle of the resident FIDO key, run the commands below:

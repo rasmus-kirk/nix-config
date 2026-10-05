@@ -11,5 +11,6 @@
     ./blockedHosts
     ./cec
     ./remoteBuilds
+    ./tokens
   ];
 }
