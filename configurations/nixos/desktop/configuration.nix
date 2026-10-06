@@ -543,6 +543,7 @@ in {
   # locked `!` hash is the correct and only credential state.
   users.users."${username}" = {
     isNormalUser = true;
+    hashedPassword = "!";
     extraGroups = ["networkmanager" "wheel" "sync" gameUser];
   };
 
@@ -550,6 +551,7 @@ in {
   users.groups."${gameUser}" = {};
   users.users."${gameUser}" = {
     isNormalUser = true;
+    hashedPassword = "!";
     group = gameUser;
     extraGroups = ["networkmanager"];
   };

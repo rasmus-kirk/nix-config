@@ -126,8 +126,10 @@ in {
     wireplumber.enable = true;
   };
 
+  users.mutableUsers = false;
   users.users.user = {
     isNormalUser = true;
+    hashedPassword = "!";
     description = "Rasmus Kirk";
     extraGroups = ["networkmanager" "wheel" "yubikey"];
   };

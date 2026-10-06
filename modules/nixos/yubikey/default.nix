@@ -51,7 +51,10 @@ in {
   config = mkIf cfg.enable {
     security.pam.services = {
       login.u2fAuth = true;
-      sudo.u2fAuth = true;
+      sudo = {
+        u2fAuth = true;
+        unixAuth = false;
+      };
       sddm.u2fAuth = mkIf config.services.displayManager.sddm.enable true;
       kde.u2fAuth = mkIf config.services.desktopManager.plasma6.enable true;
       cosmic-greeter = mkIf config.services.displayManager.cosmic-greeter.enable {
