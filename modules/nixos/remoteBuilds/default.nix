@@ -40,6 +40,7 @@ in {
       users.groups.nixremote = {};
       users.users.nixremote = {
         isNormalUser = true;
+        hashedPassword = "!";
         group = "nixremote";
         openssh.authorizedKeys.keyFiles = cfg.server.authorizedKeyFiles;
       };

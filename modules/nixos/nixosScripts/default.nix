@@ -54,11 +54,19 @@ with lib; let
         echo -e "\033[1;37m[NOS-INFO]:\033[0m $*"
       }
 
+      error() {
+        echo -e "\033[1;37m[\033[1;31mNOS-ERROR\033[1;37m]:\033[0m $*" >&2
+      }
+
+      as-user() {
+        sudo -u "$SUDO_USER" "$@"
+      }
+
       # @cmd Rebuild and switch to the NixOS configuration.
       rebuild() {
         info "Rebuilding NixOS configuration..."
-        git -C "${cfg.configDir}" add .
-        sudo nixos-rebuild switch ${rebuildFlags}
+        as-user git -C "${cfg.configDir}" add .
+        nixos-rebuild switch ${rebuildFlags}
       }
 
       # @cmd Update, rebuild and garbage collect.
@@ -76,15 +84,15 @@ with lib; let
       # @cmd Delete generations older than ${toString cfg.garbageCollectionDays} days and optimise the nix store.
       garbage-collect() {
         info "Garbage collecting..."
-        sudo nix profile wipe-history --profile /nix/var/nix/profiles/system --older-than ${toString cfg.garbageCollectionDays}d
-        sudo nix store gc
-        sudo nix store optimise
+        nix profile wipe-history --profile /nix/var/nix/profiles/system --older-than ${toString cfg.garbageCollectionDays}d
+        nix store gc
+        nix store optimise
       }
 
       # @cmd Update the flake inputs.
       update() {
         info "Updating flake inputs..."
-        nix flake update --flake "${cfg.configDir}" --no-warn-dirty
+        as-user nix flake update --flake "${cfg.configDir}" --no-warn-dirty
       }
 
       # @cmd Switch to a generation picked with fzf.
@@ -92,16 +100,21 @@ with lib; let
         local gen
         gen=$(nixos-rebuild list-generations | fzf --reverse | grep -oP "^\s*\K\d+")
         info "Activating NixOS generation $gen..."
-        sudo "/nix/var/nix/profiles/system-$gen-link/bin/switch-to-configuration" switch
+        "/nix/var/nix/profiles/system-$gen-link/bin/switch-to-configuration" switch
       }
 
       # @cmd Build the NixOS configuration without switching to it.
       test() {
-        cd "$(mktemp -d)"
+        cd "$(as-user mktemp -d)"
         info "Building the test configuration to \"$PWD\"..."
-        git -C "${cfg.configDir}" add .
-        nixos-rebuild build ${rebuildFlags}
+        as-user git -C "${cfg.configDir}" add .
+        as-user nixos-rebuild build ${rebuildFlags}
       }
+
+      if [[ $EUID -ne 0 ]]; then
+        info "Escelating privileges..."
+        exec sudo "$0" "$@"
+      fi
 
       eval "$(argc --argc-eval "$0" "$@")"
     '';
@@ -208,7 +221,7 @@ in {
 
     home-manager.sharedModules = mkIf cfg.enableZshIntegration [
       ({config, ...}: {
-        programs.zsh.initContent = mkIf config.programs.zsh.enable "${staleCheck}/bin/nos-stale-check";
+        programs.zsh.initContent = mkIf config.programs.zsh.enable (mkBefore "${staleCheck}/bin/nos-stale-check");
       })
     ];
 
