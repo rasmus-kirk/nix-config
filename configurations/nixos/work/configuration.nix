@@ -127,6 +127,7 @@ in {
   };
 
   users.mutableUsers = false;
+  users.allowNoPasswordLogin = true;
   users.users.user = {
     isNormalUser = true;
     hashedPassword = "!";
