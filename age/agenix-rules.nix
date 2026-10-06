@@ -12,6 +12,10 @@ in {
   # Deck-oled
   "deck-oled/hosts.age".publicKeys = [yubi deck-oled];
   "deck-oled/wg.conf.age".publicKeys = [yubi deck-oled];
+  "deck-oled/nix-signing-key.age".publicKeys = [yubi deck-oled];
+
+  # Work
+  "work/nix-signing-key.age".publicKeys = [yubi work];
 
   # Shared
   "shared/blocked-hosts.age".publicKeys = [yubi desktop work deck-oled];
