@@ -61,8 +61,39 @@ with lib; let
     }
     else {inherit (v) exe launchOptions icon portrait landscape hero logo;};
 
+  normalized = mapAttrs normalize cfg.shortcuts;
+
+  tileName = name: "steam-tile-${toLower (strings.sanitizeDerivationName name)}";
+
+  tilePath = name: "/run/current-system/sw/bin/${tileName name}";
+
+  mkTile = name: s:
+    pkgs.writeShellApplication {
+      name = tileName name;
+      runtimeInputs = [pkgs.coreutils];
+      text = ''
+        log_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/steam-tiles"
+        log="$log_dir/${tileName name}.log"
+        mkdir -p "$log_dir"
+        {
+          date --iso-8601=seconds
+          echo "exe: "${escapeShellArg s.exe}
+          echo "args: $*"
+          echo "--- env"
+          env | sort
+          echo "--- output"
+        } > "$log"
+        cd "$(dirname ${escapeShellArg s.exe})"
+        set +e
+        ${escapeShellArg s.exe} "$@" 2>&1 | tee -a "$log"
+        code=''${PIPESTATUS[0]}
+        echo "--- exit $code" >> "$log"
+        exit "$code"
+      '';
+    };
+
   settings = pkgs.writeText "steam-shortcuts.json" (builtins.toJSON (removeAttrs cfg ["enable" "user"]
-    // {shortcuts = mapAttrs normalize cfg.shortcuts;}));
+    // {shortcuts = mapAttrs (name: s: s // {exe = tilePath name;}) normalized;}));
 in {
   options.kirk.steamShortcuts = {
     enable = mkEnableOption "declaratively-managed non-Steam shortcuts";
@@ -119,6 +150,8 @@ in {
   };
 
   config = mkIf cfg.enable {
+    environment.systemPackages = mapAttrsToList mkTile normalized;
+
     # A user service, because on Jovian only the user instance restarts on each gaming-session entry.
     # No RemainAfterExit, so the unit re-runs each session.
     systemd.user.services.steam-shortcuts = {

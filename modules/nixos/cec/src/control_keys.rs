@@ -1,17 +1,18 @@
 use std::{
     fs, io,
     path::{Path, PathBuf},
-    sync::{Arc, mpsc::Sender},
+    sync::Arc,
     time::Duration,
 };
 
 use evdev::{Device, EventType, KeyCode};
 use log::info;
+use tokio::sync::mpsc::UnboundedSender;
 
 use crate::{
     cec::{Cec, UiCmd},
     daemon::Event,
-    util::{self, watch_nodes},
+    util::watch_nodes,
 };
 
 const RESCAN: Duration = Duration::from_secs(5);
@@ -50,7 +51,7 @@ fn input_nodes() -> Vec<PathBuf> {
 /// key node, so the compositor does not also change the sink. Closing the node releases the grab.
 /// Forwards volume and mute to the AVR and sends Sleep on a sleep key press. Ignores all other
 /// keys and does not log them.
-fn read_keys(path: &Path, cec: &Cec, tx: &Sender<Event>) -> io::Result<()> {
+async fn read_keys(path: &Path, cec: &Cec, tx: &UnboundedSender<Event>) -> io::Result<()> {
     let mut dev = Device::open(path)?;
     if has_volume_keys(&dev) && dev.grab().is_ok() {
         info!(
@@ -58,20 +59,20 @@ fn read_keys(path: &Path, cec: &Cec, tx: &Sender<Event>) -> io::Result<()> {
             dev.name().unwrap_or("?")
         );
     }
+    let mut events = dev.into_event_stream()?;
     loop {
-        for ev in dev.fetch_events()? {
-            if ev.event_type() != EventType::KEY || !matches!(ev.value(), 1 | 2) {
-                continue;
-            }
-            let pressed = ev.value() == 1;
-            let code = KeyCode::new(ev.code());
-            if code == KeyCode::KEY_SLEEP && pressed {
-                let _ = tx.send(Event::Sleep);
-            } else if let Some(cmd) = volume_cmd(code) {
-                cec.volume_key(cmd, pressed);
-            } else if code == KeyCode::KEY_MUTE && pressed {
-                cec.volume_key(UiCmd::Mute, true);
-            }
+        let ev = events.next_event().await?;
+        if ev.event_type() != EventType::KEY || !matches!(ev.value(), 1 | 2) {
+            continue;
+        }
+        let pressed = ev.value() == 1;
+        let code = KeyCode::new(ev.code());
+        if code == KeyCode::KEY_SLEEP && pressed {
+            let _ = tx.send(Event::Sleep);
+        } else if let Some(cmd) = volume_cmd(code) {
+            cec.volume_key(cmd, pressed).await;
+        } else if code == KeyCode::KEY_MUTE && pressed {
+            cec.volume_key(UiCmd::Mute, true).await;
         }
     }
 }
@@ -79,10 +80,11 @@ fn read_keys(path: &Path, cec: &Cec, tx: &Sender<Event>) -> io::Result<()> {
 /// Watches the sleep, volume and mute keys. The daemon can open only the input nodes that udev
 /// gives to its group, the System Control and Consumer Control nodes, and those have no letter
 /// keys.
-pub fn start(cec: Arc<Cec>, tx: Sender<Event>) {
-    util::start(move || {
-        watch_nodes(RESCAN, input_nodes, move |path| {
-            let _ = read_keys(path, &cec, &tx);
-        })
-    });
+pub fn start(cec: Arc<Cec>, tx: UnboundedSender<Event>) {
+    tokio::spawn(watch_nodes(RESCAN, input_nodes, move |path| {
+        let (cec, tx) = (Arc::clone(&cec), tx.clone());
+        async move {
+            let _ = read_keys(&path, &cec, &tx).await;
+        }
+    }));
 }
