@@ -42,7 +42,6 @@ in {
     remoteBuilds.client = {
       enable = true;
       sshKey = "${secretDir}/ssh/deck-oled";
-      signingKeyFile = ../../../age/deck-oled/nix-signing-key.age;
     };
   };
 

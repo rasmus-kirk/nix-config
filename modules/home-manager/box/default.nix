@@ -52,6 +52,7 @@ in {
         name = "box";
         runtimeInputs = with pkgs; [argc bubblewrap coreutils gnugrep];
         inheritPath = false;
+        derivationArgs.preferLocalBuild = true;
         text = ''
           # @describe Bubblewrap sandbox.
           # @meta version 0.7.0
@@ -127,7 +128,7 @@ in {
             fi
 
             mkdir -p ${cfg.stateDir}/nix ${cfg.stateDir}/zsh ${cfg.stateDir}/claude
-            [ -e ${cfg.stateDir}/claude.json ] || echo '{}' > ${cfg.stateDir}/claude.json
+            [ -e ${cfg.stateDir}/claude.json ] || echo '{"hasCompletedOnboarding":true}' > ${cfg.stateDir}/claude.json
             args+=(--bind ${cfg.stateDir}/nix ${boxHome}/.cache/nix)
             args+=(--bind ${cfg.stateDir}/zsh ${boxHome}/.local/state/zsh)
             args+=(--bind ${cfg.stateDir}/claude ${boxHome}/.claude)

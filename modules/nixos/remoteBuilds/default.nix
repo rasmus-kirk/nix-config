@@ -23,13 +23,6 @@ in {
         default = [];
         description = "Client public keys. Must not be sk keys, because nix-daemon cannot wait for a YubiKey touch.";
       };
-
-      trustedPublicKeys = mkOption {
-        type = types.listOf types.str;
-        default = [];
-        example = ["work:8PRVDE3bj/GuQXiGGPujsvGEq8PnRS2G1HlNd4PgJ9Y="];
-        description = "Client signing keys. The daemon rejects unsigned paths from `nixremote`, because it is not a trusted user.";
-      };
     };
 
     client = {
@@ -38,12 +31,6 @@ in {
       sshKey = mkOption {
         type = types.str;
         description = "Private key that nix-daemon uses for the SSH login. Must not be an sk key.";
-      };
-
-      signingKeyFile = mkOption {
-        type = types.path;
-        example = literalExpression "../../../age/work/nix-signing-key.age";
-        description = "Agenix file with the key that signs local builds, so the server accepts them as build inputs.";
       };
     };
   };
@@ -57,7 +44,6 @@ in {
         group = "nixremote";
         openssh.authorizedKeys.keyFiles = cfg.server.authorizedKeyFiles;
       };
-      nix.settings.trusted-public-keys = cfg.server.trustedPublicKeys;
       services.openssh.extraConfig = ''
         Match User nixremote
           ForceCommand ${dispatch}
@@ -73,8 +59,6 @@ in {
     (mkIf cfg.client.enable {
       nix.distributedBuilds = true;
       nix.settings.builders-use-substitutes = true;
-      age.secrets.nix-signing-key.file = cfg.client.signingKeyFile;
-      nix.settings.secret-key-files = [config.age.secrets.nix-signing-key.path];
       nix.buildMachines = [
         {
           hostName = "desktop-builder";

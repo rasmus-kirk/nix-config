@@ -47,7 +47,6 @@ in {
     remoteBuilds.client = {
       enable = true;
       sshKey = "${secretDir}/ssh/${machine}";
-      signingKeyFile = ../../../age/work/nix-signing-key.age;
     };
   };
 

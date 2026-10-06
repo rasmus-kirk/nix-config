@@ -155,10 +155,6 @@ in {
         ../../../ssh-keys/age/work.pub
         ../../../ssh-keys/age/deck-oled.pub
       ];
-      trustedPublicKeys = [
-        "work:8PRVDE3bj/GuQXiGGPujsvGEq8PnRS2G1HlNd4PgJ9Y="
-        "deck-oled:0Y3HME1F6fSRiV9Gn0NR4XLhBp1w5suTz9k5AznbgLE="
-      ];
     };
   };
 
