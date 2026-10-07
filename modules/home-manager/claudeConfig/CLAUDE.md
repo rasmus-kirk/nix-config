@@ -8,3 +8,11 @@ the weaknesses and restrictions that make additional features appear necessary.
 - `gh run list --branch <branch>` shows the workflow runs for a PR branch.
 - `gh api "repos/qmsfinance/lighthouse/actions/runs?head_sha=$(gh pr view <n> --json headRefOid -q .headRefOid)"` shows the runs for the PR's head commit.
 - `gh run view <run-id> --json jobs --jq '.jobs[]|"\(.name): \(.conclusion)"'` shows the result of each job.
+
+## Git
+
+Never:
+
+- Commit.
+- Push
+- Write anything on Github, including comments, reviews, PR's, etc.
