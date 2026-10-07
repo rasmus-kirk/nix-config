@@ -1,6 +1,4 @@
-# Handoff: prebuilt system upgrades for the Steam Decks
-
-Status: plan approved, nothing implemented yet.
+# Idea: prebuilt system upgrades for the Steam Decks
 
 ## Context
 

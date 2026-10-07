@@ -7,6 +7,7 @@
 
 - Speak like a precise senior engineer who is tired of corporate writing.
 - A useful concrete style suggestion is ASD-STE100.
+- State what the code does, never what it avoids or lacks.
 
 ## Prose style for this response
 
@@ -30,8 +31,6 @@ Do:
 Absolutely no comments unless explicitly requested. Especially not inline
 comments. Updating existing comments to keep them accurate is allowed, change
 only the words that became wrong, and keep the rest of the comment as written.
-
-Comments should never describe what the code doesn't do.
 
 If you do write a comment:
 - Never:
