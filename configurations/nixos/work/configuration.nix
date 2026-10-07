@@ -15,6 +15,14 @@ in {
 
   age.identityPaths = ["${secretDir}/ssh/${machine}"];
 
+  age.secrets.ghcr-auth = {
+    file = "${configDir}/age/work/ghcr-auth.age";
+    path = "/home/user/.config/containers/auth.json";
+    owner = "user";
+    group = "users";
+    mode = "0400";
+  };
+
   kirk = {
     locale.enable = true;
     blockedHosts = {

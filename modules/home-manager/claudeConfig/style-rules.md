@@ -31,6 +31,8 @@ Absolutely no comments unless explicitly requested. Especially not inline
 comments. Updating existing comments to keep them accurate is allowed, change
 only the words that became wrong, and keep the rest of the comment as written.
 
+Comments should never describe what the code doesn't do.
+
 If you do write a comment:
 - Never:
   - Use colons (unless it introduces a list)

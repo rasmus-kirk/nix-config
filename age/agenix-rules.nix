@@ -13,6 +13,9 @@ in {
   "deck-oled/hosts.age".publicKeys = [yubi deck-oled];
   "deck-oled/wg.conf.age".publicKeys = [yubi deck-oled];
 
+  # Work
+  "work/ghcr-auth.age".publicKeys = [yubi work];
+
   # Shared
   "shared/blocked-hosts.age".publicKeys = [yubi desktop work deck-oled];
   "shared/tokens/CLAUDE_CODE_OAUTH_TOKEN.age".publicKeys = [yubi desktop work];

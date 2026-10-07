@@ -39,6 +39,7 @@ in {
       notion.enable = true;
     };
     cosmic.enable = true;
+    podman.enable = true;
     scripts.enable = true;
     yazi = {
       enable = true;
