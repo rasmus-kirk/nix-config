@@ -12,6 +12,7 @@
     ./jiten
     ./mpv
     ./mvi
+    ./podman
     ./box
     ./scripts
     ./ssh

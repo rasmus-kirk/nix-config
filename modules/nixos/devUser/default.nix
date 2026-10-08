@@ -24,24 +24,31 @@ in {
       isNormalUser = true;
       description = "Isolated development user";
       group = "dev";
-      # yubikey grants the FIDO hidraw needed to use the sk key.
+      # Group yubikey gives access to the FIDO hidraw device for the sk key.
       extraGroups = ["yubikey"];
-      # Locked: the only way in is sudo from user.
+      # Password login is disabled. Access goes through sudo from the main user.
       hashedPassword = "!";
-      # `sudo -i` creates no logind session, so user timers need lingering.
+      # Keeps dev's user manager running when no session is open.
       linger = true;
       homeMode = "750";
     };
 
     users.users.${cfg.user}.extraGroups = ["dev"];
 
-    # `screenshot` mirrors captures here because dev cannot read /data. Root creates it at boot so
-    # no other uid can claim the name in sticky /tmp. No age field, so tmpfiles cleanup skips it.
+    environment.extraInit = ''
+      if [ -z "$XDG_RUNTIME_DIR" ] && [ -d "/run/user/$(id -u)" ]; then
+        export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+      fi
+    '';
+
+    # `screenshot` copies captures here, since dev cannot read /data.
+    # Root creates the directory at boot, which reserves the name in sticky /tmp.
+    # The missing age field exempts it from tmpfiles cleanup.
     systemd.tmpfiles.rules = [
       "d /tmp/screenshots 0750 ${cfg.user} dev -"
     ];
 
-    # runAs pins the target: grants dev, never root.
+    # runAs limits the target user to dev.
     security.sudo.extraRules = [
       {
         users = [cfg.user];

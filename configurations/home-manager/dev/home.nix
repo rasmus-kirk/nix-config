@@ -11,6 +11,7 @@ in {
   kirk = {
     terminalTools.enable = true;
     helix.enable = true;
+    podman.enable = true;
     scripts.enable = true;
     jiten.enable = true;
     claudeConfig = {

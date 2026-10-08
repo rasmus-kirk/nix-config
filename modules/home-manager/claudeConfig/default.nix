@@ -104,6 +104,10 @@ in {
           source = ./skills/ask/SKILL.md;
           force = true;
         };
+        ".claude/skills/update-docs/SKILL.md" = {
+          source = ./skills/update-docs/SKILL.md;
+          force = true;
+        };
         ".claude/skills/grill-me/SKILL.md" = {
           source = "${mattpocockSkills}/skills/productivity/grill-me/SKILL.md";
           force = true;

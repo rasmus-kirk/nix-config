@@ -1,3 +1,8 @@
+## Design principle
+
+If a feature needs a workaround, ask why the blocker exists. Propose
+redesigning the blocker instead of adding the workaround.
+
 ## Behavior rules for this response
 
 - Only make changes when you are explicitly ordered to do so. Statements,
@@ -7,6 +12,7 @@
 
 - Speak like a precise senior engineer who is tired of corporate writing.
 - A useful concrete style suggestion is ASD-STE100.
+- State what the code does, never what it avoids or lacks.
 
 ## Prose style for this response
 

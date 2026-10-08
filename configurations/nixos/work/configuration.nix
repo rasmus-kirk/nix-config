@@ -15,6 +15,23 @@ in {
 
   age.identityPaths = ["${secretDir}/ssh/${machine}"];
 
+  age.secrets = {
+    ghcr-auth = {
+      file = "${configDir}/age/work/ghcr-auth.age";
+      path = "/home/user/.config/containers/auth.json";
+      owner = "user";
+      group = "users";
+      mode = "0400";
+    };
+    ghcr-auth-dev = {
+      file = "${configDir}/age/work/ghcr-auth.age";
+      path = "/home/dev/.config/containers/auth.json";
+      owner = "dev";
+      group = "dev";
+      mode = "0400";
+    };
+  };
+
   kirk = {
     locale.enable = true;
     blockedHosts = {
@@ -101,6 +118,9 @@ in {
     "d ${stateDir}/claude/state              0755 user users -"
 
     "d /home/user/.config                    0755 user users -"
+    "d /home/user/.config/containers         0755 user users -"
+    "d /home/dev/.config                     0755 dev  dev   -"
+    "d /home/dev/.config/containers          0755 dev  dev   -"
     "d /home/user/.local                     0755 user users -"
     "d /home/user/.local/state               0755 user users -"
     "L+ /home/user/.mozilla                  - - - - ${stateDir}/firefox/home"
