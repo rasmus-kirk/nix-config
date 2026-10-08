@@ -1,3 +1,8 @@
+## Design principle
+
+If a feature needs a workaround, ask why the blocker exists. Propose
+redesigning the blocker instead of adding the workaround.
+
 ## Behavior rules for this response
 
 - Only make changes when you are explicitly ordered to do so. Statements,
