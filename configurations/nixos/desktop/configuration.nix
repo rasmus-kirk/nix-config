@@ -83,7 +83,6 @@ in {
     cec = {
       enable = true;
       user = gameUser;
-      sink = "alsa_output.pci-0000_03_00.1.hdmi-stereo";
       replaceSuspend = true;
       controllerVolume.enable = true;
     };

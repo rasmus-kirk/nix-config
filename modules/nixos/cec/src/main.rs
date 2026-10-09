@@ -17,7 +17,7 @@ use serde::Deserialize;
 /// Runs the daemon with the settings in CONFIG, the kirk.cec options as JSON.
 ///
 /// Puts the TV in standby after idleMinutes without activity. Activity is a sleep key press,
-/// sound on the TV sink, or a powered Steam controller that does not charge. The daemon polls the
+/// sound on the default sink, or a powered Steam controller that does not charge. The daemon polls the
 /// real TV power state over CEC, so it also follows a standby by the TV timer or the TV remote.
 ///
 /// The sleep key toggles the TV. SIGUSR1 has the same effect, so the system suspend action can
@@ -27,7 +27,7 @@ use serde::Deserialize;
 ///
 /// Volume and mute keys go to the AVR over CEC. With keepAwake.enable, a sub-audible tone after
 /// silenceMinutes of silence keeps the speakers out of standby. With controllerVolume.enable,
-/// TV sink volume changes become CEC volume steps to the AVR.
+/// default sink volume changes become CEC volume steps to the AVR.
 #[derive(Parser)]
 #[command(version)]
 struct Cli {
@@ -65,7 +65,6 @@ impl KeepAwake {
 pub struct ControllerVolume {
     pub enable: bool,
     pub reference_percent: u32,
-    pub step_percent: u32,
 }
 
 /// The kirk.cec options, as the JSON file that Nix writes. Unknown or missing keys are an error.
@@ -77,7 +76,6 @@ pub struct Config {
     pub idle_minutes: u64,
     pub tv_logical_address: u8,
     pub audio_system_logical_address: u8,
-    pub sink: Option<String>,
     pub audio_keeps_awake: bool,
     pub debug: bool,
     pub keep_awake: KeepAwake,
@@ -111,8 +109,8 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
     let text = fs::read_to_string(&cli.config)
         .with_context(|| format!("cannot read {}", cli.config.display()))?;
-    let cfg: Config = serde_json::from_str(&text)
+    let config: Config = serde_json::from_str(&text)
         .with_context(|| format!("cannot parse {}", cli.config.display()))?;
-    init_logger(cfg.debug);
-    daemon::Daemon::new(Arc::new(cfg)).run().await
+    init_logger(config.debug);
+    daemon::Daemon::new(Arc::new(config)).run().await
 }

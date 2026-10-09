@@ -1,31 +1,27 @@
 use std::{
     collections::HashMap,
-    io,
     path::PathBuf,
     process::{Output, Stdio},
     time::Duration,
 };
 
 use anyhow::{Result, bail};
-use tokio::{
-    io::{AsyncRead, AsyncReadExt},
-    process::Command,
-    task::JoinHandle,
-    time::sleep,
-};
+use tokio::{process::Command, task::JoinHandle, time::sleep};
+
+const COMMAND_TIMEOUT: Duration = Duration::from_secs(4);
 
 /// Runs cmd and returns the completed process with stdout and stderr. Kills cmd and returns an
-/// error if it fails to start or does not exit within timeout.
-pub async fn run(cmd: &mut Command, timeout: Duration) -> Result<Output> {
+/// error if it fails to start or does not exit within COMMAND_TIMEOUT.
+pub async fn run_command(cmd: &mut Command) -> Result<Output> {
     let child = cmd
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true)
         .spawn()?;
-    match tokio::time::timeout(timeout, child.wait_with_output()).await {
+    match tokio::time::timeout(COMMAND_TIMEOUT, child.wait_with_output()).await {
         Ok(output) => Ok(output?),
-        Err(_) => bail!("timed out after {timeout:?}"),
+        Err(_) => bail!("timed out after {COMMAND_TIMEOUT:?}"),
     }
 }
 
@@ -37,18 +33,6 @@ pub fn stdout(p: &Output) -> String {
 /// Returns the stdout and stderr of p as one lowercase string.
 pub fn output(p: &Output) -> String {
     format!("{}{}", stdout(p), String::from_utf8_lossy(&p.stderr)).to_lowercase()
-}
-
-/// Reads from r until buf is full or r is at EOF, and returns the number of bytes read.
-pub async fn read_full(r: &mut (impl AsyncRead + Unpin), buf: &mut [u8]) -> io::Result<usize> {
-    let mut n = 0;
-    while n < buf.len() {
-        match r.read(&mut buf[n..]).await? {
-            0 => break,
-            k => n += k,
-        }
-    }
-    Ok(n)
 }
 
 /// Every interval, starts a task that runs read for each node that list returns and no task
