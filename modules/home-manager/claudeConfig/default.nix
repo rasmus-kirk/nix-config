@@ -108,6 +108,10 @@ in {
           source = ./skills/update-docs/SKILL.md;
           force = true;
         };
+        ".claude/skills/review-pr/SKILL.md" = {
+          source = ./skills/review-pr/SKILL.md;
+          force = true;
+        };
         ".claude/skills/grill-me/SKILL.md" = {
           source = "${mattpocockSkills}/skills/productivity/grill-me/SKILL.md";
           force = true;
