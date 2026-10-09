@@ -17,12 +17,13 @@ use serde::Deserialize;
 /// Runs the daemon with the settings in CONFIG, the kirk.cec options as JSON.
 ///
 /// Puts the TV in standby after idleMinutes without activity. Activity is a sleep key press,
-/// sound on the TV sink, or a powered Steam controller. The daemon polls the real TV power state
-/// over CEC, so it also follows a standby by the TV timer or the TV remote.
+/// sound on the TV sink, or a powered Steam controller that does not charge. The daemon polls the
+/// real TV power state over CEC, so it also follows a standby by the TV timer or the TV remote.
 ///
 /// The sleep key toggles the TV. SIGUSR1 has the same effect, so the system suspend action can
 /// toggle the TV instead of suspending the box. A controller that connects wakes the TV. Sound
-/// only keeps the TV awake, so a manual standby holds while audio plays.
+/// only keeps the TV awake, so a manual standby holds while audio plays. A controller that
+/// charges on the puck is turned off.
 ///
 /// Volume and mute keys go to the AVR over CEC. With keepAwake.enable, a sub-audible tone after
 /// silenceMinutes of silence keeps the speakers out of standby. With controllerVolume.enable,
@@ -105,12 +106,13 @@ fn init_logger(debug: bool) {
 }
 
 /// Reads the settings in CONFIG and runs the daemon.
-fn main() -> Result<()> {
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<()> {
     let cli = Cli::parse();
     let text = fs::read_to_string(&cli.config)
         .with_context(|| format!("cannot read {}", cli.config.display()))?;
     let cfg: Config = serde_json::from_str(&text)
         .with_context(|| format!("cannot parse {}", cli.config.display()))?;
     init_logger(cfg.debug);
-    daemon::Daemon::new(Arc::new(cfg)).run()
+    daemon::Daemon::new(Arc::new(cfg)).run().await
 }

@@ -1,19 +1,23 @@
 use std::{
     f64::consts::PI,
-    io::{BufRead, BufReader, Write},
-    process::{Child, Command, Stdio},
-    sync::{Arc, mpsc::Sender},
-    thread,
+    process::Stdio,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
 use log::{debug, info};
+use tokio::{
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    process::{Child, Command},
+    sync::mpsc::UnboundedSender,
+    time::sleep,
+};
 
 use crate::{
     Config, KeepAwake,
     cec::{Cec, UiCmd},
     daemon::Event,
-    util::{read_full, run, start, stdout},
+    util::{read_full, run, stdout},
 };
 
 const AUDIO_WINDOW: Duration = Duration::from_secs(2);
@@ -50,26 +54,25 @@ fn rms(buf: &[u8]) -> Option<f64> {
 
 /// Records the TV sink monitor and sends the RMS of each one-second chunk as Rms. Restarts
 /// pw-record if it exits.
-fn record(cfg: &Config, tx: &Sender<Event>) {
+async fn record(cfg: &Config, tx: &UnboundedSender<Event>) {
     loop {
         let child = Command::new("pw-record")
             .args(stream_args(cfg))
             .args(["-P", "stream.capture.sink=true", "-"])
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
+            .kill_on_drop(true)
             .spawn();
         if let Ok(mut child) = child {
             let mut out = child.stdout.take().unwrap();
             let mut buf = vec![0; RATE as usize * 2];
-            while let Ok(n @ 1..) = read_full(&mut out, &mut buf) {
+            while let Ok(n @ 1..) = read_full(&mut out, &mut buf).await {
                 if let Some(rms) = rms(&buf[..n]) {
                     let _ = tx.send(Event::Rms(rms));
                 }
             }
-            let _ = child.kill();
-            let _ = child.wait();
         }
-        thread::sleep(RESTART_DELAY);
+        sleep(RESTART_DELAY).await;
     }
 }
 
@@ -92,33 +95,36 @@ fn percent(text: &str) -> Option<u32> {
 }
 
 /// Returns the TV sink volume in percent and its mute state, or None if pactl fails.
-fn sink_state(sink: &str) -> Option<(u32, bool)> {
+async fn sink_state(sink: &str) -> Option<(u32, bool)> {
     let vol = run(
         Command::new("pactl").args(["get-sink-volume", sink]),
         PACTL_TIMEOUT,
     )
+    .await
     .ok()?;
     let mute = run(
         Command::new("pactl").args(["get-sink-mute", sink]),
         PACTL_TIMEOUT,
     )
+    .await
     .ok()?;
     Some((percent(&stdout(&vol))?, stdout(&mute).contains("yes")))
 }
 
 /// Sets the TV sink volume to pct percent.
-fn set_sink(sink: &str, pct: u32) {
+async fn set_sink(sink: &str, pct: u32) {
     let _ = run(
         Command::new("pactl").args(["set-sink-volume", sink, &format!("{pct}%")]),
         PACTL_TIMEOUT,
-    );
+    )
+    .await;
 }
 
 /// Sends the difference between the TV sink volume and referencePercent to the AVR as CEC
 /// volume steps, then sets the sink back to referencePercent. A muted sink is ignored.
-fn relay(cfg: &Config, cec: &Cec, sink: &str) {
+async fn relay(cfg: &Config, cec: &Cec, sink: &str) {
     let relay = &cfg.controller_volume;
-    let Some((vol, muted)) = sink_state(sink) else {
+    let Some((vol, muted)) = sink_state(sink).await else {
         return;
     };
     if muted || vol == relay.reference_percent {
@@ -133,34 +139,34 @@ fn relay(cfg: &Config, cec: &Cec, sink: &str) {
         UiCmd::VolumeDown
     };
     for _ in 0..steps {
-        cec.volume_key(cmd, false);
+        cec.volume_key(cmd, false).await;
     }
     info!("controller volume {cmd} x{steps} -> AVR (sink was {vol}%)");
-    set_sink(sink, relay.reference_percent);
+    set_sink(sink, relay.reference_percent).await;
 }
 
 /// Holds the TV sink at referencePercent. Runs relay on each sink change event from pactl
 /// subscribe. The reset to referencePercent also makes an event, but it reads as no change, so
 /// there is no feedback loop.
-fn watch_volume(cfg: &Config, cec: &Cec, sink: &str) {
-    set_sink(sink, cfg.controller_volume.reference_percent);
+async fn watch_volume(cfg: &Config, cec: &Cec, sink: &str) {
+    set_sink(sink, cfg.controller_volume.reference_percent).await;
     loop {
         let child = Command::new("pactl")
             .arg("subscribe")
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
+            .kill_on_drop(true)
             .spawn();
         if let Ok(mut child) = child {
-            relay(cfg, cec, sink);
-            let out = BufReader::new(child.stdout.take().unwrap());
-            for line in out.lines().map_while(Result::ok) {
+            relay(cfg, cec, sink).await;
+            let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
                 if line.contains("'change' on sink #") {
-                    relay(cfg, cec, sink);
+                    relay(cfg, cec, sink).await;
                 }
             }
-            let _ = child.wait();
         }
-        thread::sleep(RESTART_DELAY);
+        sleep(RESTART_DELAY).await;
     }
 }
 
@@ -216,7 +222,7 @@ impl Audio {
             .is_some_and(|c| matches!(c.try_wait(), Ok(None)))
     }
 
-    /// Starts the keep-alive tone on the TV sink, unless it already plays. A thread writes the
+    /// Starts the keep-alive tone on the TV sink, unless it already plays. A task writes the
     /// samples to pw-play. The monitor ignores the sink until TONE_GRACE after the tone ends, so
     /// the tone and its tail do not count as sound.
     fn pulse(&mut self) {
@@ -229,13 +235,14 @@ impl Audio {
             .stdin(Stdio::piped())
             .stdout(Stdio::null())
             .stderr(Stdio::null())
+            .kill_on_drop(true)
             .spawn();
         let Ok(mut child) = child else {
             return;
         };
         let (mut stdin, tone) = (child.stdin.take().unwrap(), Arc::clone(&self.tone));
-        start(move || {
-            let _ = stdin.write_all(&tone);
+        tokio::spawn(async move {
+            let _ = stdin.write_all(&tone).await;
         });
         self.player = Some(child);
         self.ignore_until = Some(Instant::now() + self.cfg.keep_awake.pulse() + TONE_GRACE);
@@ -244,10 +251,7 @@ impl Audio {
 
     /// Kills the keep-alive tone.
     fn stop_pulse(&mut self) {
-        if let Some(mut player) = self.player.take() {
-            let _ = player.kill();
-            let _ = player.wait();
-        }
+        self.player = None;
     }
 
     /// While the TV is on, plays the keep-alive tone after silenceMinutes of silence. Stops the tone
@@ -269,14 +273,14 @@ impl Audio {
     }
 
     /// Starts the recorder if keepAwake is on. Starts the volume relay if controllerVolume is on.
-    pub fn start(&self, tx: &Sender<Event>) {
+    pub fn start(&self, tx: &UnboundedSender<Event>) {
         if self.cfg.keep_awake.enable {
             let (cfg, tx) = (Arc::clone(&self.cfg), tx.clone());
-            start(move || record(&cfg, &tx));
+            tokio::spawn(async move { record(&cfg, &tx).await });
         }
         if let (true, Some(sink)) = (self.cfg.controller_volume.enable, self.cfg.sink.clone()) {
             let (cfg, cec) = (Arc::clone(&self.cfg), Arc::clone(&self.cec));
-            start(move || watch_volume(&cfg, &cec, &sink));
+            tokio::spawn(async move { watch_volume(&cfg, &cec, &sink).await });
         }
     }
 }

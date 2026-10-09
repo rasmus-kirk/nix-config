@@ -80,10 +80,11 @@ def steam_running():
 
 def appid(name, shortcut):
     """
-    Returns the unsigned 32-bit appid that Steam computes for a non-Steam shortcut. Grid file
-    names use this value, and shortcuts.vdf stores it as a signed int32.
+    Returns the unsigned 32-bit appid that Steam computes for a non-Steam shortcut, from the
+    quoted exe as stored in shortcuts.vdf plus the name. Grid file names use this value, and
+    shortcuts.vdf stores it as a signed int32.
     """
-    return (zlib.crc32((shortcut.exe + name).encode("utf-8")) & 0xFFFFFFFF) | NON_STEAM_BIT
+    return (zlib.crc32(f'"{shortcut.exe}"{name}'.encode("utf-8")) & 0xFFFFFFFF) | NON_STEAM_BIT
 
 
 def install_art(grid, aid, src, suffix):
