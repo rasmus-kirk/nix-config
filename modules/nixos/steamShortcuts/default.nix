@@ -71,6 +71,7 @@ with lib; let
     pkgs.writeShellApplication {
       name = tileName name;
       runtimeInputs = [pkgs.coreutils];
+      inheritPath = true;
       text = ''
         log_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/steam-tiles"
         log="$log_dir/${tileName name}.log"

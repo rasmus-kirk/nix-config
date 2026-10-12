@@ -14,6 +14,7 @@
   devTerm = pkgs.writeShellApplication {
     name = "dev-term";
     runtimeInputs = [pkgs.foot];
+    inheritPath = false;
     text = ''
       exec foot --app-id=dev-term --title=dev -- /run/wrappers/bin/sudo -u dev -i
     '';

@@ -56,7 +56,9 @@ in {
         t = "$TERMINAL </dev/null &>/dev/null zsh &";
       };
 
-      initContent = ''
+      # First in .zshrc. Stty hides keys typed during init and the print clears keys echoed before it. Zle reads them at the first prompt and zsh restores echo by itself.
+      initContent = mkOrder 0 ''
+        [[ -t 0 ]] && { ${pkgs.coreutils}/bin/stty -echo; print -n '\r\e[K' }
         gc() {
           git clone --recursive $(wl-paste)
         }
