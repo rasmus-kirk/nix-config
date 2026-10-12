@@ -12,6 +12,7 @@ with lib; let
       "rust-analyzer-lsp@claude-plugins-official" = true;
     };
     effortLevel = cfg.effortLevel;
+    model = cfg.model;
     theme = "dark";
     autoMemoryEnabled = false;
     autoDreamEnabled = false;
@@ -54,6 +55,12 @@ in {
       type = types.enum ["low" "medium" "high" "xhigh" "max"];
       default = "low";
       description = "Default Claude Code effort level.";
+    };
+
+    model = mkOption {
+      type = types.str;
+      default = "claude-opus-5-5";
+      description = "Default Claude Code model.";
     };
 
     mcpServers = mkOption {

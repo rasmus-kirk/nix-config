@@ -117,6 +117,7 @@ in {
               ''}
             fi
 
+            # Mount RO-tokens
             if [ "''${argc_tokens:-0}" = 1 ]; then
               ${optionalString (cfg.tokenDir != null) ''
                 args+=(--ro-bind-try ${cfg.tokenDir} ${boxTokenDir})
@@ -127,6 +128,7 @@ in {
               ''}
             fi
 
+            # Create state dirs for zsh history, nix and claude
             mkdir -p ${cfg.stateDir}/nix ${cfg.stateDir}/zsh ${cfg.stateDir}/claude
             [ -e ${cfg.stateDir}/claude.json ] || echo '{"hasCompletedOnboarding":true}' > ${cfg.stateDir}/claude.json
             args+=(--bind ${cfg.stateDir}/nix ${boxHome}/.cache/nix)
@@ -147,6 +149,7 @@ in {
               [ -d "$PWD/.devenv" ] && args+=(--tmpfs "$PWD/.devenv")
             fi
 
+            # Launch the sandbox
             exec bwrap "''${args[@]}" ${pkgs.writeShellScript "box-init" ''
               set -e
               export HOME_MANAGER_BACKUP_EXT=backup
