@@ -9,11 +9,11 @@ use std::{
 };
 
 use log::info;
-use tokio::{process::Command, sync::Mutex, time::sleep};
+use tokio::{sync::Mutex, time::sleep};
 
 use crate::{
     Config,
-    util::{output, run_command, stdout},
+    cmd::{self, output, stdout},
 };
 
 const POWER_POLL: Duration = Duration::from_secs(5);
@@ -98,6 +98,13 @@ impl Cec {
         }
     }
 
+    /// Registers on the CEC bus and starts the TV power poll.
+    pub async fn start(self: &Arc<Self>) {
+        self.register().await;
+        let cec = Arc::clone(self);
+        tokio::spawn(async move { cec.poll_power().await });
+    }
+
     /// Returns the last known TV power state.
     pub fn tv_on(&self) -> bool {
         self.tv_on.load(Ordering::Relaxed)
@@ -105,9 +112,7 @@ impl Cec {
 
     /// Runs cec-ctl on the adapter. Returns None if cec-ctl fails to start or times out.
     async fn cec_ctl(&self, args: &[&str]) -> Option<Output> {
-        let mut cmd = Command::new("cec-ctl");
-        cmd.args(["-d", &self.config.device, "-s"]).args(args);
-        run_command(&mut cmd).await.ok()
+        cmd::cec::cec_ctl(&self.config.device, args).await.ok()
     }
 
     /// Claims the playback logical address with osdName. The caller holds the lock.
@@ -119,7 +124,7 @@ impl Cec {
     /// Registers the playback logical address. Registration is a slow bus negotiation, so it runs
     /// once at start. The kernel keeps the address until an HPD event, for example a TV standby or
     /// wake.
-    pub async fn register(&self) {
+    async fn register(&self) {
         let _guard = self.lock.lock().await;
         self.playback().await;
     }
@@ -149,7 +154,7 @@ impl Cec {
 
     /// Polls the real TV power state, so tv_on follows a standby by the TV timer or the TV remote.
     /// The daemon does not wake an AVR that went to standby, so a manual AVR standby holds.
-    pub async fn poll_power(&self) {
+    async fn poll_power(&self) {
         loop {
             if let Some(on) = self.power_status(self.config.tv_logical_address).await {
                 self.tv_on.store(on, Ordering::Relaxed);

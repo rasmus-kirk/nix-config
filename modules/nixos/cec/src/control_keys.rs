@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs, io,
     path::{Path, PathBuf},
     sync::Arc,
@@ -7,12 +8,11 @@ use std::{
 
 use evdev::{Device, EventType, KeyCode};
 use log::info;
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::{sync::mpsc::UnboundedSender, task::JoinHandle, time::sleep};
 
 use crate::{
     cec::{Cec, UiCmd},
-    daemon::Event,
-    util::watch_nodes,
+    tv::Event,
 };
 
 const RESCAN: Duration = Duration::from_secs(5);
@@ -79,12 +79,22 @@ async fn read_keys(path: &Path, cec: &Cec, tx: &UnboundedSender<Event>) -> io::R
 
 /// Watches the sleep, volume and mute keys. The daemon can open only the input nodes that udev
 /// gives to its group, the System Control and Consumer Control nodes, and those have no letter
-/// keys.
+/// keys. Every RESCAN, reads each node that no task reads. A node is read again only after its read
+/// returns, for example at EOF or after the device is gone.
 pub fn start(cec: Arc<Cec>, tx: UnboundedSender<Event>) {
-    tokio::spawn(watch_nodes(RESCAN, input_nodes, move |path| {
-        let (cec, tx) = (Arc::clone(&cec), tx.clone());
-        async move {
-            let _ = read_keys(&path, &cec, &tx).await;
+    tokio::spawn(async move {
+        let mut open: HashMap<PathBuf, JoinHandle<()>> = HashMap::new();
+        loop {
+            open.retain(|_, task| !task.is_finished());
+            for path in input_nodes() {
+                open.entry(path.clone()).or_insert_with(|| {
+                    let (cec, tx) = (Arc::clone(&cec), tx.clone());
+                    tokio::spawn(async move {
+                        let _ = read_keys(&path, &cec, &tx).await;
+                    })
+                });
+            }
+            sleep(RESCAN).await;
         }
-    }));
+    });
 }

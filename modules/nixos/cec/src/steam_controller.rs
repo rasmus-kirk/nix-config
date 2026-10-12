@@ -14,7 +14,7 @@ use tokio::{
     time::{sleep, timeout},
 };
 
-use crate::daemon::Event;
+use crate::tv::Event;
 
 const CONTROLLER_SCAN: Duration = Duration::from_secs(2);
 const READ_WINDOW: Duration = Duration::from_millis(200);

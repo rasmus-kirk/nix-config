@@ -1,6 +1,5 @@
 use std::{
     cmp::Ordering,
-    process::Stdio,
     sync::{Arc, Mutex},
     time::{Duration, Instant},
 };
@@ -9,62 +8,25 @@ use anyhow::Result;
 use log::{debug, info};
 use tokio::{
     io::{AsyncBufReadExt, BufReader},
-    process::Command,
-    time::{sleep, timeout},
+    time::sleep,
 };
 
 use crate::{
     Config,
     cec::{Cec, UiCmd},
-    util::{run_command, stdout},
+    cmd,
 };
 
 use audio_monitor::Monitor;
 
 const RESTART_DELAY: Duration = Duration::from_secs(2);
 const SAMPLE_INTERVAL: Duration = Duration::from_secs(3);
-const RATE: u32 = 8000;
 
 /// Samples the default sink monitor and tracks sound on it.
 pub mod audio_monitor {
-    use tokio::io::AsyncReadExt;
-
     use super::*;
 
     const AUDIO_WINDOW: Duration = Duration::from_secs(6);
-    const TIMEOUT: Duration = Duration::from_secs(3);
-
-    /// Returns the RMS of the signed 16-bit little-endian samples in buf.
-    fn sound_level(buf: &[u8]) -> f64 {
-        let samples = buf.as_chunks::<2>().0;
-        let sum: f64 = samples
-            .iter()
-            .map(|&b| (f64::from(i16::from_le_bytes(b)) / 32768.0).powi(2))
-            .sum();
-        (sum / samples.len() as f64).sqrt()
-    }
-
-    /// Records one second of the sink monitor and returns its sound level. Returns None if
-    /// pw-record fails or does not deliver the second within SAMPLE_TIMEOUT. Stops pw-record
-    /// before it returns.
-    pub async fn capture_audio() -> Option<f64> {
-        let mut pw_record_bytes = Command::new("pw-record")
-            .args(["--raw", "--format=s16", "--channels=1"])
-            .arg(format!("--rate={RATE}"))
-            .args(["-P", "stream.capture.sink=true", "-"])
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .kill_on_drop(true)
-            .spawn()
-            .ok()?
-            .stdout?;
-        let mut buf = vec![0; RATE as usize * 2];
-        timeout(TIMEOUT, pw_record_bytes.read_exact(&mut buf))
-            .await
-            .ok()?
-            .ok()?;
-        Some(sound_level(&buf))
-    }
 
     struct State {
         started: Instant,
@@ -129,22 +91,11 @@ pub mod audio_monitor {
 pub mod speaker_heartbeat {
     use super::*;
 
-    /// Plays a sine tone on the default sink with SoX and returns when it ends. Gives up after the
-    /// length of the tone plus RESTART_DELAY.
+    /// Plays a sine tone on the default sink with SoX and returns when it ends.
     async fn pulse(config: &Config) {
         let keep = &config.keep_awake;
-        let mut play = Command::new("play");
-        play.args(["-q", "-n", "synth"])
-            .arg(keep.pulse_seconds.to_string())
-            .args(["sine", &keep.frequency.to_string()])
-            .args(["vol", &keep.amplitude.to_string()])
-            .env("AUDIODRIVER", "pulseaudio")
-            .stdin(Stdio::null())
-            .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .kill_on_drop(true);
         debug!("keep-alive pulse");
-        let _ = timeout(keep.pulse() + RESTART_DELAY, play.status()).await;
+        let _ = cmd::audio::play(keep.pulse_seconds, keep.frequency, keep.amplitude).await;
     }
 
     /// Samples the monitor every SAMPLE_INTERVAL. When the TV is on and the silence, counted from
@@ -155,7 +106,7 @@ pub mod speaker_heartbeat {
         let keep = &config.keep_awake;
         let mut last_pulse = Instant::now();
         loop {
-            if let Some(sound_level) = audio_monitor::capture_audio().await {
+            if let Some(sound_level) = cmd::audio::capture_audio().await {
                 monitor.hear(sound_level);
             }
             let quiet = monitor.silence(Instant::now()).min(last_pulse.elapsed());
@@ -181,28 +132,14 @@ pub mod volume_relay {
 
     const SINK: &str = "@DEFAULT_SINK@";
 
-    /// Returns the first number directly before a percent sign in text, or None if there is none.
-    fn percent(text: &str) -> Option<u32> {
-        text.match_indices('%').find_map(|(i, _)| {
-            let head = &text[..i];
-            let digits = head.len() - head.trim_end_matches(|c: char| c.is_ascii_digit()).len();
-            head[i - digits..].parse().ok()
-        })
-    }
-
     /// Returns the default sink volume in percent, or None if pactl fails.
     async fn get_volume() -> Option<u32> {
-        let volume = run_command(Command::new("pactl").args(["get-sink-volume", SINK]))
-            .await
-            .ok()?;
-        percent(&stdout(&volume))
+        cmd::audio::get_sink_volume(SINK).await
     }
 
     /// Sets the default sink volume to pct percent.
     async fn set_volume(pct: u32) -> Result<()> {
-        run_command(Command::new("pactl").args(["set-sink-volume", SINK, &format!("{pct}%")]))
-            .await?;
-        Ok(())
+        cmd::audio::set_sink_volume(SINK, pct).await
     }
 
     /// Sends a change of the default sink volume from referencePercent to the AVR as one CEC volume
@@ -228,12 +165,7 @@ pub mod volume_relay {
     async fn watch_volume(config: &Config, cec: &Cec) {
         let _ = set_volume(config.controller_volume.reference_percent).await;
         loop {
-            let child = Command::new("pactl")
-                .arg("subscribe")
-                .stdout(Stdio::piped())
-                .stderr(Stdio::null())
-                .kill_on_drop(true)
-                .spawn();
+            let child = cmd::audio::subscribe();
             if let Ok(mut child) = child {
                 relay(config, cec).await;
                 let mut lines = BufReader::new(child.stdout.take().unwrap()).lines();

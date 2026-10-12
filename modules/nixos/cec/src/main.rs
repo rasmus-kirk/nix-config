@@ -1,9 +1,9 @@
 mod audio;
 mod cec;
+mod cmd;
 mod control_keys;
-mod daemon;
 mod steam_controller;
-mod util;
+mod tv;
 
 use std::{fs, io::Write, path::PathBuf, sync::Arc, time::Duration};
 
@@ -11,6 +11,13 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use log::LevelFilter;
 use serde::Deserialize;
+use tokio::sync::mpsc;
+
+use crate::{
+    audio::{audio_monitor::Monitor, speaker_heartbeat, volume_relay},
+    cec::Cec,
+    tv::Tv,
+};
 
 /// Keeps an HDMI-CEC TV in step with activity on an always-on box.
 ///
@@ -103,7 +110,7 @@ fn init_logger(debug: bool) {
         .init();
 }
 
-/// Reads the settings in CONFIG and runs the daemon.
+/// Reads the settings in CONFIG, starts the parts and runs the TV rules.
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -112,5 +119,14 @@ async fn main() -> Result<()> {
     let config: Config = serde_json::from_str(&text)
         .with_context(|| format!("cannot parse {}", cli.config.display()))?;
     init_logger(config.debug);
-    daemon::Daemon::new(Arc::new(config)).run().await
+    let config = Arc::new(config);
+    let cec = Arc::new(Cec::new(Arc::clone(&config)));
+    let monitor = Monitor::new(Arc::clone(&config));
+    let (tx, rx) = mpsc::unbounded_channel();
+    cec.start().await;
+    steam_controller::start(tx.clone());
+    control_keys::start(Arc::clone(&cec), tx);
+    speaker_heartbeat::start(Arc::clone(&config), Arc::clone(&cec), monitor.clone());
+    volume_relay::start(Arc::clone(&config), Arc::clone(&cec));
+    Tv::new(config, cec, monitor).run(rx).await
 }

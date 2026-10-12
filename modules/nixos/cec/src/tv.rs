@@ -7,30 +7,29 @@ use anyhow::{Context, Result};
 use log::debug;
 use tokio::{
     signal::unix::{SignalKind, signal},
-    sync::mpsc,
+    sync::mpsc::UnboundedReceiver,
     time::{MissedTickBehavior, interval},
 };
 
 use crate::{
     Config,
-    audio::{audio_monitor::Monitor, speaker_heartbeat, volume_relay},
+    audio::audio_monitor::Monitor,
     cec::{Cec, TvAction},
-    control_keys, steam_controller,
 };
 
 const POLL: Duration = Duration::from_secs(1);
 const CONTROLLER_TIMEOUT: Duration = Duration::from_secs(3);
 const DEBUG_INTERVAL: Duration = Duration::from_secs(30);
 
-/// An input to the main loop. All tasks send their events on one channel, so only the main
-/// loop keeps timing state.
+/// An input to the TV rules. All tasks send their events on one channel, so only the rules keep
+/// timing state.
 pub enum Event {
     Sleep,
     ControllerSeen,
 }
 
-/// Connects the parts and applies the TV rules on each event, and at least once per POLL.
-pub struct Daemon {
+/// Applies the TV rules on each event, and at least once per POLL.
+pub struct Tv {
     config: Arc<Config>,
     cec: Arc<Cec>,
     monitor: Monitor,
@@ -40,13 +39,11 @@ pub struct Daemon {
     last_debug: Option<Instant>,
 }
 
-impl Daemon {
-    /// Builds the parts. Starts no tasks and opens no devices. No controller counts as present
-    /// at start.
-    pub fn new(config: Arc<Config>) -> Self {
-        let cec = Arc::new(Cec::new(Arc::clone(&config)));
+impl Tv {
+    /// Starts no tasks and opens no devices. No controller counts as present at start.
+    pub fn new(config: Arc<Config>, cec: Arc<Cec>, monitor: Monitor) -> Self {
         Self {
-            monitor: Monitor::new(Arc::clone(&config)),
+            monitor,
             last_activity: Instant::now(),
             last_seen: None,
             was_present: false,
@@ -127,22 +124,10 @@ impl Daemon {
         self.debug_status(now, present);
     }
 
-    /// Registers on the CEC bus, starts the tasks and runs the main loop. SIGUSR1 counts as a
-    /// sleep key press, so the system suspend action can toggle the TV.
-    pub async fn run(mut self) -> Result<()> {
-        let (tx, mut rx) = mpsc::unbounded_channel();
+    /// Runs the TV rules on the events from rx. SIGUSR1 counts as a sleep key press, so the system
+    /// suspend action can toggle the TV.
+    pub async fn run(mut self, mut rx: UnboundedReceiver<Event>) -> Result<()> {
         let mut sigusr1 = signal(SignalKind::user_defined1()).context("cannot handle SIGUSR1")?;
-        self.cec.register().await;
-        let cec = Arc::clone(&self.cec);
-        tokio::spawn(async move { cec.poll_power().await });
-        steam_controller::start(tx.clone());
-        control_keys::start(Arc::clone(&self.cec), tx.clone());
-        speaker_heartbeat::start(
-            Arc::clone(&self.config),
-            Arc::clone(&self.cec),
-            self.monitor.clone(),
-        );
-        volume_relay::start(Arc::clone(&self.config), Arc::clone(&self.cec));
         let mut poll = interval(POLL);
         poll.set_missed_tick_behavior(MissedTickBehavior::Delay);
         loop {
