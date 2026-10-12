@@ -8,11 +8,13 @@ description: Review a PR with code-review and update-docs, then walk through the
 1. Run the `code-review` skill on the PR without `--comment`.
 2. Run the `update-docs` skill on the same PR.
 3. Check other worktrees and branches for related work.
-3. Verify each finding in the code. Write the findings of both skills to a review file somewhere visible to the user, most important first, using the template below.
-4. Present one finding per message. Describe the finding in full before giving options and a recommendation. State what was verified and what was assumed.
-5. Wait for the user's decision. "Next" and "ignore" are decisions. Questions are not orders to change code.
-6. Record the decision in that finding's subsection, in the user's words.
-7. At the end, give a table of findings and decisions.
+4. Verify each finding in the code.
+5. Send one message that lists every verified finding, numbered, one line each, most significant first. Each line names the problem and its consequence. Wait for the user to drop findings.
+6. Write the kept findings to a review file somewhere visible to the user, most important first, using the template below.
+7. Present one kept finding per message. Describe the finding in full before giving options and a recommendation. State what was verified and what was assumed.
+8. Wait for the user's decision. Questions are not orders to change code.
+9. Record the decision in that finding's subsection, in the user's words.
+10. At the end, give a table of findings and decisions.
 
 ## Template
 
