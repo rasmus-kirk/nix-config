@@ -30,7 +30,7 @@ in {
       configDir = configDir;
       machine = machine;
     };
-    jiten.enable = false;
+    kotofetch.enable = false;
     scripts.enable = true;
     yazi = {
       enable = true;

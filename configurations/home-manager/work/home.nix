@@ -33,7 +33,7 @@ in {
       userName = "rasmus-kirk";
     };
     helix.enable = true;
-    jiten.enable = true;
+    kotofetch.enable = true;
     claudeConfig = {
       enable = true;
       notion.enable = true;
