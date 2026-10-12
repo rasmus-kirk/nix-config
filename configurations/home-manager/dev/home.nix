@@ -13,7 +13,7 @@ in {
     helix.enable = true;
     podman.enable = true;
     scripts.enable = true;
-    jiten.enable = true;
+    kotofetch.enable = true;
     claudeConfig = {
       enable = true;
       notion.enable = true;

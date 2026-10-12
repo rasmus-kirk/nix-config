@@ -12,6 +12,7 @@ with lib; let
       "rust-analyzer-lsp@claude-plugins-official" = true;
     };
     effortLevel = cfg.effortLevel;
+    model = cfg.model;
     theme = "dark";
     autoMemoryEnabled = false;
     autoDreamEnabled = false;
@@ -54,6 +55,12 @@ in {
       type = types.enum ["low" "medium" "high" "xhigh" "max"];
       default = "low";
       description = "Default Claude Code effort level.";
+    };
+
+    model = mkOption {
+      type = types.str;
+      default = "claude-opus-5-5";
+      description = "Default Claude Code model.";
     };
 
     mcpServers = mkOption {
@@ -106,6 +113,10 @@ in {
         };
         ".claude/skills/update-docs/SKILL.md" = {
           source = ./skills/update-docs/SKILL.md;
+          force = true;
+        };
+        ".claude/skills/review-pr/SKILL.md" = {
+          source = ./skills/review-pr/SKILL.md;
           force = true;
         };
         ".claude/skills/grill-me/SKILL.md" = {

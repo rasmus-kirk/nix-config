@@ -9,7 +9,7 @@
     ./gruvboxTheme
     ./helix
     ./homeManagerScripts
-    ./jiten
+    ./kotofetch
     ./mpv
     ./mvi
     ./podman
