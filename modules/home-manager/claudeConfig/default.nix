@@ -134,7 +134,12 @@ in {
         ".claude/skills/user-script/SKILL.md" = {
           source = ./skills/user-script/SKILL.md;
           force = true;
-        };        ".claude/skills/grill-me/SKILL.md" = {
+        };
+        ".claude/skills/manual/SKILL.md" = {
+          source = ./skills/manual/SKILL.md;
+          force = true;
+        };
+        ".claude/skills/grill-me/SKILL.md" = {
           source = "${mattpocockSkills}/skills/productivity/grill-me/SKILL.md";
           force = true;
         };
