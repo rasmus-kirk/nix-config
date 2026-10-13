@@ -1,6 +1,10 @@
 *x* should be designed not by piling feature on top of feature, but by removing
 the weaknesses and restrictions that make additional features appear necessary.
 
+## Scratchpad
+
+- Put temporary scripts, documents, and worktrees meant for the user or other agents in `.scratchpad/`. Anything only you interact with stays in your own scratchpad.
+
 ## Reading CI Status
 
 `gh pr checks` and `statusCheckRollup` fail with "Resource not accessible by personal access token", because the fine-grained `GH_TOKEN` can't read the Checks API. Use the Actions API instead:
