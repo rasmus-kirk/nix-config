@@ -40,7 +40,7 @@ in {
   # -------------------- Secrets -------------------- #
 
   age = {
-    identityPaths = ["${secretDir}/ssh/${machine}"];
+    identityPaths = ["${secretDir}/${machine}"];
     secrets = {
       "airvpn-wg.conf".file = ../../../age/desktop/airvpn-wg.conf.age;
       mam.file = ../../../age/desktop/mam.age;
@@ -506,7 +506,7 @@ in {
       ports = [6000];
       hostKeys = [
         {
-          path = "${secretDir}/ssh/${machine}";
+          path = "${secretDir}/${machine}";
           type = "ed25519";
         }
       ];

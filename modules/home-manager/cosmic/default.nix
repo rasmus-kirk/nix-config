@@ -1,6 +1,7 @@
 {
   config,
   lib,
+  pkgs,
   ...
 }:
 with lib; let
@@ -11,7 +12,7 @@ in {
   config = mkIf cfg.enable {
     home.activation.cosmicConfig = hm.dag.entryAfter ["linkGeneration"] ''
       run mkdir -p ${config.xdg.configHome}/cosmic
-      run cp -rT --remove-destination --no-preserve=mode ${./config} ${config.xdg.configHome}/cosmic
+      run ${getExe pkgs.rsync} -r --checksum --chmod=Du+rwx,Fu+rw ${./config}/ ${config.xdg.configHome}/cosmic/
     '';
   };
 }

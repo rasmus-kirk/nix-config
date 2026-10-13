@@ -18,7 +18,7 @@ in {
     xdgMime.enable = true;
     git = {
       enable = true;
-      signKey = "${secretDir}/ssh/id_ed25519_yubi.pub";
+      signKey = "${secretDir}/id_ed25519_yubi.pub";
       signPubKey = ../../../ssh-keys/yubi.pub;
       userEmail = "mail@rasmuskirk.com";
       userName = "rasmus-kirk";
@@ -39,7 +39,7 @@ in {
     ssh = {
       enable = true;
       addKeysToAgent = true;
-      identityPath = "${secretDir}/ssh/id_ed25519_yubi";
+      identityPath = "${secretDir}/id_ed25519_yubi";
     };
     userDirs = {
       enable = true;

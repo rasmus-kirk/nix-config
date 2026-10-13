@@ -111,12 +111,32 @@ in {
           source = ./skills/ask/SKILL.md;
           force = true;
         };
-        ".claude/skills/update-docs/SKILL.md" = {
-          source = ./skills/update-docs/SKILL.md;
+        ".claude/skills/pr-docs/SKILL.md" = {
+          source = ./skills/pr-docs/SKILL.md;
           force = true;
         };
-        ".claude/skills/review-pr/SKILL.md" = {
-          source = ./skills/review-pr/SKILL.md;
+        ".claude/skills/pr-review/SKILL.md" = {
+          source = ./skills/pr-review/SKILL.md;
+          force = true;
+        };
+        ".claude/skills/pr-workflow/SKILL.md" = {
+          source = ./skills/pr-workflow/SKILL.md;
+          force = true;
+        };
+        ".claude/skills/quiz/SKILL.md" = {
+          source = ./skills/quiz/SKILL.md;
+          force = true;
+        };
+        ".claude/skills/pr-description/SKILL.md" = {
+          source = ./skills/pr-description/SKILL.md;
+          force = true;
+        };
+        ".claude/skills/user-script/SKILL.md" = {
+          source = ./skills/user-script/SKILL.md;
+          force = true;
+        };
+        ".claude/skills/manual/SKILL.md" = {
+          source = ./skills/manual/SKILL.md;
           force = true;
         };
         ".claude/skills/grill-me/SKILL.md" = {

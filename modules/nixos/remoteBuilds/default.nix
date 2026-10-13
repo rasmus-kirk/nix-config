@@ -78,6 +78,7 @@ in {
           HostName desktop.tailb0eb01.ts.net
           Port 6000
           User nixremote
+          ConnectTimeout 5
       '';
     })
   ];

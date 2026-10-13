@@ -13,7 +13,7 @@ in {
   imports = [./hardware-configuration.nix];
 
   age = {
-    identityPaths = ["${secretDir}/ssh/deck-oled" "${secretDir}/ssh/age_ed25519"];
+    identityPaths = ["${secretDir}/deck-oled" "${secretDir}/age_ed25519"];
     secrets = {
       "wg.conf".file = ../../../age/deck-oled/wg.conf.age;
     };
@@ -41,7 +41,7 @@ in {
     # Offload builds to the desktop.
     remoteBuilds.client = {
       enable = true;
-      sshKey = "${secretDir}/ssh/deck-oled";
+      sshKey = "${secretDir}/deck-oled";
     };
   };
 

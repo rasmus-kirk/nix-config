@@ -1,5 +1,5 @@
 ---
-name: update-docs
+name: pr-docs
 description: Use when a PR is written and a review is requested. Reports what the change leaves out of sync in Linear, Notion, GitHub, and other repos, including documentation. Read-only. The user does the updating.
 ---
 

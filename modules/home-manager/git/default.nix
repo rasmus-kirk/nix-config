@@ -68,6 +68,7 @@ in {
 
     programs.git = {
       enable = true;
+      ignores = [".scratchpad/"];
       signing = mkIf (cfg.signKey != null) {
         key = cfg.signKey;
         format = "ssh";

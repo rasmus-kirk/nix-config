@@ -34,7 +34,7 @@ in {
     yubiHandle = mkOption {
       type = with types; nullOr str;
       default = null;
-      example = "/data/.secret/ssh/id_ed25519_yubi";
+      example = "/data/.secret/id_ed25519_yubi";
       description = "YubiKey handle for signing in the box. Used only with `--yubi`.";
     };
 

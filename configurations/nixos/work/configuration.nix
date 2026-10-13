@@ -13,7 +13,7 @@
 in {
   imports = [./hardware-configuration.nix];
 
-  age.identityPaths = ["${secretDir}/ssh/${machine}"];
+  age.identityPaths = ["${secretDir}/${machine}"];
 
   age.secrets = {
     ghcr-auth = {
@@ -45,7 +45,7 @@ in {
       extraNixOptions = true;
       remotes.desktop = {
         host = "desktop-builder";
-        sshKey = "${secretDir}/ssh/${machine}";
+        sshKey = "${secretDir}/${machine}";
       };
     };
     hardening.enable = true;
@@ -63,7 +63,7 @@ in {
     keyboardLayout.enable = true;
     remoteBuilds.client = {
       enable = true;
-      sshKey = "${secretDir}/ssh/${machine}";
+      sshKey = "${secretDir}/${machine}";
     };
   };
 
@@ -99,14 +99,12 @@ in {
     "d ${dataDir}                            0700 user users -"
     "d ${configDir}                          0700 user users -"
     "d ${secretDir}                          0700 user users -"
-    "d ${secretDir}/ssh                      0700 user users -"
-    "z ${secretDir}/ssh/${machine}           0400 root root  -"
+    "z ${secretDir}/${machine}               0400 root root  -"
     "d ${dataDir}/downloads                  0700 user users -"
     "d ${dataDir}/media                      0700 user users -"
     "d ${dataDir}/media/images/screenshots   0700 user users -"
 
     "d ${stateDir}                           0700 user users -"
-    "d ${stateDir}/ssh                       0700 user users -"
     "d ${stateDir}/firefox                   0755 user users -"
     "d ${stateDir}/firefox/config            0755 user users -"
     "d ${stateDir}/firefox/home              0755 user users -"
@@ -133,9 +131,8 @@ in {
 
     # dev cannot reach /data, so secrets are copied.
     "d  /run/dev-secret                          0550 root dev -"
-    "d  /run/dev-secret/ssh                      0550 root dev -"
-    "C+ /run/dev-secret/ssh/id_ed25519_yubi      0440 root dev - ${secretDir}/ssh/id_ed25519_yubi"
-    "C+ /run/dev-secret/ssh/id_ed25519_yubi.pub  0444 root dev - ${secretDir}/ssh/id_ed25519_yubi.pub"
+    "C+ /run/dev-secret/id_ed25519_yubi          0440 root dev - ${secretDir}/id_ed25519_yubi"
+    "C+ /run/dev-secret/id_ed25519_yubi.pub      0444 root dev - ${secretDir}/id_ed25519_yubi.pub"
   ];
 
   services.pulseaudio.enable = false;

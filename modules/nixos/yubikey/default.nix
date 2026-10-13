@@ -12,7 +12,7 @@ in {
 
     authfile = mkOption {
       type = types.str;
-      default = "/data/.secret/ssh/id_ed25519_yubi";
+      default = "/data/.secret/id_ed25519_yubi";
       description = "Resident SSH key handle that pam_u2f authenticates against.";
     };
 
