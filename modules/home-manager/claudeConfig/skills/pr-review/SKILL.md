@@ -1,12 +1,12 @@
 ---
-name: review-pr
-description: Review a PR with code-review and update-docs, then walk through the findings one at a time with the user, recording each decision in a file. Use whenever the user asks to review a PR, a branch, or a diff. Preferred over code-review.
+name: pr-review
+description: Review a PR with code-review and pr-docs, then walk through the findings one at a time with the user, recording each decision in a file. Use whenever the user asks to review a PR, a branch, or a diff. Preferred over code-review.
 ---
 
 # Review PR
 
 1. Run the `code-review` skill on the PR without `--comment`.
-2. Run the `update-docs` skill on the same PR.
+2. Run the `pr-docs` skill on the same PR.
 3. Check other worktrees and branches for related work.
 4. Verify each finding in the code.
 5. Send one message that lists every verified finding, numbered, one line each, most significant first. Each line names the problem and its consequence. Wait for the user to drop findings.

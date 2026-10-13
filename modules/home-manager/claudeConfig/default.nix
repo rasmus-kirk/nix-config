@@ -111,12 +111,20 @@ in {
           source = ./skills/ask/SKILL.md;
           force = true;
         };
-        ".claude/skills/update-docs/SKILL.md" = {
-          source = ./skills/update-docs/SKILL.md;
+        ".claude/skills/pr-docs/SKILL.md" = {
+          source = ./skills/pr-docs/SKILL.md;
           force = true;
         };
-        ".claude/skills/review-pr/SKILL.md" = {
-          source = ./skills/review-pr/SKILL.md;
+        ".claude/skills/pr-review/SKILL.md" = {
+          source = ./skills/pr-review/SKILL.md;
+          force = true;
+        };
+        ".claude/skills/pr-workflow/SKILL.md" = {
+          source = ./skills/pr-workflow/SKILL.md;
+          force = true;
+        };
+        ".claude/skills/quiz/SKILL.md" = {
+          source = ./skills/quiz/SKILL.md;
           force = true;
         };
         ".claude/skills/pr-description/SKILL.md" = {
