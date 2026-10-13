@@ -12,5 +12,6 @@
     ./cec
     ./remoteBuilds
     ./tokens
+    ./homeAssistant
   ];
 }

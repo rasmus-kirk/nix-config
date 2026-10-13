@@ -78,7 +78,7 @@ impl Tv {
             };
             cec.tv(action, &format!("sleep button (tv was {was})"))
                 .await;
-        } else if connected && !tv_on {
+        } else if connected {
             cec.tv(TvAction::ImageViewOn, "controller connect").await;
         } else if tv_on && !present && now - self.last_activity >= self.config.idle() {
             cec.tv(
