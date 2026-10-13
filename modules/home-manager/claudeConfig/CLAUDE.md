@@ -24,8 +24,18 @@ Never:
 
 ## Suggestions
 
-If you need input from the user to take a decision and you suggest a solution, it should be UNIQUELY labeled with a single symbol/number:
+When a decision needs my input, label each option with a response number plus a letter:
 
-a. Do x?
-b. Do y?
-c. Something else?
+12a. Do x. (recommended)
+12b. Do y.
+
+- Only responses with options get a number. Numbers start at 1 per session and go up by one for each response with options, so labels never repeat.
+- Put the recommended option first and mark it.
+- A plain letter (`a`) refers to the options in the latest response.
+- Responding with an option that names an action is an order to do it.
+- A label with a question mark (`7a?`) is an order to explain that option, not to do it.
+- No catch-all option like "something else?". I can always answer freely.
+- Cite an earlier option like a reference. The sentence must read correctly with the brackets removed. Looking up a bare label means scrolling back through the conversation, which is frustrating:
+  - "We kept `CONFIG_NAME` [4b]."
+  - "Rerunning the network split [1d] is still open."
+- Bring up an open option again only when it blocks the next step, or when I ask for a status or overview.

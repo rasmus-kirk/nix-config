@@ -119,7 +119,14 @@ in {
           source = ./skills/review-pr/SKILL.md;
           force = true;
         };
-        ".claude/skills/grill-me/SKILL.md" = {
+        ".claude/skills/pr-description/SKILL.md" = {
+          source = ./skills/pr-description/SKILL.md;
+          force = true;
+        };
+        ".claude/skills/user-script/SKILL.md" = {
+          source = ./skills/user-script/SKILL.md;
+          force = true;
+        };        ".claude/skills/grill-me/SKILL.md" = {
           source = "${mattpocockSkills}/skills/productivity/grill-me/SKILL.md";
           force = true;
         };

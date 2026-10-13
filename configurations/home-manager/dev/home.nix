@@ -20,14 +20,14 @@ in {
     };
     git = {
       enable = true;
-      signKey = "/run/dev-secret/ssh/id_ed25519_yubi.pub";
+      signKey = "/run/dev-secret/id_ed25519_yubi.pub";
       signPubKey = ../../../ssh-keys/yubi.pub;
       userEmail = "mail@rasmuskirk.com";
       userName = "rasmus-kirk";
     };
     ssh = {
       enable = true;
-      identityPath = "/run/dev-secret/ssh/id_ed25519_yubi";
+      identityPath = "/run/dev-secret/id_ed25519_yubi";
       addKeysToAgent = false;
     };
     yazi.enable = true;
@@ -39,7 +39,7 @@ in {
       enable = true;
       user = username;
       homeManagerPackage = inputs.self.homeConfigurations."sandbox-dev".activationPackage;
-      yubiHandle = "/run/dev-secret/ssh/id_ed25519_yubi";
+      yubiHandle = "/run/dev-secret/id_ed25519_yubi";
       tokenDir = "/run/tokens/dev";
     };
   };
