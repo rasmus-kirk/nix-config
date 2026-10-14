@@ -83,11 +83,16 @@ in {
     cec = {
       enable = true;
       user = gameUser;
-      sink = "alsa_output.pci-0000_03_00.1.hdmi-stereo";
       replaceSuspend = true;
       controllerVolume.enable = true;
+      debug = true;
     };
     yubikey.enable = true;
+    homeAssistant = {
+      enable = true;
+      stateDir = "${stateDir}/home-assistant";
+      hassGroupMembers = [username];
+    };
     keyboardLayout.enable = true;
     # steamRoot must be the dir that ~/.local/share/Steam resolves to (see the tmpfiles links).
     # Its parent holds a userdata/ tree that Steam never reads.
@@ -494,25 +499,6 @@ in {
         white-list = true;
       };
     };
-    home-assistant = {
-      enable = true;
-      configDir = "${stateDir}/home-assistant";
-      extraComponents = [
-        "analytics"
-        "google_translate"
-        "met"
-        "radio_browser"
-        "shopping_list"
-        "zha"
-        "usb"
-        "isal"
-      ];
-      configWritable = true;
-      config = {
-        default_config = {};
-        automation = "!include automations.yaml";
-      };
-    };
     openssh = {
       enable = true;
       openFirewall = true;
@@ -527,7 +513,7 @@ in {
     };
   };
 
-  networking.firewall.allowedTCPPorts = [8384 8123];
+  networking.firewall.allowedTCPPorts = [8384];
 
   users.extraUsers."${username}".openssh.authorizedKeys.keyFiles = [
     ../../../ssh-keys/yubi.pub

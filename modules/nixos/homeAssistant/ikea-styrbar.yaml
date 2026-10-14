@@ -1,0 +1,147 @@
+blueprint:
+  name: ZHA IKEA STYRBAR 6-color cycle
+  description: "Control for the IKEA STYRBAR (square) remote on ZHA.\n
+    • UP/DOWN (short) turns the lights in the area on or off.\n
+    • UP/DOWN (hold) forwards the remote's move and stop commands to each ZHA light
+    in the area.
+    The bulbs ramp by themselves.\n
+    • LEFT/RIGHT (short) cycles through the 6 colors in the palette variable. An
+    input_number helper stores the index.\n
+    • LEFT/RIGHT (long press) runs optional custom actions.\n
+    Setup: create an input_number helper with min=1, max=6, step=1, for example
+    input_number.styrbar_color_index, and select it below.\n"
+  domain: automation
+  input:
+    remote:
+      name: Remote (ZHA device)
+      selector:
+        device:
+          integration: zha
+          manufacturer: IKEA of Sweden
+          model: Remote Control N2
+          multiple: false
+    area:
+      name: Area
+      description: The remote controls every ZHA light in this area.
+      selector:
+        area:
+          entity:
+          - domain:
+            - light
+    color_index_helper:
+      name: Color index helper (1 to 6)
+      description: Create/select an input_number with min=1, max=6, step=1 to remember
+        the active palette color.
+      default: input_number.styrbar_color_index
+      selector:
+        entity:
+          domain:
+          - input_number
+          reorder: false
+          multiple: false
+    button_left_long:
+      name: Left button long press (custom action)
+      default: []
+      selector:
+        action: {}
+    button_right_long:
+      name: Right button long press (custom action)
+      default: []
+      selector:
+        action: {}
+mode: queued
+max: 10
+max_exceeded: silent
+trigger:
+- platform: event
+  event_type: zha_event
+  event_data:
+    device_id: !input remote
+action:
+- variables:
+    color_index_entity: !input color_index_helper
+    area: !input area
+    cmd: '{{ trigger.event.data.command }}'
+    cluster: '{{ trigger.event.data.cluster_id }}'
+    args: '{{ trigger.event.data.args | default([]) }}'
+    level_commands:
+      move: 1
+      stop: 3
+      move_with_on_off: 5
+      stop_with_on_off: 7
+    palette:
+    - [255, 195, 113]
+    - [255, 160, 0]
+    - [255, 114, 0]
+    - [157, 0, 6]
+    - [143, 63, 113]
+    - [104, 157, 106]
+    ieees: >
+      {{ area_entities(area) | select('match', 'light[.]') | map('device_id')
+         | map('device_attr', 'identifiers') | map('first') | map(attribute=1) | list }}
+- choose:
+  - conditions: '{{ cluster == 6 and cmd == ''on'' }}'
+    sequence:
+    - service: light.turn_on
+      target: {area_id: !input area}
+      data:
+        transition: 0.1
+  - conditions: '{{ cluster == 6 and cmd == ''off'' }}'
+    sequence:
+    - service: light.turn_off
+      target: {area_id: !input area}
+  - conditions: '{{ cluster == 8 and cmd in [''move'', ''move_with_on_off''] }}'
+    sequence:
+    - repeat:
+        for_each: '{{ ieees }}'
+        sequence:
+        - service: zha.issue_zigbee_cluster_command
+          data:
+            ieee: '{{ repeat.item }}'
+            endpoint_id: 1
+            cluster_id: 8
+            cluster_type: in
+            command: '{{ level_commands[cmd] }}'
+            command_type: server
+            params:
+              move_mode: '{{ trigger.event.data.params.move_mode | int }}'
+              rate: '{{ trigger.event.data.params.rate | int }}'
+  - conditions: '{{ cluster == 8 and cmd in [''stop'', ''stop_with_on_off''] }}'
+    sequence:
+    - repeat:
+        for_each: '{{ ieees }}'
+        sequence:
+        - service: zha.issue_zigbee_cluster_command
+          data:
+            ieee: '{{ repeat.item }}'
+            endpoint_id: 1
+            cluster_id: 8
+            cluster_type: in
+            command: '{{ level_commands[cmd] }}'
+            command_type: server
+            params: {}
+  - conditions: '{{ cluster == 5 and cmd == ''press'' and args in [[256,13,0],[257,13,0]]
+      }}'
+    sequence:
+    - variables:
+        curr_idx: '{{ states(color_index_entity) | int(1) }}'
+        next_idx: >
+          {{ (curr_idx + (0 if args == [256,13,0] else -2)) % (palette | length) + 1 }}
+    - service: input_number.set_value
+      target:
+        entity_id: !input color_index_helper
+      data:
+        value: '{{ next_idx }}'
+    - service: light.turn_on
+      target: {area_id: !input area}
+      data:
+        rgb_color: '{{ palette[next_idx - 1] }}'
+        brightness_pct: 100
+        transition: 0
+  - conditions: '{{ cluster == 5 and cmd == ''hold'' }}'
+    sequence:
+    - choose:
+      - conditions: '{{ args == [3329, 0] }}'
+        sequence: !input button_left_long
+      - conditions: '{{ args == [3328, 0] }}'
+        sequence: !input button_right_long

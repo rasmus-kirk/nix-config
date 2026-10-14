@@ -11,30 +11,16 @@ use nix::fcntl::OFlag;
 use tokio::{
     io::{Interest, unix::AsyncFd},
     sync::mpsc::UnboundedSender,
+    time::{sleep, timeout},
 };
 
-use crate::{daemon::Event, util::watch_nodes};
+use crate::tv::Event;
 
 const CONTROLLER_SCAN: Duration = Duration::from_secs(2);
+const READ_WINDOW: Duration = Duration::from_millis(200);
 const VALVE_VENDOR: &str = "28DE";
 const BATTERY_REPORT_ID: u8 = 0x43;
 const BATTERY_REPORT_LEN: usize = 15;
-
-/// Returns the hidraw nodes of Valve devices, which are the Steam controller and its receiver.
-/// logind gives the session user access to them, so no extra group is necessary.
-fn controller_hidraws() -> Vec<PathBuf> {
-    let Ok(entries) = fs::read_dir("/sys/class/hidraw") else {
-        return Vec::new();
-    };
-    entries
-        .filter_map(Result::ok)
-        .filter(|e| {
-            fs::read_to_string(e.path().join("device/uevent"))
-                .is_ok_and(|uevent| uevent.to_uppercase().contains(VALVE_VENDOR))
-        })
-        .map(|e| PathBuf::from("/dev").join(e.file_name()))
-        .collect()
-}
 
 enum ControllerStatus {
     Discharging,
@@ -106,32 +92,39 @@ impl Controller {
     }
 }
 
-/// Reads the Valve hidraw node at path until EOF or an error. Sends ControllerSeen on each read
-/// while the node delivers data. Only a non-empty read counts. After a controller disconnects, the
-/// receiver leaves one node at EOF, so the read returns and the node is opened again on the next
-/// scan. A controller that reports charging is turned off, again on each charging report, and sends
-/// no ControllerSeen for it.
-async fn watch_controller(path: &Path, tx: &UnboundedSender<Event>) -> io::Result<()> {
-    let mut controller = Controller::new(path)?;
-    loop {
-        if let Some(event) = controller.step().await? {
-            let _ = tx.send(event);
-        }
-    }
+/// Returns the hidraw nodes of Valve devices, which are the Steam controller and its receiver.
+fn controller_hidraws() -> Vec<PathBuf> {
+    let Ok(entries) = fs::read_dir("/sys/class/hidraw") else {
+        return Vec::new();
+    };
+    entries
+        .filter_map(Result::ok)
+        .filter(|e| {
+            fs::read_to_string(e.path().join("device/uevent"))
+                .is_ok_and(|uevent| uevent.to_uppercase().contains(VALVE_VENDOR))
+        })
+        .map(|e| PathBuf::from("/dev").join(e.file_name()))
+        .collect()
 }
 
 /// Watches Steam controller presence. Steam reads the controller over hidraw, so evdev never sees
 /// its input. A controller sends hidraw reports for as long as it is on, in every input layout, so
 /// data on a Valve hidraw node means a controller is on. A controller that charges is turned off.
+///
+/// Every scan, each node is opened and read for one report, for at most READ_WINDOW. A
+/// disconnected controller leaves its receiver node at EOF, which ends the read at once.
 pub fn start(tx: UnboundedSender<Event>) {
-    tokio::spawn(watch_nodes(
-        CONTROLLER_SCAN,
-        controller_hidraws,
-        move |path| {
-            let tx = tx.clone();
-            async move {
-                let _ = watch_controller(&path, &tx).await;
+    tokio::spawn(async move {
+        loop {
+            for path in controller_hidraws() {
+                let Ok(mut controller) = Controller::new(&path) else {
+                    continue;
+                };
+                if let Ok(Ok(Some(event))) = timeout(READ_WINDOW, controller.step()).await {
+                    let _ = tx.send(event);
+                }
             }
-        },
-    ));
+            sleep(CONTROLLER_SCAN).await;
+        }
+    });
 }

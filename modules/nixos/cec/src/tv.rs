@@ -7,52 +7,48 @@ use anyhow::{Context, Result};
 use log::debug;
 use tokio::{
     signal::unix::{SignalKind, signal},
-    sync::mpsc,
+    sync::mpsc::UnboundedReceiver,
     time::{MissedTickBehavior, interval},
 };
 
 use crate::{
     Config,
-    audio::Audio,
+    audio::audio_monitor::Monitor,
     cec::{Cec, TvAction},
-    control_keys, steam_controller,
 };
 
 const POLL: Duration = Duration::from_secs(1);
 const CONTROLLER_TIMEOUT: Duration = Duration::from_secs(3);
 const DEBUG_INTERVAL: Duration = Duration::from_secs(30);
 
-/// An input to the main loop. All tasks send their events on one channel, so only the main
-/// loop keeps timing state.
+/// An input to the TV rules. All tasks send their events on one channel, so only the rules keep
+/// timing state.
 pub enum Event {
     Sleep,
-    Rms(f64),
     ControllerSeen,
 }
 
-/// Connects the parts and applies the TV rules on each event, and at least once per POLL.
-pub struct Daemon {
-    cfg: Arc<Config>,
+/// Applies the TV rules on each event, and at least once per POLL.
+pub struct Tv {
+    config: Arc<Config>,
     cec: Arc<Cec>,
-    audio: Audio,
+    monitor: Monitor,
     last_activity: Instant,
     last_seen: Option<Instant>,
     was_present: bool,
     last_debug: Option<Instant>,
 }
 
-impl Daemon {
-    /// Builds the parts. Starts no tasks and opens no devices. No controller counts as present
-    /// at start.
-    pub fn new(cfg: Arc<Config>) -> Self {
-        let cec = Arc::new(Cec::new(Arc::clone(&cfg)));
+impl Tv {
+    /// Starts no tasks and opens no devices. No controller counts as present at start.
+    pub fn new(config: Arc<Config>, cec: Arc<Cec>, monitor: Monitor) -> Self {
         Self {
-            audio: Audio::new(Arc::clone(&cfg), Arc::clone(&cec)),
+            monitor,
             last_activity: Instant::now(),
             last_seen: None,
             was_present: false,
             last_debug: None,
-            cfg,
+            config,
             cec,
         }
     }
@@ -69,7 +65,7 @@ impl Daemon {
     ) {
         let cec = &self.cec;
         let tv_on = cec.tv_on();
-        if (self.audio.playing(now) && self.cfg.audio_keeps_awake) || present {
+        if (self.monitor.playing(now) && self.config.audio_keeps_awake) || present {
             self.last_activity = now;
         }
         if sleep_pressed {
@@ -82,28 +78,28 @@ impl Daemon {
             };
             cec.tv(action, &format!("sleep button (tv was {was})"))
                 .await;
-        } else if connected && !tv_on {
+        } else if connected {
             cec.tv(TvAction::ImageViewOn, "controller connect").await;
-        } else if tv_on && !present && now - self.last_activity >= self.cfg.idle() {
+        } else if tv_on && !present && now - self.last_activity >= self.config.idle() {
             cec.tv(
                 TvAction::Standby,
-                &format!("idle {}min", self.cfg.idle_minutes),
+                &format!("idle {}min", self.config.idle_minutes),
             )
             .await;
         }
     }
 
-    /// Logs power, RMS, silence, idle and controller state every DEBUG_INTERVAL.
+    /// Logs power, sound level, silence, idle and controller state every DEBUG_INTERVAL.
     fn debug_status(&mut self, now: Instant, present: bool) {
         if self.last_debug.is_some_and(|t| now - t < DEBUG_INTERVAL) {
             return;
         }
         self.last_debug = Some(now);
         debug!(
-            "tv_on={} rms={:.4} silence={:.0}s idle={:.0}s present={present}",
+            "tv_on={} sound_level={:.4} silence={:.0}s idle={:.0}s present={present}",
             self.cec.tv_on(),
-            self.audio.last_rms,
-            (now - self.audio.last_sound).as_secs_f64(),
+            self.monitor.last_sound_level(),
+            self.monitor.silence(now).as_secs_f64(),
             (now - self.last_activity).as_secs_f64(),
         );
     }
@@ -114,7 +110,6 @@ impl Daemon {
         let now = Instant::now();
         let sleep_pressed = matches!(event, Some(Event::Sleep));
         match event {
-            Some(Event::Rms(rms)) => self.audio.heard(now, rms),
             Some(Event::ControllerSeen) => self.last_seen = Some(now),
             Some(Event::Sleep) | None => {}
         }
@@ -126,21 +121,13 @@ impl Daemon {
         }
         self.apply_rules(now, sleep_pressed, present, connected)
             .await;
-        self.audio.keep_awake(now, self.cec.tv_on());
         self.debug_status(now, present);
     }
 
-    /// Registers on the CEC bus, starts the tasks and runs the main loop. SIGUSR1 counts as a
-    /// sleep key press, so the system suspend action can toggle the TV.
-    pub async fn run(mut self) -> Result<()> {
-        let (tx, mut rx) = mpsc::unbounded_channel();
+    /// Runs the TV rules on the events from rx. SIGUSR1 counts as a sleep key press, so the system
+    /// suspend action can toggle the TV.
+    pub async fn run(mut self, mut rx: UnboundedReceiver<Event>) -> Result<()> {
         let mut sigusr1 = signal(SignalKind::user_defined1()).context("cannot handle SIGUSR1")?;
-        self.cec.register().await;
-        let cec = Arc::clone(&self.cec);
-        tokio::spawn(async move { cec.poll_power().await });
-        steam_controller::start(tx.clone());
-        control_keys::start(Arc::clone(&self.cec), tx.clone());
-        self.audio.start(&tx);
         let mut poll = interval(POLL);
         poll.set_missed_tick_behavior(MissedTickBehavior::Delay);
         loop {

@@ -11,22 +11,10 @@ with lib; let
     vscode-langservers-extracted
     # Bash
     bash-language-server
-    # C-sharp
-    omnisharp-roslyn
-    # Docker files
-    dockerfile-language-server
-    # Typescript
-    typescript-language-server
     # Nix
     nil
-    # Scala
-    metals
     # Markdown
     marksman
-    # Latex
-    texlab
-    # Go
-    gopls
     # Debugger: Rust/CPP/C/Zig
     lldb
     # Spellchecking
@@ -66,10 +54,6 @@ in {
           command = "harper-ls";
           args = ["--stdio"];
         };
-        language-server.omnisharp = {
-          command = "dotnet";
-          args = ["${pkgs.omnisharp-roslyn}/bin/OmniSharp" "--languageserver"];
-        };
         language-server.rust-analyzer.config = {
           inlayHints.parameterHints.enable = false;
           diagnostics.experimental.enable = true;
@@ -88,10 +72,6 @@ in {
             language-servers = [
               "rust-analyzer"
             ];
-          }
-          {
-            name = "c-sharp";
-            language-servers = ["omnisharp"];
           }
         ];
       };

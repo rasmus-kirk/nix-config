@@ -1,9 +1,9 @@
 mod audio;
 mod cec;
+mod cmd;
 mod control_keys;
-mod daemon;
 mod steam_controller;
-mod util;
+mod tv;
 
 use std::{fs, io::Write, path::PathBuf, sync::Arc, time::Duration};
 
@@ -11,13 +11,20 @@ use anyhow::{Context, Result};
 use clap::Parser;
 use log::LevelFilter;
 use serde::Deserialize;
+use tokio::sync::mpsc;
+
+use crate::{
+    audio::{audio_monitor::Monitor, speaker_heartbeat, volume_relay},
+    cec::Cec,
+    tv::Tv,
+};
 
 /// Keeps an HDMI-CEC TV in step with activity on an always-on box.
 ///
 /// Runs the daemon with the settings in CONFIG, the kirk.cec options as JSON.
 ///
 /// Puts the TV in standby after idleMinutes without activity. Activity is a sleep key press,
-/// sound on the TV sink, or a powered Steam controller that does not charge. The daemon polls the
+/// sound on the default sink, or a powered Steam controller that does not charge. The daemon polls the
 /// real TV power state over CEC, so it also follows a standby by the TV timer or the TV remote.
 ///
 /// The sleep key toggles the TV. SIGUSR1 has the same effect, so the system suspend action can
@@ -27,7 +34,7 @@ use serde::Deserialize;
 ///
 /// Volume and mute keys go to the AVR over CEC. With keepAwake.enable, a sub-audible tone after
 /// silenceMinutes of silence keeps the speakers out of standby. With controllerVolume.enable,
-/// TV sink volume changes become CEC volume steps to the AVR.
+/// default sink volume changes become CEC volume steps to the AVR.
 #[derive(Parser)]
 #[command(version)]
 struct Cli {
@@ -65,7 +72,6 @@ impl KeepAwake {
 pub struct ControllerVolume {
     pub enable: bool,
     pub reference_percent: u32,
-    pub step_percent: u32,
 }
 
 /// The kirk.cec options, as the JSON file that Nix writes. Unknown or missing keys are an error.
@@ -77,7 +83,6 @@ pub struct Config {
     pub idle_minutes: u64,
     pub tv_logical_address: u8,
     pub audio_system_logical_address: u8,
-    pub sink: Option<String>,
     pub audio_keeps_awake: bool,
     pub debug: bool,
     pub keep_awake: KeepAwake,
@@ -105,14 +110,23 @@ fn init_logger(debug: bool) {
         .init();
 }
 
-/// Reads the settings in CONFIG and runs the daemon.
+/// Reads the settings in CONFIG, starts the parts and runs the TV rules.
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
     let text = fs::read_to_string(&cli.config)
         .with_context(|| format!("cannot read {}", cli.config.display()))?;
-    let cfg: Config = serde_json::from_str(&text)
+    let config: Config = serde_json::from_str(&text)
         .with_context(|| format!("cannot parse {}", cli.config.display()))?;
-    init_logger(cfg.debug);
-    daemon::Daemon::new(Arc::new(cfg)).run().await
+    init_logger(config.debug);
+    let config = Arc::new(config);
+    let cec = Arc::new(Cec::new(Arc::clone(&config)));
+    let monitor = Monitor::new(Arc::clone(&config));
+    let (tx, rx) = mpsc::unbounded_channel();
+    cec.start().await;
+    steam_controller::start(tx.clone());
+    control_keys::start(Arc::clone(&cec), tx);
+    speaker_heartbeat::start(Arc::clone(&config), Arc::clone(&cec), monitor.clone());
+    volume_relay::start(Arc::clone(&config), Arc::clone(&cec));
+    Tv::new(config, cec, monitor).run(rx).await
 }

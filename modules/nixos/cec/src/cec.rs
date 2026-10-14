@@ -9,14 +9,13 @@ use std::{
 };
 
 use log::info;
-use tokio::{process::Command, sync::Mutex, time::sleep};
+use tokio::{sync::Mutex, time::sleep};
 
 use crate::{
     Config,
-    util::{output, run, stdout},
+    cmd::{self, output, stdout},
 };
 
-const CEC_TIMEOUT: Duration = Duration::from_secs(4);
 const POWER_POLL: Duration = Duration::from_secs(5);
 
 /// A power command for the TV.
@@ -84,19 +83,26 @@ fn pwr_state(text: &str) -> Option<bool> {
 /// The CEC bus and the TV power state. All cec-ctl calls go through one lock, so the tasks do
 /// not interleave on the adapter.
 pub struct Cec {
-    cfg: Arc<Config>,
+    config: Arc<Config>,
     lock: Mutex<()>,
     tv_on: AtomicBool,
 }
 
 impl Cec {
-    /// Stores cfg. The TV counts as on until the first power poll replies.
-    pub fn new(cfg: Arc<Config>) -> Self {
+    /// Stores config. The TV counts as on until the first power poll replies.
+    pub fn new(config: Arc<Config>) -> Self {
         Self {
-            cfg,
+            config,
             lock: Mutex::new(()),
             tv_on: AtomicBool::new(true),
         }
+    }
+
+    /// Registers on the CEC bus and starts the TV power poll.
+    pub async fn start(self: &Arc<Self>) {
+        self.register().await;
+        let cec = Arc::clone(self);
+        tokio::spawn(async move { cec.poll_power().await });
     }
 
     /// Returns the last known TV power state.
@@ -106,21 +112,19 @@ impl Cec {
 
     /// Runs cec-ctl on the adapter. Returns None if cec-ctl fails to start or times out.
     async fn cec_ctl(&self, args: &[&str]) -> Option<Output> {
-        let mut cmd = Command::new("cec-ctl");
-        cmd.args(["-d", &self.cfg.device, "-s"]).args(args);
-        run(&mut cmd, CEC_TIMEOUT).await.ok()
+        cmd::cec::cec_ctl(&self.config.device, args).await.ok()
     }
 
     /// Claims the playback logical address with osdName. The caller holds the lock.
     async fn playback(&self) -> Option<Output> {
-        self.cec_ctl(&["--playback", "--osd-name", &self.cfg.osd_name])
+        self.cec_ctl(&["--playback", "--osd-name", &self.config.osd_name])
             .await
     }
 
     /// Registers the playback logical address. Registration is a slow bus negotiation, so it runs
     /// once at start. The kernel keeps the address until an HPD event, for example a TV standby or
     /// wake.
-    pub async fn register(&self) {
+    async fn register(&self) {
         let _guard = self.lock.lock().await;
         self.playback().await;
     }
@@ -150,9 +154,9 @@ impl Cec {
 
     /// Polls the real TV power state, so tv_on follows a standby by the TV timer or the TV remote.
     /// The daemon does not wake an AVR that went to standby, so a manual AVR standby holds.
-    pub async fn poll_power(&self) {
+    async fn poll_power(&self) {
         loop {
-            if let Some(on) = self.power_status(self.cfg.tv_logical_address).await {
+            if let Some(on) = self.power_status(self.config.tv_logical_address).await {
                 self.tv_on.store(on, Ordering::Relaxed);
             }
             sleep(POWER_POLL).await;
@@ -162,7 +166,7 @@ impl Cec {
     /// Sends action to the TV, logs reason and the result, and records the new TV power state.
     pub async fn tv(&self, action: TvAction, reason: &str) {
         info!("{reason} -> {action}");
-        let la = self.cfg.tv_logical_address.to_string();
+        let la = self.config.tv_logical_address.to_string();
         let p = self.send(&["--to", &la, &format!("--{action}")]).await;
         info!("{reason} -> {action}: {}", transmit_result(&p));
         self.tv_on
@@ -176,7 +180,7 @@ impl Cec {
         if log_it {
             info!("{ui_cmd} pressed -> audio system");
         }
-        let la = self.cfg.audio_system_logical_address.to_string();
+        let la = self.config.audio_system_logical_address.to_string();
         let ui = format!("ui-cmd={ui_cmd}");
         let p = self
             .send(&[

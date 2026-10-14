@@ -68,21 +68,10 @@ in {
       '';
     };
 
-    sink = mkOption {
-      type = with types; nullOr str;
-      default = null;
-      example = "alsa_output.pci-0000_03_00.1.hdmi-stereo-extra2";
-      description = ''
-        PipeWire node.name of the TV sink. The audio monitor and the
-        keep-alive tone use this sink, so a change of default sink does not
-        affect the TV. Null follows the default sink.
-      '';
-    };
-
     audioKeepsAwake = mkOption {
       type = types.bool;
       default = true;
-      description = "Count sound on the TV sink as activity.";
+      description = "Count sound on the default sink as activity.";
     };
 
     replaceSuspend = mkOption {
@@ -102,21 +91,14 @@ in {
 
     controllerVolume = {
       enable = mkEnableOption ''
-        relaying TV sink volume changes to the AVR over CEC. Steam controller
+        relaying default sink volume changes to the AVR over CEC. Steam controller
         volume keys change only the system volume, so the sink is held at
-        referencePercent and each change becomes CEC volume steps. Requires
-        `sink`'';
+        referencePercent and each change becomes CEC volume steps'';
 
       referencePercent = mkOption {
         type = types.ints.between 1 99;
         default = 75;
-        description = "Percent the TV sink is held at. Must be below 100 so a volume up is visible.";
-      };
-
-      stepPercent = mkOption {
-        type = types.ints.positive;
-        default = 5;
-        description = "TV sink percent change per CEC volume step.";
+        description = "Percent the default sink is held at. Must be below 100 so a volume up is visible.";
       };
     };
 
@@ -164,13 +146,6 @@ in {
 
   config = mkIf cfg.enable (mkMerge [
     {
-      assertions = [
-        {
-          assertion = cfg.controllerVolume.enable -> cfg.sink != null;
-          message = "kirk.cec.controllerVolume requires kirk.cec.sink.";
-        }
-      ];
-
       users.groups.cectv = {};
       users.users.${cfg.user}.extraGroups = ["cectv"];
 
@@ -190,7 +165,7 @@ in {
         after = ["pipewire.service"];
         wantedBy = ["default.target"];
         unitConfig.ConditionUser = cfg.user;
-        path = with pkgs; [v4l-utils pipewire pulseaudio];
+        path = with pkgs; [v4l-utils pipewire pulseaudio sox];
         serviceConfig = {
           ExecStart = "${exe} ${settings}";
           Restart = "always";
