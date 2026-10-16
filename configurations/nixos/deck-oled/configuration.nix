@@ -38,10 +38,10 @@ in {
       sshAgent = true;
     };
     keyboardLayout.enable = true;
-    # Offload builds to the desktop.
     remoteBuilds.client = {
       enable = true;
       sshKey = "${secretDir}/deck-oled";
+      prebuilt.enable = true;
     };
   };
 
@@ -109,16 +109,6 @@ in {
   hardware.enableRedistributableFirmware = true;
 
   programs.firefox.enable = true;
-
-  system.autoUpgrade = {
-    enable = true;
-    flake = "github:rasmus-kirk/nix-config#deck-oled";
-    flags = ["--refresh" "--option" "max-jobs" "0"];
-    operation = "boot";
-    dates = "daily";
-    persistent = true;
-  };
-  systemd.services.nixos-upgrade.serviceConfig.ExecCondition = "${config.nix.package}/bin/nix store info --store ssh-ng://desktop-builder";
 
   systemd.tmpfiles.rules = [
     "d ${stateDir}                 0700 user users -"

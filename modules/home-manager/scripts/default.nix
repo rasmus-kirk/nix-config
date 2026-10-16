@@ -317,6 +317,86 @@ with lib; let
     '';
   };
 
+  # TODO(slop): clean up
+  slack-md = pkgs.writeShellApplication {
+    name = "slack-md";
+    runtimeInputs = with pkgs; [curl jq fzf coreutils];
+    text = ''
+      SLACK_TOKEN=$(cat /data/.secret/slack_token)
+      : "''${EDITOR:?set EDITOR to your preferred editor}"
+
+      state_dir=''${XDG_STATE_HOME:-$HOME/.local/state}/slack-md
+      draft=$state_dir/draft.md
+      mkdir -p "$state_dir"
+
+      api() {
+        local method=$1
+        shift
+        local resp
+        resp=$(printf 'Authorization: Bearer %s\n' "$SLACK_TOKEN" | curl -sS -H @- "$@" "https://slack.com/api/$method")
+        if ! printf '%s' "$resp" | jq -e .ok >/dev/null; then
+          echo "slack $method: $(printf '%s' "$resp" | jq -r '.error // .')" >&2
+          return 1
+        fi
+        printf '%s' "$resp"
+      }
+
+      paginate() {
+        local method=$1 filter=$2 cursor="" resp
+        shift 2
+        while :; do
+          resp=$(api "$method" -G -d limit=200 --data-urlencode "cursor=$cursor" "$@")
+          printf '%s' "$resp" | jq -c "$filter"
+          cursor=$(printf '%s' "$resp" | jq -r '.response_metadata.next_cursor // ""')
+          [[ -n $cursor ]] || break
+        done
+      }
+
+      list_conversations() {
+        local self
+        self=$(api auth.test | jq -r .user_id)
+        paginate users.list \
+          '.members[] | {(.id): ([.profile.display_name, .real_name, .name, .id] | map(select((. // "") != "")) | first)}' \
+          >"$tmp/users"
+        paginate users.conversations '.channels[] | select(.is_user_deleted != true)' \
+          --data-urlencode "types=public_channel,private_channel,mpim,im" \
+          -d exclude_archived=true \
+          >"$tmp/channels"
+        jq -r 'select(.is_mpim) | .id' "$tmp/channels" | while read -r id; do
+          api conversations.members -G -d "channel=$id" | jq -c --arg id "$id" '{($id): .members}'
+        done >"$tmp/members"
+        jq -r --slurpfile users "$tmp/users" --slurpfile members "$tmp/members" --arg self "$self" '
+          ($users | add // {}) as $u
+          | ($members | add // {}) as $m
+          | def at: "@" + ($u[.] // .);
+          if .is_im then "\(.id)\tDM: \(.user | at)"
+          elif .is_mpim then "\(.id)\tGroup: \([$m[.id][] | select(. != $self) | at] | join(", "))"
+          else "\(.id)\tChannel: #\(.name)"
+          end
+        ' "$tmp/channels"
+      }
+
+      $EDITOR "$draft"
+      if [[ ! -s $draft ]]; then
+        echo "draft is empty" >&2
+        exit 1
+      fi
+
+      tmp=$(mktemp -d)
+      trap 'rm -rf "$tmp"' EXIT
+
+      choice=$(list_conversations | fzf --delimiter='\t' --with-nth=2 --prompt='channel> ')
+      channel=''${choice%%$'\t'*}
+
+      payload=$(jq -n --arg channel "$channel" --rawfile text "$draft" \
+        '{channel: $channel, text: $text, blocks: [{type: "markdown", text: $text}]}')
+      api chat.postMessage -H 'Content-Type: application/json; charset=utf-8' --data-binary "$payload" >/dev/null
+
+      rm "$draft"
+      echo "sent to ''${choice#*$'\t'}"
+    '';
+  };
+
   weather = pkgs.writeShellApplication {
     name = "weather";
     runtimeInputs = with pkgs; [curl coreutils gnused];
@@ -339,6 +419,7 @@ in {
       ff-compress
       git-sign-range
       screenshot
+      slack-md
       upkob
       updap
       conv

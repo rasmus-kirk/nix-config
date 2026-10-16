@@ -22,4 +22,5 @@ in {
   "shared/tokens/GH_TOKEN.age".publicKeys = [yubi desktop work];
   "shared/tokens/LINEAR_API_KEY.age".publicKeys = [yubi desktop work];
   "shared/tokens/NOTION_TOKEN.age".publicKeys = [yubi desktop work];
+  "shared/tokens/SLACK_TOKEN.age".publicKeys = [yubi desktop work];
 }

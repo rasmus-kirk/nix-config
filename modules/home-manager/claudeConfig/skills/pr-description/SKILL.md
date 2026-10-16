@@ -16,7 +16,17 @@ Draft only. The user posts the PR.
    - The titles and descriptions of the user's last 5 PRs (`gh pr list --author @me --state all --limit 5 --json title,body`)
 2. If the PR resolves a Linear issue, read it and prefix the title with its key.
 3. Draft right away. Infer the motivation from the diff, the commits, the issue and this conversation. Under Testing, list only the tests in the diff and the commands run in this conversation.
-4. Give the title and the body in one ````markdown block, then revise it from the user's corrections.
+4. Give the draft in a ````text block, then revise it from the user's corrections:
+
+   ````text
+   Title: <title>
+   Commit Message: <commit message>
+   Body:
+
+   ```md
+   <body>
+   ```
+   ````
 
 ## Title
 

@@ -38,6 +38,7 @@ in {
     claudeConfig = {
       enable = true;
       notion.enable = true;
+      slack.enable = true;
     };
     cosmic.enable = true;
     podman.enable = true;

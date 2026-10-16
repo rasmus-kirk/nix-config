@@ -4,15 +4,19 @@
 
 The Deck (`deck-oled`) upgrades with `system.autoUpgrade` from GitHub. It evaluates the flake on its own CPU, downloads cache hits itself and offloads the rest to the desktop. This is slow.
 
+Offloading also fails for some derivations. The client builds small local inputs, for example `writeShellScript` outputs, and copies them to the desktop. `nixremote` is not in `trusted-users` on the desktop, so the desktop rejects these unsigned paths with `lacks a signature by a trusted key`. `work` hit this error and sets `client.offload = false`.
+
 New model:
 
-- The desktop builds each Deck's system as part of its own rebuild, from the same commit.
-- The Deck asks the desktop for the store path, copies it and activates it.
-- No evaluation and no building on the Deck. No timer, flake URL or signing key on the desktop.
+- No host offloads builds. Remove `client.offload`, `nix.distributedBuilds` and `nix.buildMachines` from the module.
+- The desktop builds each Deck's entire system as part of its own rebuild, from the same commit.
+- The Deck asks the desktop for the store path, copies it and activates it. The scheduled upgrade does no evaluation and no building on the Deck.
+- The Deck can still `nos rebuild` small changes locally. It builds on its own CPU and uses the binary cache.
+- No timer, flake URL or signing key on the desktop.
 
-A Deck gets a new system only after the desktop is rebuilt. This is intended.
+A Deck gets a new scheduled system only after the desktop is rebuilt. This is intended.
 
-Scope: `deck-oled` now. `deck-lcd` later with no module changes. `work` keeps plain remote builds.
+Scope: `deck-oled` now. `deck-lcd` later with no module changes. `work` keeps `client.enable` for the `desktop-builder` SSH host that `nos-stale-check` uses.
 
 ## Changes
 
@@ -39,16 +43,19 @@ Server:
 
 Client:
 
+- Remove the `client.offload` option and the block it guards (`nix.distributedBuilds`, `nix.settings.builders-use-substitutes`, `nix.buildMachines`). `client.enable` keeps the `desktop-builder` SSH host and known hosts.
 - New option `client.prebuilt.enable`.
 - When set, add `nixos-prebuilt-upgrade` service and timer (`OnCalendar = "daily"`, `Persistent = true`, `After`/`Wants` `network-online.target`).
 - Service script (root, `pkgs.writeShellScript`, `set -euo pipefail`):
   1. `path=$(ssh -i ${sshKey} desktop-builder latest ${config.networking.hostName})`
   2. Require `$path` to match `/nix/store/*-nixos-system-${hostName}-*`, else fail.
   3. Exit 0 if `$path` equals `readlink -f /nix/var/nix/profiles/system`. Compare against the profile, not `/run/current-system`, since `boot` does not change the running system.
-  4. `nix copy --no-check-sigs --from "ssh-ng://desktop-builder?ssh-key=${sshKey}" "$path"`
+  4. `nix copy --no-check-sigs --from "ssh://desktop-builder?ssh-key=${sshKey}" "$path"`. The pinned `desktop-builder` host key authenticates the source, so no signing key is needed.
   5. `nix build --no-link --profile /nix/var/nix/profiles/system "$path"`
   6. `"$path"/bin/switch-to-configuration boot`
-- `ExecCondition` reachability check moves here, with `?ssh-key=${sshKey}` added. The current one in `deck-oled` has no key, so root's SSH probably has no identity and the check may always fail. Verify on the Deck.
+- `ExecCondition` reachability check moves here as `ssh -i ${sshKey} desktop-builder nixos-version`. The current one in `deck-oled` has no key, so root's SSH probably has no identity and the check may always fail.
+
+Server `dispatch` replaces `nix-daemon --stdio` with `"nix-store --serve --write") exec nix-store --serve`. An `ssh://` store always requests `--write`. The dispatch drops it, so `nix-store` serves reads and refuses imports and builds.
 
 ### `configurations/nixos/desktop/configuration.nix`
 
@@ -56,10 +63,21 @@ Client:
 kirk.remoteBuilds.server.prebuiltHosts = ["deck-oled"];
 ```
 
+Update the `remoteBuilds.server` comment. The Deck fetches prebuilt systems here and `work` fetches `nixos-version`.
+
 ### `configurations/nixos/deck-oled/configuration.nix`
 
 - Remove `system.autoUpgrade` and the `nixos-upgrade` `ExecCondition` line.
+- Remove the `# Offload builds to the desktop.` comment above `remoteBuilds.client`.
 - Set `kirk.remoteBuilds.client.prebuilt.enable = true;`
+
+### `configurations/nixos/work/configuration.nix`
+
+- Remove `offload = false;` from `remoteBuilds.client`.
+
+### `setup-guide.md`
+
+- Change "log in to the remote builder on `desktop`" to describe what each host fetches from `desktop`.
 
 ### Adding `deck-lcd` later
 
@@ -75,4 +93,7 @@ kirk.remoteBuilds.server.prebuiltHosts = ["deck-oled"];
 4. On the Deck, `systemctl start nixos-prebuilt-upgrade`, check `journalctl -u nixos-prebuilt-upgrade`, confirm a new generation in `/nix/var/nix/profiles/`.
 5. Run it again. It exits early with no new generation.
 6. Reboot the Deck, confirm `readlink /run/current-system` equals the printed path.
+7. `nix eval .#nixosConfigurations.{work,deck-oled}.config.nix.buildMachines` prints `[]` for both.
+8. On the Deck, `sudo nos rebuild` with a small change builds locally and switches.
+9. On `work`, `systemctl start nos-remote-desktop` succeeds and `/var/lib/nos-remotes/desktop` holds the desktop version.
 

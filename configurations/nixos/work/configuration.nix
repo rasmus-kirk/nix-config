@@ -51,8 +51,8 @@ in {
     hardening.enable = true;
     devUser.enable = true;
     tokens = {
-      user = ["CLAUDE_CODE_OAUTH_TOKEN" "GH_TOKEN" "LINEAR_API_KEY" "NOTION_TOKEN"];
-      dev = ["CLAUDE_CODE_OAUTH_TOKEN" "GH_TOKEN" "LINEAR_API_KEY" "NOTION_TOKEN"];
+      user = ["CLAUDE_CODE_OAUTH_TOKEN" "GH_TOKEN" "LINEAR_API_KEY" "NOTION_TOKEN" "SLACK_TOKEN"];
+      dev = ["CLAUDE_CODE_OAUTH_TOKEN" "GH_TOKEN" "LINEAR_API_KEY" "NOTION_TOKEN" "SLACK_TOKEN"];
     };
     yubikey = {
       enable = true;

@@ -64,6 +64,11 @@ in {
           {
             name = "markdown";
             language-servers = ["marksman" "harper-ls"];
+            text-width = 80;
+            soft-wrap = {
+              enable = true;
+              wrap-at-text-width = true;
+            };
           }
           {
             name = "rust";
