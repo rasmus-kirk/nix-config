@@ -48,8 +48,8 @@ To recover the master key handle of the resident FIDO key, run the commands belo
 ## Host Key
 
 Each host has an SSH key at `/data/.secret/<host>`. The host uses this key
-to decrypt its agenix secrets. `work` and `deck-oled` also use it to log in to
-the remote builder on `desktop`.
+to decrypt its agenix secrets. `work` uses it to fetch the NixOS version of
+`desktop`, and `deck-oled` uses it to fetch its prebuilt system from `desktop`.
 
 The repository keeps each key in `ssh-keys/age/<host>.age`, encrypted to the
 YubiKey. Run `ssh-bootstrap` from the repository to decrypt it (requires

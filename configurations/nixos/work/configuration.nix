@@ -63,7 +63,6 @@ in {
     keyboardLayout.enable = true;
     remoteBuilds.client = {
       enable = true;
-      offload = false;
       sshKey = "${secretDir}/${machine}";
     };
   };

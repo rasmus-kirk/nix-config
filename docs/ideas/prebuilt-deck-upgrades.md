@@ -50,12 +50,12 @@ Client:
   1. `path=$(ssh -i ${sshKey} desktop-builder latest ${config.networking.hostName})`
   2. Require `$path` to match `/nix/store/*-nixos-system-${hostName}-*`, else fail.
   3. Exit 0 if `$path` equals `readlink -f /nix/var/nix/profiles/system`. Compare against the profile, not `/run/current-system`, since `boot` does not change the running system.
-  4. `nix copy --no-check-sigs --from "ssh-ng://desktop-builder?ssh-key=${sshKey}" "$path"`
+  4. `nix copy --no-check-sigs --from "ssh://desktop-builder?ssh-key=${sshKey}" "$path"`. The pinned `desktop-builder` host key authenticates the source, so no signing key is needed.
   5. `nix build --no-link --profile /nix/var/nix/profiles/system "$path"`
   6. `"$path"/bin/switch-to-configuration boot`
-- `ExecCondition` reachability check moves here, with `?ssh-key=${sshKey}` added. The current one in `deck-oled` has no key, so root's SSH probably has no identity and the check may always fail. Verify on the Deck.
+- `ExecCondition` reachability check moves here as `ssh -i ${sshKey} desktop-builder nixos-version`. The current one in `deck-oled` has no key, so root's SSH probably has no identity and the check may always fail.
 
-Server `dispatch` keeps `nix-daemon --stdio`, because `nix copy --from ssh-ng://` runs it. It no longer serves builds.
+Server `dispatch` replaces `nix-daemon --stdio` with `"nix-store --serve --write") exec nix-store --serve`. An `ssh://` store always requests `--write`. The dispatch drops it, so `nix-store` serves reads and refuses imports and builds.
 
 ### `configurations/nixos/desktop/configuration.nix`
 

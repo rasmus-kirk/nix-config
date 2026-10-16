@@ -2,42 +2,64 @@
   config,
   pkgs,
   lib,
+  inputs,
   ...
 }:
 with lib; let
   cfg = config.kirk.remoteBuilds;
+  hostName = config.networking.hostName;
+  store = "ssh://desktop-builder?ssh-key=${cfg.client.sshKey}";
+  prebuilt = pkgs.linkFarm "prebuilt-systems" (map (host: {
+      name = host;
+      path = inputs.self.nixosConfigurations.${host}.config.system.build.toplevel;
+    })
+    cfg.server.prebuiltHosts);
   dispatch = pkgs.writeShellScript "nixremote-dispatch" ''
     case "$SSH_ORIGINAL_COMMAND" in
-      "nix-daemon --stdio") exec ${config.nix.package}/bin/nix-daemon --stdio ;;
+      "nix-store --serve --write") exec ${config.nix.package}/bin/nix-store --serve ;;
       "nixos-version") exec /run/current-system/sw/bin/nixos-version ;;
+      "latest "*)
+        host=''${SSH_ORIGINAL_COMMAND#latest }
+        [[ $host =~ ^[a-z0-9-]+$ ]] && readlink ${prebuilt}/"$host" || { echo "denied" >&2; exit 1; } ;;
       *) echo "denied" >&2; exit 1 ;;
     esac
+  '';
+  prebuiltUpgrade = pkgs.writeShellScript "nixos-prebuilt-upgrade" ''
+    set -euo pipefail
+    path=$(ssh -i ${cfg.client.sshKey} desktop-builder latest ${hostName})
+    [[ $path == /nix/store/*-nixos-system-${hostName}-* ]] || { echo "unexpected path: $path" >&2; exit 1; }
+    [[ $path != "$(readlink -f /nix/var/nix/profiles/system)" ]] || exit 0
+    nix copy --no-check-sigs --from ${escapeShellArg store} "$path"
+    nix build --no-link --profile /nix/var/nix/profiles/system "$path"
+    "$path"/bin/switch-to-configuration boot
   '';
 in {
   options.kirk.remoteBuilds = {
     server = {
-      enable = mkEnableOption "the locked-down `nixremote` SSH user that other machines offload Nix builds to";
+      enable = mkEnableOption "the locked-down `nixremote` SSH user that other machines fetch prebuilt systems from";
 
       authorizedKeyFiles = mkOption {
         type = types.listOf types.path;
         default = [];
-        description = "Client public keys. Must not be sk keys, because nix-daemon cannot wait for a YubiKey touch.";
+        description = "Client public keys. Must not be sk keys, because root services cannot wait for a YubiKey touch.";
+      };
+
+      prebuiltHosts = mkOption {
+        type = types.listOf types.str;
+        default = [];
+        description = "NixOS configurations of this flake that the server builds with its own system and serves to `latest <host>`.";
       };
     };
 
     client = {
       enable = mkEnableOption "the `desktop-builder` SSH host for root";
 
-      offload = mkOption {
-        type = types.bool;
-        default = true;
-        description = "Offload Nix builds to the desktop.";
-      };
-
       sshKey = mkOption {
         type = types.str;
-        description = "Private key that nix-daemon uses for the SSH login. Must not be an sk key.";
+        description = "Private key that root uses for the SSH login. Must not be an sk key.";
       };
+
+      prebuilt.enable = mkEnableOption "daily upgrades to the system that the desktop prebuilt for this host";
     };
   };
 
@@ -62,23 +84,6 @@ in {
       '';
     })
 
-    (mkIf (cfg.client.enable && cfg.client.offload) {
-      nix.distributedBuilds = true;
-      nix.settings.builders-use-substitutes = true;
-      nix.buildMachines = [
-        {
-          hostName = "desktop-builder";
-          sshUser = "nixremote";
-          sshKey = cfg.client.sshKey;
-          systems = ["x86_64-linux"];
-          protocol = "ssh-ng";
-          maxJobs = 8;
-          speedFactor = 2;
-          supportedFeatures = ["nixos-test" "benchmark" "big-parallel" "kvm"];
-        }
-      ];
-    })
-
     (mkIf cfg.client.enable {
       programs.ssh.knownHosts."desktop-builder".publicKeyFile = ../../../ssh-keys/age/desktop.pub;
       programs.ssh.extraConfig = ''
@@ -89,6 +94,27 @@ in {
           User nixremote
           ConnectTimeout 5
       '';
+    })
+
+    (mkIf (cfg.client.enable && cfg.client.prebuilt.enable) {
+      systemd.services.nixos-prebuilt-upgrade = {
+        description = "Upgrade to the system prebuilt on the desktop";
+        after = ["network-online.target"];
+        wants = ["network-online.target"];
+        path = [config.nix.package config.programs.ssh.package pkgs.coreutils];
+        serviceConfig = {
+          Type = "oneshot";
+          ExecCondition = "${config.programs.ssh.package}/bin/ssh -i ${cfg.client.sshKey} desktop-builder nixos-version";
+          ExecStart = prebuiltUpgrade;
+        };
+      };
+      systemd.timers.nixos-prebuilt-upgrade = {
+        wantedBy = ["timers.target"];
+        timerConfig = {
+          OnCalendar = "daily";
+          Persistent = true;
+        };
+      };
     })
   ];
 }
