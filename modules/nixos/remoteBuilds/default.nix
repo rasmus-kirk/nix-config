@@ -26,7 +26,13 @@ in {
     };
 
     client = {
-      enable = mkEnableOption "offloading Nix builds to the desktop";
+      enable = mkEnableOption "the `desktop-builder` SSH host for root";
+
+      offload = mkOption {
+        type = types.bool;
+        default = true;
+        description = "Offload Nix builds to the desktop.";
+      };
 
       sshKey = mkOption {
         type = types.str;
@@ -56,7 +62,7 @@ in {
       '';
     })
 
-    (mkIf cfg.client.enable {
+    (mkIf (cfg.client.enable && cfg.client.offload) {
       nix.distributedBuilds = true;
       nix.settings.builders-use-substitutes = true;
       nix.buildMachines = [
@@ -71,6 +77,9 @@ in {
           supportedFeatures = ["nixos-test" "benchmark" "big-parallel" "kvm"];
         }
       ];
+    })
+
+    (mkIf cfg.client.enable {
       programs.ssh.knownHosts."desktop-builder".publicKeyFile = ../../../ssh-keys/age/desktop.pub;
       programs.ssh.extraConfig = ''
         Host desktop-builder

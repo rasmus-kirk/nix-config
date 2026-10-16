@@ -49,6 +49,7 @@ in {
     };
     claudeConfig.enable = true;
     claudeConfig.notion.enable = true;
+    claudeConfig.slack.enable = true;
     claudeConfig.mcpServers.linear = {
       type = "http";
       url = "https://mcp.linear.app/mcp";

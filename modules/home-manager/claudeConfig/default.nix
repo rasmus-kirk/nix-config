@@ -79,6 +79,8 @@ in {
     };
 
     notion.enable = mkEnableOption "the Notion MCP server. Reads the token from `$NOTION_TOKEN`";
+
+    slack.enable = mkEnableOption "the Slack MCP server. Reads a user token (`xoxp-...`) from `$SLACK_TOKEN`";
   };
 
   config = mkMerge [
@@ -87,7 +89,21 @@ in {
         type = "stdio";
         command = "${pkgs.nodejs}/bin/npx";
         args = ["-y" "@notionhq/notion-mcp-server@2.5.2"];
-        env.NOTION_TOKEN = "\${NOTION_TOKEN}";
+        env = {
+          NOTION_TOKEN = "\${NOTION_TOKEN}";
+          PATH = "${pkgs.nodejs}/bin:\${PATH}";
+        };
+      };
+    })
+    (mkIf cfg.slack.enable {
+      kirk.claudeConfig.mcpServers.slack = {
+        type = "stdio";
+        command = "${pkgs.nodejs}/bin/npx";
+        args = ["-y" "slack-mcp-server@1.3.0" "--transport" "stdio"];
+        env = {
+          SLACK_MCP_XOXP_TOKEN = "\${SLACK_TOKEN}";
+          PATH = "${pkgs.nodejs}/bin:\${PATH}";
+        };
       };
     })
     (mkIf (cfg.mcpServers != {}) {

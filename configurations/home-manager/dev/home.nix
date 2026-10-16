@@ -17,6 +17,7 @@ in {
     claudeConfig = {
       enable = true;
       notion.enable = true;
+      slack.enable = true;
     };
     git = {
       enable = true;

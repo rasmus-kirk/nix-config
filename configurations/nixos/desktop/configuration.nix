@@ -73,7 +73,7 @@ in {
   kirk = {
     locale.enable = true;
     hardening.enable = true;
-    tokens.user = ["CLAUDE_CODE_OAUTH_TOKEN" "GH_TOKEN" "LINEAR_API_KEY" "NOTION_TOKEN"];
+    tokens.user = ["CLAUDE_CODE_OAUTH_TOKEN" "GH_TOKEN" "LINEAR_API_KEY" "NOTION_TOKEN" "SLACK_TOKEN"];
     nixosScripts = {
       enable = true;
       configDir = configDir;
@@ -151,7 +151,7 @@ in {
       ps1.enable = true;
       switch.enable = true;
     };
-    # work and deck offload builds here over SSH on port 6000.
+    # deck offloads builds here and work fetches nixos-version here over SSH on port 6000.
     # Builds over WAN need port 6000 forwarded at the router.
     # These keys must not be sk keys, because nix-daemon cannot wait for a YubiKey touch.
     remoteBuilds.server = {
