@@ -12,9 +12,9 @@ Proposed model:
 
 1. A second ZBDongle-E runs OpenThread RCP firmware. Bought from
    <https://www.proshop.dk/Smart-Home/Sonoff-Gateway-ZigBee-30-USB-Dongle-Plus/3213488>.
-2. A systemd oneshot flashes the pinned RCP firmware onto that stick before
-   the border router starts. It is a no-op when the firmware already matches.
-   HA OS does this flash in its hardware wizard, NixOS does it here.
+2. The RCP firmware is flashed onto that stick once, by hand, with
+   `universal-silabs-flasher`. HA OS does this flash in its hardware wizard.
+   Nix does not manage the firmware.
 3. `services.openthread-border-router` (otbr-agent) drives the stick and
    routes between the Thread mesh and the LAN on `enp130s0`.
 4. `services.matterjs-server` is the Matter controller. HA's `matter`
@@ -42,21 +42,6 @@ fabrics, bulbs on Thread.
     - `radioDevice` (str, `/dev/serial/by-id/...` path of the Thread stick)
     - `backboneInterface` (str, e.g. `enp130s0`)
   - When enabled:
-    - Firmware: `pkgs.fetchurl` the ZBDongle-E OpenThread RCP `.gbl` from a
-      pinned `silabs-firmware-builder` release (NabuCasa or darkxst). Pick
-      the 460800 baud build.
-    - `systemd.services.otbr-firmware`:
-      - `Type = oneshot`, `RemainAfterExit = true`
-      - `before` and `requiredBy` `otbr-agent.service`
-      - `ExecStart` runs
-        `universal-silabs-flasher --device <radioDevice> flash --firmware <gbl> --ensure-exact-version --allow-cross-flashing`
-        from `python3Packages.universal-silabs-flasher` (1.1.0 in nixpkgs).
-        Check `--help` for the exact flag names and whether the ZBDongle-E
-        needs a `--bootloader-reset` value.
-      - `--ensure-exact-version` makes repeat runs a no-op.
-      - `radioDevice` must be the by-id path with the new stick's serial.
-        Both sticks are the same model, and a wrong path flashes the Zigbee
-        coordinator.
     - `services.openthread-border-router`:
       - `enable = true`
       - `backboneInterfaces = [cfg.thread.backboneInterface]`
@@ -93,10 +78,23 @@ fabrics, bulbs on Thread.
 ## Verification
 
 1. `nix build .#nixosConfigurations.desktop.config.system.build.toplevel`
-2. Plug in the new stick, read its by-id path from `ls -l /dev/serial/by-id/`,
-   set `radioDevice`, switch.
-3. `journalctl -u otbr-firmware` shows a flash on the first boot and a
-   version match on the second.
+2. Flash the new stick once:
+   1. Plug in only the new stick. Read its by-id path from
+      `ls -l /dev/serial/by-id/`. Both sticks are the same model, so compare
+      the serial against the Zigbee stick's path in Context. A wrong path
+      flashes the Zigbee coordinator.
+   2. Download
+      `zbdonglee_openthread_rcp_2.5.3.0_GitHub-1fceb225b_gsdk_2024.6.3_no_flow_460800.gbl`
+      from darkxst/silabs-firmware-builder release `20250627`. SHA-256
+      `c949a49bea6a989a1998e19d9dc9e34c1cd8438ed6722a1228169d539350cf4e`.
+      NabuCasa's releases have no ZBDongle-E build.
+   3. Run
+      `sudo universal-silabs-flasher --device <by-id path> flash --firmware <gbl> --bootloader-reset rts_dtr`
+      with the flasher from `python3Packages.universal-silabs-flasher`
+      (1.1.0). The tty needs root unless the user is in `dialout`.
+   4. `sudo universal-silabs-flasher --device <by-id path> --bootloader-reset rts_dtr probe`
+      reports `SPINEL` at 460800 baud.
+3. Set `radioDevice` to the by-id path, switch.
 4. `systemctl status otbr-agent matterjs-server home-assistant` all active.
 5. `ot-ctl state` prints `leader` and `ot-ctl dataset active` shows a dataset.
 6. `ip -6 route` shows a route to the Thread OMR prefix (`fdxx::/64`) via

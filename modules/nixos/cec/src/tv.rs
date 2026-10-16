@@ -96,8 +96,8 @@ impl Tv {
         }
         self.last_debug = Some(now);
         debug!(
-            "tv_on={} sound_level={:.4} silence={:.0}s idle={:.0}s present={present}",
-            self.cec.tv_on(),
+            "power={} sound_level={:.4} silence={:.0}s idle={:.0}s present={present}",
+            self.cec.power(),
             self.monitor.last_sound_level(),
             self.monitor.silence(now).as_secs_f64(),
             (now - self.last_activity).as_secs_f64(),

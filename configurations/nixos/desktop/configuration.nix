@@ -88,10 +88,19 @@ in {
       debug = true;
     };
     yubikey.enable = true;
+    server = {
+      enable = true;
+      sensorLog.enable = true;
+    };
     homeAssistant = {
       enable = true;
       stateDir = "${stateDir}/home-assistant";
       hassGroupMembers = [username];
+      thread = {
+        enable = true;
+        radioDevice = "/dev/serial/by-id/usb-Itead_Sonoff_Zigbee_3.0_USB_Dongle_Plus_V2_28aaa4ed0391f0119911736236f0e4ad-if00-port0";
+        backboneInterface = "enp130s0";
+      };
     };
     keyboardLayout.enable = true;
     # steamRoot must be the dir that ~/.local/share/Steam resolves to (see the tmpfiles links).
@@ -129,6 +138,10 @@ in {
           icon = ../../../images/steam/chrome-icon.png; # 256x256
         };
       };
+    };
+    steamScreensaver = {
+      enable = true;
+      video = "${stateDir}/${gameUser}/screensaver.mp4";
     };
     sandboxedGames = {
       enable = true;
@@ -335,25 +348,8 @@ in {
     motherboard = "intel";
   };
 
-  # No NixOS option sets a colour.
-  systemd.services.openrgb-color = {
-    description = "Apply static case RGB colour (candlelight)";
-    # Run as a client of openrgb.service. Its own early-boot hardware detection
-    # races the server and the amdgpu i2c bus, and segfaults.
-    requires = ["openrgb.service"];
-    after = ["openrgb.service" "systemd-modules-load.service"];
-    wantedBy = ["multi-user.target"];
-    serviceConfig = {
-      Type = "oneshot";
-      RemainAfterExit = true;
-      # The server can open its socket after this unit starts.
-      Restart = "on-failure";
-      RestartSec = 3;
-      ExecStart = [
-        "${config.services.hardware.openrgb.package}/bin/openrgb --mode static --color 0E0200"
-      ];
-    };
-  };
+  systemd.services.openrgb.serviceConfig.ExecStart = lib.mkForce
+    "${config.services.hardware.openrgb.package}/bin/openrgb --server --server-port ${toString config.services.hardware.openrgb.server.port} --mode static --color 0E0200";
 
   powerManagement.resumeCommands = ''
     ${config.services.hardware.openrgb.package}/bin/openrgb --mode static --color 0E0200
@@ -420,21 +416,9 @@ in {
 
   # -------------------- Server Defaults -------------------- #
 
-  # journald can crash when memory runs out; never rate-limit its restart.
-  systemd.services.systemd-journald.unitConfig.StartLimitIntervalSec = 0;
+  boot.kernelModules = ["nct6683"];
+  boot.extraModprobeConfig = "options nct6683 force=1";
 
-  boot.kernelParams = [
-    "panic=10" # Reboot after 10 seconds of kernel panic
-    "panic_on_oops=1" # Reboot on any kernel oops
-  ];
-
-  # Forces full colors in terminal over SSH
-  environment.variables = {
-    COLORTERM = "truecolor";
-    TERM = "xterm-256color";
-  };
-
-  services.logind.settings.Login.HandleLidSwitch = "ignore";
   # The power button soft-reboots, for physical recovery when Steam or gamescope hangs.
   # Soft-reboot keeps the kernel, so FDE stays unlocked.
   # Jovian ships powerbuttond in a package, so enable = false does not disable it.
@@ -461,7 +445,6 @@ in {
       overrideDevices = false;
       overrideFolders = false;
     };
-    tuptime.enable = true;
     tailscale = {
       enable = true;
       openFirewall = true;
@@ -500,9 +483,6 @@ in {
       };
     };
     openssh = {
-      enable = true;
-      openFirewall = true;
-      settings.PasswordAuthentication = false;
       ports = [6000];
       hostKeys = [
         {
@@ -615,7 +595,6 @@ in {
 
     # Terminal programs
     iotop
-    tuptime # Uptime doesn't work lol
     yt-dlp
     git
     smartmontools

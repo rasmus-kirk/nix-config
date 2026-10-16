@@ -2,6 +2,7 @@
   imports = [
     ./nixosScripts
     ./steamShortcuts
+    ./steamScreensaver
     ./sandboxedGames
     ./emulation
     ./locale
@@ -13,5 +14,6 @@
     ./remoteBuilds
     ./tokens
     ./homeAssistant
+    ./server
   ];
 }

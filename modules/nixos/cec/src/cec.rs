@@ -1,11 +1,8 @@
 use std::{
     fmt,
     process::Output,
-    sync::{
-        Arc,
-        atomic::{AtomicBool, Ordering},
-    },
-    time::Duration,
+    sync::Arc,
+    time::{Duration, Instant},
 };
 
 use log::info;
@@ -17,6 +14,20 @@ use crate::{
 };
 
 const POWER_POLL: Duration = Duration::from_secs(5);
+const VERIFY_POLL: Duration = Duration::from_secs(1);
+const VERIFY_GRACE: Duration = Duration::from_secs(3);
+const VERIFY_TIMEOUT: Duration = Duration::from_secs(15);
+const ATTEMPTS: u32 = 3;
+const TX_FAILURES: [&str; 8] = [
+    "nack",
+    "not acknowledged",
+    "arbitration lost",
+    "low drive",
+    "timeout",
+    "timed out",
+    "max retries",
+    "error",
+];
 
 /// A power command for the TV.
 #[derive(Clone, Copy, PartialEq)]
@@ -25,12 +36,47 @@ pub enum TvAction {
     ImageViewOn,
 }
 
+impl TvAction {
+    fn target(self) -> Power {
+        match self {
+            Self::Standby => Power::Standby,
+            Self::ImageViewOn => Power::On,
+        }
+    }
+
+    fn source(self) -> Power {
+        match self {
+            Self::Standby => Power::On,
+            Self::ImageViewOn => Power::Standby,
+        }
+    }
+}
+
 impl fmt::Display for TvAction {
     /// Writes the cec-ctl name of the command.
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.write_str(match self {
             Self::Standby => "standby",
             Self::ImageViewOn => "image-view-on",
+        })
+    }
+}
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum Power {
+    On,
+    Standby,
+    Transition,
+    NoReply,
+}
+
+impl fmt::Display for Power {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(match self {
+            Self::On => "on",
+            Self::Standby => "standby",
+            Self::Transition => "transition",
+            Self::NoReply => "no reply",
         })
     }
 }
@@ -54,7 +100,7 @@ impl fmt::Display for UiCmd {
     }
 }
 
-/// Returns ok, no reply, nack/timeout or rc=N for a cec-ctl transmit, for the journal.
+/// Returns ok, no reply, the failed tx status or rc=N for a cec-ctl transmit, for the journal.
 fn transmit_result(p: &Option<Output>) -> String {
     let Some(p) = p else {
         return "no reply".into();
@@ -66,18 +112,22 @@ fn transmit_result(p: &Option<Output>) -> String {
         };
     }
     let out = output(p);
-    if out.contains("nack") || out.contains("timed out") || out.contains("error") {
-        return "nack/timeout".into();
+    match TX_FAILURES.iter().find(|status| out.contains(*status)) {
+        Some(status) => format!("failed ({status})"),
+        None => "ok".into(),
     }
-    "ok".into()
 }
 
-/// Returns true for on and false for off from the pwr-state field of cec-ctl output, or None if
-/// the field is missing.
-fn pwr_state(text: &str) -> Option<bool> {
+/// Returns the power state in the pwr-state field of cec-ctl output, or None if the field is
+/// missing.
+fn pwr_state(text: &str) -> Option<Power> {
     let (_, rest) = text.split_once("pwr-state:")?;
-    let state = rest.split_whitespace().next()?;
-    Some(state.starts_with("on"))
+    match rest.split_whitespace().next()? {
+        "in" => Some(Power::Transition),
+        state if state.starts_with("on") => Some(Power::On),
+        state if state.starts_with("standby") => Some(Power::Standby),
+        _ => None,
+    }
 }
 
 /// The CEC bus and the TV power state. All cec-ctl calls go through one lock, so the tasks do
@@ -85,16 +135,16 @@ fn pwr_state(text: &str) -> Option<bool> {
 pub struct Cec {
     config: Arc<Config>,
     lock: Mutex<()>,
-    tv_on: AtomicBool,
+    power: std::sync::Mutex<Power>,
 }
 
 impl Cec {
-    /// Stores config. The TV counts as on until the first power poll replies.
+    /// Stores config. The TV counts as no reply until the first power poll.
     pub fn new(config: Arc<Config>) -> Self {
         Self {
             config,
             lock: Mutex::new(()),
-            tv_on: AtomicBool::new(true),
+            power: std::sync::Mutex::new(Power::NoReply),
         }
     }
 
@@ -105,9 +155,13 @@ impl Cec {
         tokio::spawn(async move { cec.poll_power().await });
     }
 
-    /// Returns the last known TV power state.
+    /// Returns the last polled TV power state.
+    pub fn power(&self) -> Power {
+        *self.power.lock().unwrap()
+    }
+
     pub fn tv_on(&self) -> bool {
-        self.tv_on.load(Ordering::Relaxed)
+        self.power() == Power::On
     }
 
     /// Runs cec-ctl on the adapter. Returns None if cec-ctl fails to start or times out.
@@ -143,34 +197,72 @@ impl Cec {
         p
     }
 
-    /// Returns true for on and false for off for the device at logical address la, or None if it
-    /// does not reply.
-    async fn power_status(&self, la: u8) -> Option<bool> {
+    /// Returns the power state of the device at logical address la, or None if it does not reply.
+    async fn power_status(&self, la: u8) -> Option<Power> {
         let p = self
             .send(&["--to", &la.to_string(), "--give-device-power-status"])
             .await?;
         pwr_state(&stdout(&p))
     }
 
-    /// Polls the real TV power state, so tv_on follows a standby by the TV timer or the TV remote.
-    /// The daemon does not wake an AVR that went to standby, so a manual AVR standby holds.
+    async fn poll_tv(&self) -> Power {
+        let power = self
+            .power_status(self.config.tv_logical_address)
+            .await
+            .unwrap_or(Power::NoReply);
+        let old = std::mem::replace(&mut *self.power.lock().unwrap(), power);
+        if old != power {
+            info!("tv power {old} -> {power}");
+        }
+        power
+    }
+
+    /// Polls the real TV power state, so the power state follows a standby by the TV timer or the
+    /// TV remote. The daemon does not wake an AVR that went to standby, so a manual AVR standby
+    /// holds.
     async fn poll_power(&self) {
         loop {
-            if let Some(on) = self.power_status(self.config.tv_logical_address).await {
-                self.tv_on.store(on, Ordering::Relaxed);
-            }
+            self.poll_tv().await;
             sleep(POWER_POLL).await;
         }
     }
 
-    /// Sends action to the TV, logs reason and the result, and records the new TV power state.
+    /// Sends action to the TV, logs reason and the result, and polls the TV until it reports the
+    /// target state of action.
     pub async fn tv(&self, action: TvAction, reason: &str) {
-        info!("{reason} -> {action}");
         let la = self.config.tv_logical_address.to_string();
-        let p = self.send(&["--to", &la, &format!("--{action}")]).await;
-        info!("{reason} -> {action}: {}", transmit_result(&p));
-        self.tv_on
-            .store(action == TvAction::ImageViewOn, Ordering::Relaxed);
+        let target = action.target();
+        for attempt in 1..=ATTEMPTS {
+            let try_label = match attempt {
+                1 => String::new(),
+                n => format!(" (attempt {n})"),
+            };
+            info!("{reason} -> {action}{try_label}");
+            let p = self.send(&["--to", &la, &format!("--{action}")]).await;
+            info!("{reason} -> {action}: {}", transmit_result(&p));
+            let start = Instant::now();
+            loop {
+                sleep(VERIFY_POLL).await;
+                let power = self.poll_tv().await;
+                let elapsed = start.elapsed();
+                if power == target {
+                    info!(
+                        "{reason} -> {action}: tv {power} after {}s",
+                        elapsed.as_secs()
+                    );
+                    return;
+                }
+                if elapsed >= VERIFY_TIMEOUT
+                    || (elapsed >= VERIFY_GRACE && power == action.source())
+                {
+                    break;
+                }
+            }
+        }
+        info!(
+            "{reason} -> {action}: failed after {ATTEMPTS} attempts, tv {}",
+            self.power()
+        );
     }
 
     /// Sends ui_cmd to the audio system as a user control press and release. CEC volume goes to the
