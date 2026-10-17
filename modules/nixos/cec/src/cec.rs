@@ -184,13 +184,15 @@ impl Cec {
     }
 
     /// Sends a CEC message on the registered address. If cec-ctl reports that the adapter is
-    /// unconfigured after an HPD event, registers again and retries one time.
+    /// unconfigured or sent from Unregistered after an HPD event, registers again and retries one
+    /// time.
     pub async fn send(&self, args: &[&str]) -> Option<Output> {
         let _guard = self.lock.lock().await;
         let p = self.cec_ctl(args).await;
-        if p.as_ref()
-            .is_some_and(|p| output(p).contains("unconfigured"))
-        {
+        if p.as_ref().is_some_and(|p| {
+            let out = output(p);
+            out.contains("unconfigured") || out.contains("from unregistered")
+        }) {
             self.playback().await;
             return self.cec_ctl(args).await;
         }
