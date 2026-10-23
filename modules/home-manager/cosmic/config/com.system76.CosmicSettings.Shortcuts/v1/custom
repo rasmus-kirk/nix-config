@@ -230,7 +230,13 @@
             Super,
         ],
         key: "s",
-    ): System(Screenshot),
+    ): Spawn("screenshot"),
+    (
+        modifiers: [
+            Super,
+        ],
+        key: "v",
+    ): Spawn("wtype -s 300 \"Check the newest image in /tmp/screenshots\" -k Return -k Return"),
     (
         modifiers: [
             Super,

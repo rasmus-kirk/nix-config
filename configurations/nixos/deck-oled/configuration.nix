@@ -1,5 +1,4 @@
 {
-  config,
   pkgs,
   lib,
   inputs,
@@ -12,12 +11,7 @@
 in {
   imports = [./hardware-configuration.nix];
 
-  age = {
-    identityPaths = ["${secretDir}/deck-oled" "${secretDir}/age_ed25519"];
-    secrets = {
-      "wg.conf".file = ../../../age/deck-oled/wg.conf.age;
-    };
-  };
+  age.identityPaths = ["${secretDir}/deck-oled" "${secretDir}/age_ed25519"];
 
   kirk = {
     locale.enable = true;
@@ -42,45 +36,6 @@ in {
       enable = true;
       sshKey = "${secretDir}/deck-oled";
       prebuilt.enable = true;
-    };
-  };
-
-  vpnNamespaces.wg = {
-    enable = true;
-    wireguardConfigFile = config.age.secrets."wg.conf".path;
-    accessibleFrom = [
-      "192.168.1.0/24"
-      "127.0.0.1"
-    ];
-    portMappings = [
-      {
-        from = 9091;
-        to = 9091;
-      }
-    ];
-    openVPNPorts = [
-      {
-        port = 24745;
-        protocol = "both";
-      }
-    ];
-  };
-
-  systemd.services.transmission.vpnConfinement = {
-    enable = true;
-    vpnNamespace = "wg";
-  };
-
-  services.transmission = {
-    enable = true;
-    package = inputs.nixpkgs-2405.legacyPackages.${pkgs.stdenv.hostPlatform.system}.transmission_4;
-    openPeerPorts = true;
-    user = "user";
-    settings = {
-      peer-port = 24745;
-      download-dir = "/data/downloads/torrents";
-      rpc-bind-address = "192.168.15.1";
-      rpc-whitelist-enabled = false;
     };
   };
 

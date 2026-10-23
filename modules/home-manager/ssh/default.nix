@@ -34,5 +34,9 @@ in {
       };
       extraConfig = optionalString (cfg.identityPath != null) "IdentityFile ${cfg.identityPath}";
     };
+
+    home.file.".ssh/id_ed25519" = mkIf (cfg.identityPath != null) {
+      source = ../../../ssh-keys/age/yubi.identity;
+    };
   };
 }

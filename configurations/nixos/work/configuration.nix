@@ -51,8 +51,8 @@ in {
     hardening.enable = true;
     devUser.enable = true;
     tokens = {
-      user = ["CLAUDE_CODE_OAUTH_TOKEN" "GH_TOKEN" "LINEAR_API_KEY" "NOTION_TOKEN" "SLACK_TOKEN"];
-      dev = ["CLAUDE_CODE_OAUTH_TOKEN" "GH_TOKEN" "LINEAR_API_KEY" "NOTION_TOKEN" "SLACK_TOKEN"];
+      user = ["CLAUDE_CODE_OAUTH_TOKEN" "GH_TOKEN" "GRAFANA_TOKEN" "LINEAR_API_KEY" "NOTION_TOKEN" "SLACK_TOKEN"];
+      dev = ["CLAUDE_CODE_OAUTH_TOKEN" "GH_TOKEN" "GRAFANA_TOKEN" "LINEAR_API_KEY" "NOTION_TOKEN" "SLACK_TOKEN"];
     };
     yubikey = {
       enable = true;
@@ -78,6 +78,18 @@ in {
 
   services.desktopManager.cosmic.enable = true;
   services.displayManager.cosmic-greeter.enable = true;
+  nixpkgs.overlays = [
+    (final: prev: {
+      cosmic-greeter = prev.cosmic-greeter.overrideAttrs (finalAttrs: old: {
+        src = inputs.cosmic-greeter-src;
+        cargoDeps = final.rustPlatform.fetchCargoVendor {
+          inherit (finalAttrs) src;
+          hash = "sha256-SolJzpwXhtziALioyBJt6lhLpiwLN2VnepYCSPxvYyQ=";
+        };
+        env = old.env // {VERGEN_GIT_SHA = inputs.cosmic-greeter-src.rev;};
+      });
+    })
+  ];
   services.displayManager.autoLogin = {
     enable = true;
     user = "user";
@@ -102,6 +114,7 @@ in {
     "z ${secretDir}/${machine}               0400 root root  -"
     "d ${dataDir}/downloads                  0700 user users -"
     "d ${dataDir}/media                      0700 user users -"
+    "d ${dataDir}/media/images               0700 user users -"
     "d ${dataDir}/media/images/screenshots   0700 user users -"
 
     "d ${stateDir}                           0700 user users -"
@@ -109,6 +122,7 @@ in {
     "d ${stateDir}/firefox/config            0755 user users -"
     "d ${stateDir}/firefox/home              0755 user users -"
     "d ${stateDir}/chromium                  0755 user users -"
+    "d ${stateDir}/slack                     0755 user users -"
     "d ${stateDir}/cosmic                    0755 user users -"
     "d ${stateDir}/cosmic/comp               0755 user users -"
     "d ${stateDir}/cosmic/local              0755 user users -"
@@ -124,6 +138,7 @@ in {
     "L+ /home/user/.mozilla                  - - - - ${stateDir}/firefox/home"
     "L+ /home/user/.config/mozilla           - - - - ${stateDir}/firefox/config"
     "L+ /home/user/.config/chromium          - - - - ${stateDir}/chromium"
+    "L+ /home/user/.config/Slack             - - - - ${stateDir}/slack"
     "L+ /home/user/.local/state/cosmic       - - - - ${stateDir}/cosmic/local"
     "L+ /home/user/.local/state/cosmic-comp  - - - - ${stateDir}/cosmic/comp"
     "L+ /home/user/.claude                   - - - - ${stateDir}/claude/state"

@@ -10,6 +10,7 @@ Every command runs unsandboxed on the host, after the user reads and approves it
 **Above all else, each command must be readable.** The user must understand a command after one read. Readability wins over every other rule, including approving fewer commands.
 
 - Read with Read, Grep and Glob, never Bash. Use Bash for reads only when no tool covers it, for example `git log`.
+- Never use awk.
 - Use absolute paths. Never hide work in `$(...)`, backticks, `eval`, `xargs`, `sh -c` or encoded strings. Pipe only into read-only stages.
 - Chain only read-only commands. A command that changes state runs alone.
 - Use `sudo` without `-n`, because `-n` blocks the YubiKey touch prompt. A `sudo` command always runs alone, never chained or piped.

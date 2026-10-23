@@ -14,11 +14,6 @@ in {
     podman.enable = true;
     scripts.enable = true;
     kotofetch.enable = true;
-    claudeConfig = {
-      enable = true;
-      notion.enable = true;
-      slack.enable = true;
-    };
     git = {
       enable = true;
       signKey = "/run/dev-secret/id_ed25519_yubi.pub";

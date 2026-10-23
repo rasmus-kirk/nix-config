@@ -20,6 +20,22 @@
         "type": "github"
       }
     },
+    "cosmic-greeter-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1792772734,
+        "narHash": "sha256-MWPT8I8PFg+JFHzVFCozWAu+R+U2khxMCixo29eHYmQ=",
+        "owner": "rasmus-kirk",
+        "repo": "cosmic-greeter",
+        "rev": "fb5e95298ee299b37e281186857496694ba9e531",
+        "type": "github"
+      },
+      "original": {
+        "owner": "rasmus-kirk",
+        "repo": "cosmic-greeter",
+        "type": "github"
+      }
+    },
     "flake-utils": {
       "inputs": {
         "systems": "systems"
@@ -256,6 +272,7 @@
     "root": {
       "inputs": {
         "agenix": "agenix",
+        "cosmic-greeter-src": "cosmic-greeter-src",
         "home-manager": "home-manager",
         "hosts": "hosts",
         "jovian": "jovian",

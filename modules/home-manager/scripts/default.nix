@@ -173,7 +173,7 @@ with lib; let
         echo "" &&
         echo "Mount succesfull. Starting rsync..." &&
 
-        sudo rsync -trvl --modify-window=1 --delete --exclude='.*' --exclude='kfmon.png' --exclude='koreader.png' --exclude='icons' --exclude='Screenshots' "$bookPath/" "$mntPath" &&
+        sudo rsync -trvl --modify-window=1 --delete --exclude='.*' --exclude='kfmon.png' --exclude='koreader.png' --exclude='icons' --exclude='Screenshots' --exclude='/temp/' "$bookPath/" "$mntPath" &&
 
         echo "" &&
         echo "Rsync is finished. Unmounting..." &&

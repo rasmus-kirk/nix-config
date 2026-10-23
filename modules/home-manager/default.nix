@@ -15,6 +15,7 @@
     ./podman
     ./box
     ./scripts
+    ./slack
     ./ssh
     ./terminalTools
     ./userDirs

@@ -5,6 +5,14 @@ the weaknesses and restrictions that make additional features appear necessary.
 
 - Put temporary scripts, documents, and worktrees meant for the user or other agents in `.scratchpad/`. Anything only you interact with stays in your own scratchpad.
 
+## Box
+
+`box` is a bubblewrap sandbox. Inside it, `$BOX` is `1`. A session can move between host and box. When a task needs the other side, give the user these steps, with your session ID filled in.
+
+1. Exit Claude.
+2. On the host, run `box copy in <id>` to go into the box, or `box copy out <id>` to go out.
+3. On the other side, run `claude --resume <id>`.
+
 ## Reading CI Status
 
 `gh pr checks` and `statusCheckRollup` fail with "Resource not accessible by personal access token", because the fine-grained `GH_TOKEN` can't read the Checks API. Use the Actions API instead:
