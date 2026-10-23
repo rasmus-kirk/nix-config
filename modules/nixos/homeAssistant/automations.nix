@@ -1,4 +1,32 @@
-{sensors}: let
+{
+  sensors,
+  palette,
+}: let
+  color = n: builtins.elemAt palette (n - 1);
+
+  bathroomSchedule = [
+    {
+      from = 0;
+      rgb = color 3;
+      brightness = 1;
+    }
+    {
+      from = 8;
+      rgb = color 2;
+      brightness = 50;
+    }
+    {
+      from = 9;
+      rgb = color 1;
+      brightness = 100;
+    }
+    {
+      from = 23;
+      rgb = color 2;
+      brightness = 50;
+    }
+  ];
+
   styrbar = id: alias: remote: area: color_index_helper: {
     inherit id alias;
     use_blueprint = {
@@ -57,17 +85,21 @@ in [
     ];
     conditions = [
       {
-        condition = "template";
-        value_template = "{{ area_entities('bathroom') | select('match', 'light\\.') | select('is_state', 'on') | list | count == 0 }}";
+        condition = "state";
+        entity_id = "input_boolean.bathroom_manual";
+        state = "off";
       }
     ];
     actions = [
       {
+        variables.slot = "{{ ${builtins.toJSON bathroomSchedule} | selectattr('from', 'le', now().hour) | list | last }}";
+      }
+      {
         action = "light.turn_on";
         target.area_id = "bathroom";
         data = {
-          rgb_color = [255 114 0];
-          brightness_pct = 1;
+          rgb_color = "{{ slot.rgb }}";
+          brightness_pct = "{{ slot.brightness }}";
         };
       }
     ];
@@ -85,14 +117,54 @@ in [
     ];
     conditions = [
       {
-        condition = "template";
-        value_template = "{{ area_entities('bathroom') | select('match', 'light\\.') | select('is_state', 'on') | map('state_attr', 'brightness') | map('int', 0) | select('gt', 3) | list | count == 0 }}";
+        condition = "state";
+        entity_id = "input_boolean.bathroom_manual";
+        state = "off";
       }
     ];
     actions = [
       {
         action = "light.turn_off";
         target.area_id = "bathroom";
+      }
+    ];
+  }
+  {
+    id = "bathroom_manual_on";
+    alias = "Bathroom manual on";
+    triggers = [
+      {
+        trigger = "event";
+        event_type = "zha_event";
+        event_data.device_id = "d44c7594be32a27de6bee92459f06fd9";
+      }
+    ];
+    conditions = [
+      {
+        condition = "template";
+        value_template = "{{ trigger.event.data.command != 'off' }}";
+      }
+    ];
+    actions = [
+      {
+        action = "input_boolean.turn_on";
+        target.entity_id = "input_boolean.bathroom_manual";
+      }
+    ];
+  }
+  {
+    id = "bathroom_manual_off";
+    alias = "Bathroom manual off";
+    triggers = [
+      {
+        trigger = "template";
+        value_template = "{{ area_entities('bathroom') | select('match', 'light\\.') | select('is_state', 'on') | list | count == 0 }}";
+      }
+    ];
+    actions = [
+      {
+        action = "input_boolean.turn_off";
+        target.entity_id = "input_boolean.bathroom_manual";
       }
     ];
   }

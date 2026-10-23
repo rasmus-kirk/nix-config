@@ -69,45 +69,17 @@ action:
       stop: 3
       move_with_on_off: 5
       stop_with_on_off: 7
-    palette:
-    - [255, 195, 113]
-    - [255, 160, 0]
-    - [255, 114, 0]
-    - [157, 0, 6]
-    - [143, 63, 113]
-    - [104, 157, 106]
+    palette: @palette@
     ieees: >
       {{ area_entities(area) | select('match', 'light[.]') | map('device_id')
          | map('device_attr', 'identifiers') | map('first') | map(attribute=1) | list }}
-    area_lights: "{{ area_entities(area) | select('match', 'light[.]') | list }}"
-    normal_scene_id: '{{ area }}_normal'
-    normal_scene: 'scene.{{ area }}_normal'
 - choose:
   - conditions: '{{ cluster == 6 and cmd == ''on'' }}'
     sequence:
-    - if: "{{ normal_scene in states.scene | map(attribute='entity_id') | list }}"
-      then:
-      - service: scene.turn_on
-        target: {entity_id: '{{ normal_scene }}'}
-        data:
-          transition: 0.1
-      else:
-      - service: light.turn_on
-        target: {area_id: !input area}
-        data:
-          rgb_color: '{{ palette[states(color_index_entity) | int(1) - 1] }}'
-          brightness_pct: 100
-          transition: 0.1
+    - service: light.turn_on
+      target: {area_id: !input area}
   - conditions: '{{ cluster == 6 and cmd == ''off'' }}'
     sequence:
-    - if: >
-        {{ area_lights | select('is_state', 'on') | map('state_attr', 'brightness')
-           | map('int', 0) | select('gt', 3) | list | count > 0 }}
-      then:
-      - service: scene.create
-        data:
-          scene_id: '{{ normal_scene_id }}'
-          snapshot_entities: '{{ area_lights }}'
     - service: light.turn_off
       target: {area_id: !input area}
   - conditions: '{{ cluster == 8 and cmd in [''move'', ''move_with_on_off''] }}'
