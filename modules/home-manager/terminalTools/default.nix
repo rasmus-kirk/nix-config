@@ -17,10 +17,10 @@ with lib; let
     - duf: Pretty df
     - eza: Pretty ls
     - fd: Find Files
-    - fzf: Search text
+    - fzf: Fuzzy Finder
     - jq: JSON Parser
     - rig: Random Identities for Privacy
-    - ag: Search in Files
+    - rg: Search in Files
     - tldr: TLDR for CLI Commands
     - trash-cli: Trash Files in Terminal
       - trash-put: Trash file or directory

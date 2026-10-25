@@ -8,6 +8,8 @@ with lib; let
   cfg = config.kirk.box;
   boxHome = "/home/${cfg.user}";
   boxTokenDir = "${boxHome}/.secret/tokens-read-only";
+  hostProjects = "${config.home.homeDirectory}/.claude/projects";
+  boxProjects = "${cfg.stateDir}/claude/projects";
 in {
   options.kirk.box = {
     enable = mkEnableOption "bubblewrap sandbox";
@@ -43,6 +45,12 @@ in {
       default = null;
       example = "/run/tokens/user";
       description = "Directory of read-only tokens, mounted at ~/.secret/tokens-read-only in the box. Used only with `--tokens`.";
+    };
+
+    screenshotDir = mkOption {
+      type = types.str;
+      default = "/tmp/screenshots";
+      description = "Screenshot directory, mounted read-only at the same path in the box if it exists.";
     };
   };
 
@@ -135,6 +143,7 @@ in {
             args+=(--bind ${cfg.stateDir}/zsh ${boxHome}/.local/state/zsh)
             args+=(--bind ${cfg.stateDir}/claude ${boxHome}/.claude)
             args+=(--bind ${cfg.stateDir}/claude.json ${boxHome}/.claude.json)
+            [ -d ${cfg.screenshotDir} ] && args+=(--ro-bind ${cfg.screenshotDir} ${cfg.screenshotDir})
 
             if [ "''${argc_rw:-0}" = 1 ]; then
               # Read-write mode.
@@ -156,6 +165,39 @@ in {
               ${cfg.homeManagerPackage}/activate
               exec ${boxHome}/.nix-profile/bin/zsh
             ''}
+          }
+
+          # @cmd Copy a Claude session between host and box.
+          # @arg direction![in|out]     in copies host → box, out copies box → host.
+          # @arg id!                    Session ID.
+          copy() {
+            if [ "''${argc_direction:-}" = in ]; then
+              copy_session ${hostProjects} ${boxProjects}
+            else
+              copy_session ${boxProjects} ${hostProjects}
+            fi
+          }
+
+          copy_session() {
+            local from="$1" to="$2" id="''${argc_id:-}"
+
+            if [ "''${BOX:-0}" = 1 ]; then
+              echo "box: run 'box copy' on the host" >&2
+              exit 1
+            fi
+
+            cd "$from"
+            local key
+            for key in ./*/; do
+              [ -f "$key$id.jsonl" ] || continue
+              mkdir -p "$to/$key"
+              cp "$key$id.jsonl" "$to/$key"
+              echo "claude --resume $id"
+              return
+            done
+
+            echo "box: no session $id in $from" >&2
+            exit 1
           }
 
           eval "$(argc --argc-eval "$0" "$@")"

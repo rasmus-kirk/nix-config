@@ -73,7 +73,7 @@ in {
   kirk = {
     locale.enable = true;
     hardening.enable = true;
-    tokens.user = ["CLAUDE_CODE_OAUTH_TOKEN" "GH_TOKEN" "LINEAR_API_KEY" "NOTION_TOKEN" "SLACK_TOKEN"];
+    tokens.user = ["CLAUDE_CODE_OAUTH_TOKEN" "GH_TOKEN"];
     nixosScripts = {
       enable = true;
       configDir = configDir;

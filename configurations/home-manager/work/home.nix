@@ -43,6 +43,7 @@ in {
     cosmic.enable = true;
     podman.enable = true;
     scripts.enable = true;
+    slack.enable = true;
     yazi = {
       enable = true;
       configDir = configDir;

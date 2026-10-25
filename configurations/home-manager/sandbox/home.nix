@@ -64,6 +64,8 @@ in {
 
   home.stateVersion = "22.11";
 
+  home.sessionVariables.GRAFANA_SERVER = "https://grafana.test-qms.com";
+
   programs.home-manager.enable = true;
 
   targets.genericLinux.enable = true;
@@ -101,6 +103,7 @@ in {
     nix
 
     curl
+    gcx
 
     wl-clipboard
 

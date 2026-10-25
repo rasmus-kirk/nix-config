@@ -34,6 +34,9 @@
 
     submerger.url = "github:rasmus-kirk/submerger";
     submerger.inputs.nixpkgs.follows = "nixpkgs";
+
+    cosmic-greeter-src.url = "github:rasmus-kirk/cosmic-greeter";
+    cosmic-greeter-src.flake = false;
   };
 
   outputs = inputs @ {
@@ -193,7 +196,6 @@
           agenix.nixosModules.default
           self.nixosModules.default
           jovian.nixosModules.default
-          vpnconfinement.nixosModules.default
           home-manager.nixosModules.home-manager
           {
             home-manager.users.user = {
