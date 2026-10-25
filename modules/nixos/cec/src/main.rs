@@ -34,7 +34,7 @@ use crate::{
 ///
 /// Volume and mute keys go to the AVR over CEC. With keepAwake.enable, a sub-audible tone after
 /// silenceMinutes of silence keeps the speakers out of standby. With controllerVolume.enable,
-/// default sink volume changes become CEC volume steps to the AVR.
+/// sink volume changes become CEC volume steps to the AVR.
 #[derive(Parser)]
 #[command(version)]
 struct Cli {
@@ -83,6 +83,7 @@ pub struct Config {
     pub idle_minutes: u64,
     pub tv_logical_address: u8,
     pub audio_system_logical_address: u8,
+    pub sink: String,
     pub audio_keeps_awake: bool,
     pub debug: bool,
     pub keep_awake: KeepAwake,

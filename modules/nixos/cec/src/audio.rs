@@ -85,9 +85,9 @@ pub mod audio_monitor {
     }
 }
 
-/// After silenceMinutes of silence while the TV is on, plays a sub-audible tone on the default sink, so
-/// the speakers do not go to standby. The monitor takes no sample while the tone plays, so it never
-/// hears the tone.
+/// After silenceMinutes of silence while the TV is on and sink is the default sink, plays a
+/// sub-audible tone on the default sink, so the speakers do not go to standby. The monitor takes no
+/// sample while the tone plays, so it never hears the tone.
 pub mod speaker_heartbeat {
     use super::*;
 
@@ -98,8 +98,9 @@ pub mod speaker_heartbeat {
         let _ = cmd::audio::play(keep.pulse_seconds, keep.frequency, keep.amplitude).await;
     }
 
-    /// Samples the monitor every SAMPLE_INTERVAL. When the TV is on and the silence, counted from
-    /// the last sound or the last tone, reaches silenceMinutes, plays the tone. No sample runs
+    /// Samples the monitor every SAMPLE_INTERVAL. When the TV is on, sink is the default sink and
+    /// the silence, counted from the last sound or the last tone, reaches silenceMinutes, plays
+    /// the tone. No sample runs
     /// while the tone plays, and the wait after it lets the tail die out, so the monitor never
     /// hears the tone.
     async fn run(config: &Config, cec: &Cec, monitor: &Monitor) {
@@ -110,7 +111,10 @@ pub mod speaker_heartbeat {
                 monitor.hear(sound_level);
             }
             let quiet = monitor.silence(Instant::now()).min(last_pulse.elapsed());
-            if cec.tv_on() && quiet >= keep.silence() {
+            if cec.tv_on()
+                && quiet >= keep.silence()
+                && cmd::audio::get_default_sink().await.as_ref() == Some(&config.sink)
+            {
                 pulse(config).await;
                 last_pulse = Instant::now();
             }
@@ -126,27 +130,26 @@ pub mod speaker_heartbeat {
     }
 }
 
-/// Holds the default sink at referencePercent and relays its volume changes to the AVR.
+/// Holds sink at referencePercent and relays its volume changes to the AVR. Volume changes on
+/// other sinks do not reach the AVR.
 pub mod volume_relay {
     use super::*;
 
-    const SINK: &str = "@DEFAULT_SINK@";
-
-    /// Returns the default sink volume in percent, or None if pactl fails.
-    async fn get_volume() -> Option<u32> {
-        cmd::audio::get_sink_volume(SINK).await
+    /// Returns the sink volume in percent, or None if pactl fails.
+    async fn get_volume(config: &Config) -> Option<u32> {
+        cmd::audio::get_sink_volume(&config.sink).await
     }
 
-    /// Sets the default sink volume to pct percent.
-    async fn set_volume(pct: u32) -> Result<()> {
-        cmd::audio::set_sink_volume(SINK, pct).await
+    /// Sets the sink volume to pct percent.
+    async fn set_volume(config: &Config, pct: u32) -> Result<()> {
+        cmd::audio::set_sink_volume(&config.sink, pct).await
     }
 
-    /// Sends a change of the default sink volume from referencePercent to the AVR as one CEC volume
-    /// step, then sets the sink back to referencePercent.
+    /// Sends a change of the sink volume from referencePercent to the AVR as one CEC volume step,
+    /// then sets the sink back to referencePercent.
     async fn relay(config: &Config, cec: &Cec) {
         let relay = &config.controller_volume;
-        let Some(vol) = get_volume().await else {
+        let Some(vol) = get_volume(config).await else {
             return;
         };
         let cmd = match vol.cmp(&relay.reference_percent) {
@@ -156,14 +159,14 @@ pub mod volume_relay {
         };
         cec.volume_key(cmd, false).await;
         info!("controller volume {cmd} -> AVR (sink was {vol}%)");
-        let _ = set_volume(relay.reference_percent).await;
+        let _ = set_volume(config, relay.reference_percent).await;
     }
 
-    /// Holds the default sink at referencePercent. Runs relay on each sink change event from pactl
+    /// Holds the sink at referencePercent. Runs relay on each sink change event from pactl
     /// subscribe. The reset to referencePercent also makes an event, but it reads as no change,
     /// so there is no feedback loop.
     async fn watch_volume(config: &Config, cec: &Cec) {
-        let _ = set_volume(config.controller_volume.reference_percent).await;
+        let _ = set_volume(config, config.controller_volume.reference_percent).await;
         loop {
             let child = cmd::audio::subscribe();
             if let Ok(mut child) = child {

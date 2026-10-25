@@ -88,6 +88,13 @@ pub mod audio {
         })
     }
 
+    pub async fn get_default_sink() -> Option<String> {
+        let out = run(Command::new("pactl").arg("get-default-sink"))
+            .await
+            .ok()?;
+        Some(super::stdout(&out).trim().to_owned())
+    }
+
     pub async fn get_sink_volume(sink: &str) -> Option<u32> {
         let out = run(Command::new("pactl").args(["get-sink-volume", sink]))
             .await

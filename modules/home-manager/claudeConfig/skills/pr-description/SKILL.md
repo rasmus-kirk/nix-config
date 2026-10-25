@@ -7,6 +7,8 @@ description: Draft a PR title and description in the user's style. Use whenever 
 
 Draft only. The user posts the PR.
 
+Load the writing-style skill before you draft.
+
 ## Steps
 
 1. Read:
@@ -15,7 +17,7 @@ Draft only. The user posts the PR.
    - The repository's PR template
    - The titles and descriptions of the user's last 5 PRs (`gh pr list --author @me --state all --limit 5 --json title,body`)
 2. If the PR resolves a Linear issue, read it and prefix the title with its key.
-Draft right away. Infer the motivation from the diff, the commits, the issue, and this conversation. Under Testing, list only the tests the diff adds or changes, and manual runs of the software in this conversation. Never state that tests, lints, or CI pass. CI reports that.
+3. Draft right away. Infer the motivation from the diff, the commits, the issue, and this conversation. Under Testing, list only the tests the diff adds or changes, and manual runs of the software in this conversation. Never state that tests, lints, or CI pass. CI reports that.
 4. Give the draft in a ````text block, then revise it from the user's corrections:
 
    ````text

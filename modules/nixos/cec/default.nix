@@ -68,6 +68,15 @@ in {
       '';
     };
 
+    sink = mkOption {
+      type = types.str;
+      example = "alsa_output.pci-0000_03_00.1.hdmi-stereo";
+      description = ''
+        PipeWire node name of the sink that feeds the AVR. The volume relay and
+        the keep-alive tone act only on this sink.
+      '';
+    };
+
     audioKeepsAwake = mkOption {
       type = types.bool;
       default = true;
@@ -91,7 +100,7 @@ in {
 
     controllerVolume = {
       enable = mkEnableOption ''
-        relaying default sink volume changes to the AVR over CEC. Steam controller
+        relaying sink volume changes to the AVR over CEC. Steam controller
         volume keys change only the system volume, so the sink is held at
         referencePercent and each change becomes CEC volume steps'';
 

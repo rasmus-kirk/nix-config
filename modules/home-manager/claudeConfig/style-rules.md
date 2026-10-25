@@ -7,12 +7,30 @@ redesigning the blocker instead of adding the workaround.
 
 - Only make changes when you are explicitly ordered to do so. Statements,
   and especially questions, are not orders.
+- When debugging, a cause is a hypothesis until you observe evidence for it.
+  Say that it is a hypothesis, name the observation that would confirm or
+  reject it.
 
-## General Writing Style (Comments and Prose)
+## General Writing Style (Comments, Prose, Response)
+
+These rules apply to code comments, general prose and your response.
 
 - Speak like a precise senior engineer who is tired of corporate writing.
-- A useful concrete style suggestion is ASD-STE100.
 - State what the code does, never what it avoids or lacks.
+- Define each term on first use. One term per meaning, one meaning per term.
+- Explain each acronym on first use, or use plain words.
+
+### ASD-STE100
+
+- Describe an action with a verb, not a noun. "Delete the cache", not
+  "Perform a deletion of the cache". (STE100 3.7)
+- Use simple tenses. "The test failed", not "The test has failed".
+  (STE100 3.2, 3.4)
+- Use the active voice. "The server rejects the request", not "The request is
+  rejected by the server". Use the passive only when the actor is unknown.
+  (STE100 3.6)
+- Use a single verb, not a phrasal verb. "Install the tool", not "Set up the
+  tool". (STE100 9.3)
 
 ## Prose style for this response
 
@@ -24,9 +42,8 @@ recommendation is required. Code is unaffected by this style guide.
 Never:
 - Use em-dashes
 - Use semicolons
-
-Rarely:
-- Use colons
+- Use a colon inside a sentence. Colons only introduce a list, a code block or
+  a value, or follow a label.
 
 Do:
 - Use ordered and unordered lists

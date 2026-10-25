@@ -155,6 +155,10 @@ in {
           source = ./skills/manual/SKILL.md;
           force = true;
         };
+        ".claude/skills/writing-style/SKILL.md" = {
+          source = ./skills/writing-style/SKILL.md;
+          force = true;
+        };
         ".claude/skills/grill-me/SKILL.md" = {
           source = "${mattpocockSkills}/skills/productivity/grill-me/SKILL.md";
           force = true;

@@ -84,6 +84,7 @@ in {
       enable = true;
       user = gameUser;
       replaceSuspend = true;
+      sink = "alsa_output.pci-0000_03_00.1.hdmi-stereo";
       controllerVolume.enable = true;
       debug = true;
     };
