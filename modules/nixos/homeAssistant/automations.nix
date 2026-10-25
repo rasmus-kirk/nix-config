@@ -2,6 +2,8 @@
   sensors,
   palette,
 }: let
+  lightsOn = area: "area_entities('${area}') | select('match', 'light\\.') | select('is_state', 'on') | list | count";
+
   color = n: builtins.elemAt palette (n - 1);
 
   bathroomSchedule = [
@@ -18,6 +20,11 @@
     {
       from = 9;
       rgb = color 1;
+      brightness = 100;
+    }
+    {
+      from = 22;
+      rgb = color 2;
       brightness = 100;
     }
     {
@@ -158,7 +165,7 @@ in [
     triggers = [
       {
         trigger = "template";
-        value_template = "{{ area_entities('bathroom') | select('match', 'light\\.') | select('is_state', 'on') | list | count == 0 }}";
+        value_template = "{{ ${lightsOn "bathroom"} == 0 }}";
       }
     ];
     actions = [
@@ -184,7 +191,7 @@ in [
     conditions = [
       {
         condition = "template";
-        value_template = "{{ area_entities('living_room') | select('match', 'light\\.') | select('is_state', 'on') | list | count == 0 }}";
+        value_template = "{{ ${lightsOn "living_room"} == 0 }}";
       }
       {
         condition = "template";
@@ -198,7 +205,7 @@ in [
     actions = let
       anyOn = {
         condition = "template";
-        value_template = "{{ area_entities('living_room') | select('match', 'light\\.') | select('is_state', 'on') | list | count > 0 }}";
+        value_template = "{{ ${lightsOn "living_room"} > 0 }}";
       };
       fade = rgb: brightness: [
         anyOn
@@ -219,14 +226,14 @@ in [
           action = "light.turn_on";
           target.area_id = "living_room";
           data = {
-            rgb_color = [157 0 6];
+            rgb_color = color 3;
             brightness_pct = 1;
           };
         }
       ]
-      ++ fade [255 114 0] 30
-      ++ fade [255 160 0] 65
-      ++ fade [255 195 113] 100;
+      ++ fade (color 3) 30
+      ++ fade (color 2) 65
+      ++ fade (color 1) 100;
   }
   {
     id = "night_lights_off";

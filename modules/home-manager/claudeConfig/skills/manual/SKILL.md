@@ -16,6 +16,7 @@ Auto mode approves commands without the user, so it breaks manual mode. Before t
 - Avoid using sed whenever possible.
 - Use absolute paths. Never hide work in `$(...)`, backticks, `eval`, `xargs`, `sh -c` or encoded strings. Pipe only into read-only stages.
 - Run one command per Bash call. Never chain commands with `;`, `&&` or `||`.
+- Never launch subagents.
 - Use `sudo` without `-n`, because `-n` blocks the YubiKey touch prompt. Never pipe a `sudo` command.
 - Write only inside the working directory or your scratchpad. Never edit dotfiles, `~/.ssh`, `~/.gnupg` or keyrings. Never read secrets or `.env` files.
 - Before a delete or overwrite, show what it removes.
