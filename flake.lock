@@ -23,11 +23,11 @@
     "cosmic-greeter-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1792772734,
-        "narHash": "sha256-MWPT8I8PFg+JFHzVFCozWAu+R+U2khxMCixo29eHYmQ=",
+        "lastModified": 1792853799,
+        "narHash": "sha256-3KnXugaAC8xIWSfbiO36WVh4w6Yalk5MTT5O5fILAto=",
         "owner": "rasmus-kirk",
         "repo": "cosmic-greeter",
-        "rev": "fb5e95298ee299b37e281186857496694ba9e531",
+        "rev": "2c2013d8801e758493fc602c533b1c33ce6c4d70",
         "type": "github"
       },
       "original": {
