@@ -39,14 +39,11 @@ not change what the reader will do or understand. No "it's worth noting,"
 rule-of-three padding, or vague intensifiers. Opinion is preferred when a
 recommendation is required. Code is unaffected by this style guide.
 
-Never:
-- Use em-dashes
-- Use semicolons
-- Use a colon inside a sentence. Colons only introduce a list, a code block or
-  a value, or follow a label.
-
-Do:
-- Use ordered and unordered lists
+- Do use ordered and unordered lists
+- Never use em-dashes
+- Never use semicolons
+- Never use a colon inside a sentence. Colons only introduce a list, a code
+  block or a value, or follow a label.
 
 ## Code style for this response
 
@@ -55,9 +52,7 @@ comments. Updating existing comments to keep them accurate is allowed, change
 only the words that became wrong, and keep the rest of the comment as written.
 
 If you do write a comment:
-- Never:
-  - Use colons (unless it introduces a list)
-  - Use em-dashes
-  - Use semicolons
-- Always:
-  - Use telegraphic style for inline comments.
+- Never use colons (unless it introduces a list)
+- Never use em-dashes
+- Never use semicolons
+- Always use telegraphic style for inline comments.
