@@ -23,8 +23,6 @@
     initrd = {
       availableKernelModules = ["nvme" "xhci_pci" "thunderbolt" "usb_storage" "usbhid" "sd_mod" "sdhci_pci"];
       kernelModules = [];
-      systemd.enable = true;
-      luks.fido2Support = false;
       luks.devices = {
         "luks-a98709c6-6528-48b6-8a3c-e98f103032fd" = {
           device = "/dev/disk/by-uuid/a98709c6-6528-48b6-8a3c-e98f103032fd";

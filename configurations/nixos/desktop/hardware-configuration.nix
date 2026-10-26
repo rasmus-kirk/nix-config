@@ -15,8 +15,6 @@
   boot.initrd = {
     availableKernelModules = ["nvme" "xhci_pci" "usb_storage" "usbhid" "sd_mod" "sdhci_pci"];
     kernelModules = [];
-    systemd.enable = true;
-    luks.fido2Support = false;
     luks.devices = {
       cryptroot = {
         device = "/dev/disk/by-partlabel/cryptroot";
