@@ -119,7 +119,7 @@ in [
         trigger = "state";
         entity_id = "binary_sensor.myggspray_wrlss_mtn_sensor_occupancy";
         to = "off";
-        for.seconds = 30;
+        for.minutes = 2;
       }
     ];
     conditions = [

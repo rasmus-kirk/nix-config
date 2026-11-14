@@ -78,7 +78,7 @@ setting for the current hour.
 | 22:00 to 23:00 | 2, yellow-orange | 100% |
 | 23:00 to 00:00 | 2, yellow-orange | 50% |
 
-The lights turn off after 30 seconds without motion. New motion while the
+The lights turn off after 2 minutes without motion. New motion while the
 lights are on applies the setting for the current hour again.
 
 **Manual mode** (flag on). Any press on remote D1 except DOWN turns the flag
@@ -130,6 +130,33 @@ from the phone app (`mobile_app`).
 | Humidity | 70% | 4 hours |
 | CO2 | 1200 ppm | 30 minutes |
 | PM2.5 | 35 µg/m³ | 30 minutes |
+
+## Known issues
+
+### The Thread radio stops responding
+
+On 2026-11-06 the firmware on the Thread stick stopped responding. The
+stick is `thread.radioDevice`. The USB link stayed up. The border router
+(`otbr-agent`) then failed at each start with
+`Init() at spinel_driver.cpp:87: Failure`, and systemd restarted it for
+two days. All Thread devices went `unavailable`, which also stopped the
+bathroom motion light.
+
+Before the stick stopped, the border router log showed `radio tx timeout`
+and `Failed to communicate with RCP` for about an hour.
+
+A USB reset with `usbreset` did not clear the fault. A power cycle did.
+
+If Thread devices go `unavailable` and `otbr-agent` restarts in a loop:
+
+1. Pull the Thread stick out of its port.
+2. Wait 5 seconds.
+3. Put the stick back in.
+4. Make sure that `systemctl status otbr-agent` shows `active (running)`.
+
+The Matter devices connect again within about 2 minutes.
+
+The cause of the fault is unknown.
 
 ## Notes for agents
 

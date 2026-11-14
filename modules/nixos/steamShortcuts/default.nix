@@ -76,6 +76,7 @@ with lib; let
         log_dir="''${XDG_STATE_HOME:-$HOME/.local/state}/steam-tiles"
         log="$log_dir/${tileName name}.log"
         mkdir -p "$log_dir"
+        # Holds only the latest launch.
         {
           date --iso-8601=seconds
           echo "exe: "${escapeShellArg s.exe}

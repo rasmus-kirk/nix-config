@@ -213,6 +213,7 @@ in {
         incomplete-dir-enabled = false;
         ratio-limit-enabled = true;
         ratio-limit = 20.0;
+        rpc-host-whitelist = "desktop,desktop.tailb0eb01.ts.net";
       };
       package = inputs.nixpkgs-2405.legacyPackages.${pkgs.stdenv.hostPlatform.system}.transmission_4;
       vpn.enable = true;

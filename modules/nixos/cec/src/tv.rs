@@ -132,6 +132,7 @@ impl Tv {
         poll.set_missed_tick_behavior(MissedTickBehavior::Delay);
         loop {
             let event = tokio::select! {
+                biased;
                 event = rx.recv() => event,
                 _ = sigusr1.recv() => Some(Event::Sleep),
                 _ = poll.tick() => None,
