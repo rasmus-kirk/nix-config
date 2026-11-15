@@ -63,11 +63,13 @@ in {
         derivationArgs.preferLocalBuild = true;
         text = ''
           # @describe Bubblewrap sandbox.
-          # @meta version 0.7.0
+          # @meta version 0.8.0
           # @flag --net                 Share the host's network.
           # @flag --rw                  Bind $PWD read-write (default is read-only).
           # @flag --yubi                Expose the YubiKey and its SSH key handle.
           # @flag --tokens              Mount the read-only tokens in tokenDir.
+          # @option --ro* <PATH>        Bind PATH read-only at the same path. Repeatable.
+          # @arg cmd~                   Command to run instead of an interactive zsh.
 
           main() {
             local args=(
@@ -136,6 +138,12 @@ in {
               ''}
             fi
 
+            local path
+            for path in "''${argc_ro[@]}"; do
+              path=$(realpath -e -- "$path")
+              args+=(--ro-bind "$path" "$path")
+            done
+
             # Create state dirs for zsh history, nix and claude
             mkdir -p ${cfg.stateDir}/nix ${cfg.stateDir}/zsh ${cfg.stateDir}/claude
             [ -e ${cfg.stateDir}/claude.json ] || echo '{"hasCompletedOnboarding":true}' > ${cfg.stateDir}/claude.json
@@ -163,8 +171,11 @@ in {
               set -e
               export HOME_MANAGER_BACKUP_EXT=backup
               ${cfg.homeManagerPackage}/activate
+              if [ $# -gt 0 ]; then
+                exec ${boxHome}/.nix-profile/bin/zsh -c 'exec "$@"' zsh "$@"
+              fi
               exec ${boxHome}/.nix-profile/bin/zsh
-            ''}
+            ''} "''${argc_cmd[@]}"
           }
 
           # @cmd Copy a Claude session between host and box.
@@ -200,6 +211,8 @@ in {
             exit 1
           }
 
+          argc_ro=()
+          argc_cmd=()
           eval "$(argc --argc-eval "$0" "$@")"
         '';
       })

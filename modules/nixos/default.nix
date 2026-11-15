@@ -15,5 +15,6 @@
     ./tokens
     ./homeAssistant
     ./server
+    ./llmModules
   ];
 }

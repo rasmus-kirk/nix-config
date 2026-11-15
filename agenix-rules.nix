@@ -8,6 +8,7 @@ in {
   "age/desktop/airvpn-wg.conf.age".publicKeys = [yubi desktop];
   "age/desktop/mam.age".publicKeys = [yubi desktop];
   "age/desktop/mam-vpn.age".publicKeys = [yubi desktop];
+  "age/desktop/prowlarr-api-key.age".publicKeys = [yubi desktop];
 
   # Work
   "age/work/ghcr-auth.age".publicKeys = [yubi work];

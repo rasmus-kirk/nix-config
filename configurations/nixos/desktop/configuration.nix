@@ -45,6 +45,7 @@ in {
       "airvpn-wg.conf".file = ../../../age/desktop/airvpn-wg.conf.age;
       mam.file = ../../../age/desktop/mam.age;
       mam-vpn.file = ../../../age/desktop/mam-vpn.age;
+      prowlarr-api-key.file = ../../../age/desktop/prowlarr-api-key.age;
     };
   };
 
@@ -175,6 +176,17 @@ in {
         ../../../ssh-keys/age/deck-oled.pub
       ];
       prebuiltHosts = ["deck-oled"];
+    };
+    llmModules = {
+      chat = {
+        enable = true;
+        tailscaleServe = true;
+      };
+      mediaAgent = {
+        enable = true;
+        user = username;
+        prowlarrApiKeyFile = config.age.secrets.prowlarr-api-key.path;
+      };
     };
   };
 
