@@ -7,9 +7,11 @@
 # because ptrace_scope=1 stops the game attaching to the Steam client. Nothing
 # here defends against a kernel or GPU-driver exploit.
 #
+# Logs go to the Steam tile log, ~/.local/state/steam-tiles/steam-tile-<game>.log.
+#
 # TODO After the first working launch on the desktop, remove these binds one at
 # a time and keep only the ones the game needs.
-# - /etc/passwd, /etc/group, /etc/machine-id, /etc/localtime
+# - /etc/passwd, /etc/group, /etc/machine-id
 # - /run/opengl-driver-32
 # - $XAUTHORITY
 {
@@ -59,10 +61,7 @@ with lib; let
           exit 1
         fi
 
-        mkdir -p "$runtime/logs"
-        exec > >(tee "$runtime/logs/$game.log") 2>&1
-
-        local debug=()
+        local debug=(--setenv UMU_LOG debug --setenv PRESSURE_VESSEL_VERBOSE 1)
         [[ -v PROTON_LOG ]] && debug+=(--setenv PROTON_LOG "$PROTON_LOG")
         [[ -v WINEDEBUG ]] && debug+=(--setenv WINEDEBUG "$WINEDEBUG")
 
@@ -74,6 +73,7 @@ with lib; let
           XDG_CACHE_HOME="$runtime/cache" \
           PRESSURE_VESSEL_VARIABLE_DIR="$runtime/var" \
           UMU_NO_PROTON=1 PROTONPATH=${proton} \
+          UMU_LOG=debug PRESSURE_VESSEL_VERBOSE=1 \
           ${pkgs.umu-launcher}/bin/umu-run /usr/bin/true
 
         # Runtime overlay is a throwaway layer in RAM. umu and pressure-vessel write
@@ -92,7 +92,7 @@ with lib; let
           --ro-bind-try /etc/passwd /etc/passwd \
           --ro-bind-try /etc/group /etc/group \
           --ro-bind-try /etc/machine-id /etc/machine-id \
-          --ro-bind-try /etc/localtime /etc/localtime \
+          --ro-bind ${pkgs.tzdata}/share/zoneinfo /etc/zoneinfo \
           --tmpfs /tmp \
           --ro-bind-try /tmp/.X11-unix /tmp/.X11-unix \
           --tmpfs "$XDG_RUNTIME_DIR" \

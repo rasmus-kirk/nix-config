@@ -45,6 +45,7 @@ in {
       "airvpn-wg.conf".file = ../../../age/desktop/airvpn-wg.conf.age;
       mam.file = ../../../age/desktop/mam.age;
       mam-vpn.file = ../../../age/desktop/mam-vpn.age;
+      prowlarr-api-key.file = ../../../age/desktop/prowlarr-api-key.age;
     };
   };
 
@@ -180,6 +181,17 @@ in {
       ];
       prebuiltHosts = ["deck-oled"];
     };
+    llmModules = {
+      chat = {
+        enable = true;
+        tailscaleServe = true;
+      };
+      mediaAgent = {
+        enable = true;
+        user = username;
+        prowlarrApiKeyFile = config.age.secrets.prowlarr-api-key.path;
+      };
+    };
   };
 
   # -------------------- Nixarr -------------------- #
@@ -217,6 +229,7 @@ in {
         incomplete-dir-enabled = false;
         ratio-limit-enabled = true;
         ratio-limit = 20.0;
+        rpc-host-whitelist = "desktop,desktop.tailb0eb01.ts.net";
       };
       package = inputs.nixpkgs-2405.legacyPackages.${pkgs.stdenv.hostPlatform.system}.transmission_4;
       vpn.enable = true;
