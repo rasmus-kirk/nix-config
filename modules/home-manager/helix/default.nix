@@ -20,6 +20,42 @@ with lib; let
     # Spellchecking
     harper
   ];
+
+  reflow = pkgs.writeShellApplication {
+    name = "reflow";
+    runtimeInputs = with pkgs; [coreutils gnused];
+    inheritPath = false;
+    text = ''
+      single_space_after_sentences() {
+        sed -E 's/([.?!])  /\1 /g'
+      }
+
+      text=$(cat)
+      read -r first_line <<< "$text"
+
+      case $first_line in
+        '//!'*) prefix='//!' ;;
+        '///'*) prefix='///' ;;
+        '//'*) prefix='//' ;;
+        '##'*) prefix='##' ;;
+        '#'*) prefix='#' ;;
+        '---'*) prefix='---' ;;
+        '--'*) prefix='--' ;;
+        ';;;'*) prefix=';;;' ;;
+        ';;'*) prefix=';;' ;;
+        ';'*) prefix=';' ;;
+        '%%'*) prefix='%%' ;;
+        '%'*) prefix='%' ;;
+        '*'*) prefix='*' ;;
+        *) prefix="" ;;
+      esac
+
+      printf '%s\n' "$text" |
+        single_space_after_sentences |
+        fmt -w 80 -p "$prefix" |
+        single_space_after_sentences
+    '';
+  };
 in {
   options.kirk.helix = {
     enable = mkEnableOption "helix text editor";
@@ -184,9 +220,8 @@ in {
             i = "extend_to_first_nonwhitespace";
           };
 
-          # TODO: make this depend on the helix max-width
           " " = {
-            W = ":pipe fmt -w 80";
+            W = ":pipe ${getExe reflow}";
           };
         };
       };

@@ -397,6 +397,116 @@ with lib; let
     '';
   };
 
+  diagram = pkgs.python3Packages.buildPythonPackage rec {
+    pname = "diagram";
+    version = "0.2.28";
+    pyproject = true;
+    src = pkgs.fetchPypi {
+      inherit pname version;
+      hash = "sha256-ytknmcQ0C8V6dX9ZgCR3n0hm/NpJ8Xdk0PFIpX0/nVw=";
+    };
+    build-system = [pkgs.python3Packages.setuptools];
+  };
+
+  etf = pkgs.writers.writePython3Bin "etf" {
+    libraries = [pkgs.python3Packages.typer diagram];
+    flakeIgnore = ["E501"];
+  } ''
+    import io
+    import json
+    import shutil
+    import urllib.request
+    from datetime import datetime
+
+    import typer
+    from diagram import AxisGraph, AxisGraphScreen, DOption, Point
+
+    app = typer.Typer()
+
+    INTERVALS = {"1d": "5m", "5d": "30m"}
+
+
+    class LineGraph(AxisGraph):
+        @property
+        def null(self):
+            return -4
+
+        def update(self, points, values=None):
+            super(AxisGraph, self).update(points, values)
+            self.screen = AxisGraphScreen(self.size)
+            normalised = list(self.normalised)
+            for start, end in zip(normalised, normalised[1:]):
+                for point in self.line(start, end):
+                    self.set(point)
+
+
+    @app.command()
+    def main(symbol: str = "WEBN.DE", period: str = "1d", height: int = 15):
+        interval = INTERVALS.get(period, "1d")
+        url = (
+            f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+            f"?range={period}&interval={interval}"
+        )
+        request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(request) as response:
+            result = json.load(response)["chart"]["result"][0]
+
+        meta = result["meta"]
+        points = [
+            (time, close)
+            for time, close in zip(result.get("timestamp", []), result["indicators"]["quote"][0].get("close", []))
+            if close is not None
+        ]
+        if not points or points[-1][0] < meta["regularMarketTime"]:
+            points.append((meta["regularMarketTime"], meta["regularMarketPrice"]))
+        if len(points) < 2:
+            raise SystemExit(f"No prices for {symbol} over {period}")
+        times, prices = zip(*((datetime.fromtimestamp(time), close) for time, close in points))
+
+        decimals = meta.get("priceHint", 2)
+        date_format = "%d %b %Y" if interval == "1d" else "%d %b %H:%M"
+        last = len(prices) - 1
+        high = max(range(len(prices)), key=prices.__getitem__)
+        low = min(range(len(prices)), key=prices.__getitem__)
+        change = prices[last] - prices[0]
+
+        def price(i):
+            return f"{prices[i]:.{decimals}f}"
+
+        def point(i):
+            return f"{price(i)} ({times[i]:{date_format}})"
+
+        width = shutil.get_terminal_size().columns - 4
+
+        def label(i):
+            column = min(round(i / last * (width - 1)), width - len(price(i)))
+            return "  │ " + " " * column + price(i)
+
+        option = DOption()
+        option.axis = False
+        option.legend = False
+        option.encoding = "utf-8"
+        graph = LineGraph(Point((width, height)), option)
+        graph.update(list(prices))
+        canvas = io.BytesIO()
+        graph.render(canvas)
+
+        print(f"{meta['longName']} ({meta['symbol']}, {meta['currency']}) {period} {change / prices[0]:+.2%}")
+        print()
+        print(label(high))
+        for row in canvas.getvalue().decode().splitlines():
+            print("  │ " + row)
+        print(label(low))
+        print("  └" + "─" * (width + 1))
+        print()
+        print(f"begin: {point(0)} // end: {point(last)}")
+        print(f"high: {point(high)} // low: {point(low)}")
+        print(f"change: {change:+.{decimals}f} ({change / prices[0]:+.2%})")
+
+
+    app()
+  '';
+
   weather = pkgs.writeShellApplication {
     name = "weather";
     runtimeInputs = with pkgs; [curl coreutils gnused];
@@ -415,6 +525,7 @@ in {
   config = mkIf cfg.enable {
     home.packages = [
       desktop-run
+      etf
       ff-cut
       ff-compress
       git-sign-range

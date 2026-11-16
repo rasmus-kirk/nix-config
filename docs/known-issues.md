@@ -17,3 +17,15 @@ TV does not show "No Signal".
 Unplugging the adapter on the PC side does not fix it. The cause is unknown.
 
 Fix: disconnect the TV from mains power and connect it again.
+
+## COSMIC: Paste inserts an older clipboard entry
+
+At random times a paste into a window in another tab or stack inserts an
+older clipboard entry, not the text that was just copied. The bug is flaky.
+The config runs no clipboard manager.
+
+The cause is unknown.
+
+Debug: while the bug is present, start a Claude session and point it at this
+entry. Copy nothing else until the session has inspected the clipboard
+state.

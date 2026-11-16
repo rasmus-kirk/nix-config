@@ -5,21 +5,53 @@ description: Rules for writing documentation. Use when you write or edit documen
 
 # Writing Style
 
-This skill adds to the rules in `~/.claude/style-rules.md`. Read that file if
-it is not already in your context.
+This skill adds to the rules in `~/.claude/style-rules.md`. Always read that
+file, even if it is already in your context.
+
+Always load the botbabble skill, even if it is already in your context. Use
+its definition and examples, not its rewrite steps. Before you send a text,
+compare it with the examples and rewrite each passage that matches one.
+
+Use the Google developer documentation style guide as the fallback. This
+skill and `style-rules.md` take precedence over it.
 
 ## Content
 
-- Write only what was observed or verified. A hypothesis is not a fact,
-  however often the conversation repeated it.
-- State what the thing does, never what it avoids or lacks.
+- Write only what was observed or verified. Mark everything else, that is
+  guesses, unverified claims and open questions, with a numbered tag, for
+  example `[C1]`. List the tags under **Confirm before publishing** at the
+  end of the subsection.
+- Cut every fact that does not support the point of its paragraph, however
+  true or interesting it is.
+- Write a fact because the reader needs it, never because you know it.
 
 ## Terms
 
+- Don't invent new terms. Use only terms that the project or the field
+  already uses. Describe everything else in plain words.
 - Name a part of the code only if the reader needs the name to find it.
   Otherwise describe what the part does.
 
+## Layout
+
+- Never stack headings. Give each section with subsections a lead-in.
+- Never start a sentence with inline code or a math symbol.
+- Pad each table cell with spaces so that the columns align in the source.
+  Make the separator row as wide as each column.
+
+  ```
+  | Name   | Description         |
+  | ------ | ------------------- |
+  | First  | A short value       |
+  | Second | A much longer value |
+  ```
+
+- Always aim for tables under 90 characters wide. Exceed this only for a
+  comparison over many columns.
+
 ## ASD-STE100
+
+These rules come from ASD-STE100. Each rule ends with an STE100 citation.
 
 ### Words
 
@@ -28,6 +60,8 @@ it is not already in your context.
   "of", "on" or "for". (STE100 2.1)
 - Write "for example", "that is" and "and so on", not "e.g.", "i.e." and
   "etc.". (STE100 GR-6)
+- Write "currently", not "today", for the present state of a system. Use
+  "today" only for the calendar date.
 
 ### Sentences
 

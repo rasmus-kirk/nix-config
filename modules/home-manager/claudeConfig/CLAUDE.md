@@ -50,7 +50,10 @@ When a decision needs the user's input, label each option with a response number
 - Responding with an option that names an action is an order to do it.
 - A label with a question mark (`7a?`) is an order to explain that option, not to do it.
 - No catch-all option like "something else?". The user can always answer freely.
-- Cite an earlier option like a reference. The sentence must read correctly with the brackets removed. Looking up a bare label means scrolling back through the conversation, which is frustrating:
-  - "We kept `CONFIG_NAME` [4b]."
-  - "Rerunning the network split [1d] is still open."
+- Cite an earlier option like a footnote. State the decision in words, so that the reader understands it without looking up the option. Put the label after it. The sentence must read correctly with the label removed. Looking up a bare label means scrolling back through the conversation, which is frustrating:
+  - Right: "We kept the name `CONFIG_NAME` instead of renaming it to `SETTINGS_NAME` [4b]."
+  - Right: "We have not yet rerun the network split test against the three-node cluster [1d]."
+  - Wrong: "Like what was decided in [8a]."
+  - Wrong: "We kept the name [4b]."
+  - Wrong: "[1d] is still open."
 - Bring up an open option again only when it blocks the next step, or when the user asks for a status or overview.

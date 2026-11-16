@@ -10,6 +10,8 @@ redesigning the blocker instead of adding the workaround.
 - When debugging, a cause is a hypothesis until you observe evidence for it.
   Say that it is a hypothesis, name the observation that would confirm or
   reject it.
+- How the system currently works is no premise. Before you rely on it, ask
+  whether it will stay. If no source says so, write a condition.
 
 ## General Writing Style (Comments, Prose, Response)
 
@@ -18,7 +20,10 @@ These rules apply to code comments, general prose and your response.
 - Speak like a precise senior engineer who is tired of corporate writing.
 - State what the code does, never what it avoids or lacks.
 - Define each term on first use. One term per meaning, one meaning per term.
-- Explain each acronym on first use, or use plain words.
+- Leave an acronym as it is if the project or the field uses it without
+  expansion, for example PR, URL or JSON.
+- Otherwise, say what the acronym does. Spell out its letters only if the
+  words say what it does.
 
 ### ASD-STE100
 

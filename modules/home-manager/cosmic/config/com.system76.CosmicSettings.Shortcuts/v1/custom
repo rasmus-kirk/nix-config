@@ -236,7 +236,13 @@
             Super,
         ],
         key: "v",
-    ): Spawn("wtype -s 300 \"Check the newest image in /tmp/screenshots\" -k Return -k Return"),
+    ): Spawn("wtype -s 300 \"Check the newest image in /tmp/screenshots\" -M shift -k Return -k Return -m shift"),
+    (
+        modifiers: [
+            Super,
+        ],
+        key: "x",
+    ): Spawn("wtype -s 300 \"/whip\" -k Return"),
     (
         modifiers: [
             Super,

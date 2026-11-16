@@ -86,6 +86,7 @@ in {
           unstage = "restore --staged";
           update = "submodule update --init --recursive";
 
+          pr-diff = "!git fetch && git reset --soft $(git merge-base HEAD origin/main)";
           a = "add .";
           ca = "commit -a";
           c = "commit";

@@ -74,6 +74,10 @@ in {
     locale.enable = true;
     hardening.enable = true;
     tokens.user = ["CLAUDE_CODE_OAUTH_TOKEN" "GH_TOKEN"];
+    blockedHosts = {
+      enable = true;
+      blockSocial = false;
+    };
     nixosScripts = {
       enable = true;
       configDir = configDir;

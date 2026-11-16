@@ -101,12 +101,15 @@ in {
     gnused
     less
     nix
-
+    diffutils
+    gnutar
+    gzip
+    xz
+    unzip
+    file
     curl
     gcx
-
     wl-clipboard
-
     age
     age-plugin-fido2-hmac
   ];

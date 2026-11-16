@@ -37,6 +37,17 @@ with lib; let
     hash = "sha256-zQ/wVrcHjIC+UjP4nDw3HARMqZd6LIDFmHKlp8AADYI=";
   };
 
+  userScript = pkgs.symlinkJoin {
+    name = "user-script";
+    paths = [(pkgs.writers.writePython3Bin "user-script" {libraries = [pkgs.python3Packages.typer];} (builtins.readFile ./user-script/user-script.py))];
+    nativeBuildInputs = [pkgs.makeWrapper];
+    postBuild = ''
+      wrapProgram $out/bin/user-script \
+        --set USER_SCRIPT_BASH ${getExe pkgs.bash} \
+        --set USER_SCRIPT_SCRIPT ${pkgs.util-linux}/bin/script
+    '';
+  };
+
   mcpConfig = pkgs.writeText "claude-mcp.json" (builtins.toJSON {mcpServers = cfg.mcpServers;});
 
   claudeWithMcp = pkgs.symlinkJoin {
@@ -110,6 +121,7 @@ in {
       home.packages = [claudeWithMcp];
     })
     (mkIf cfg.enable {
+      home.packages = [userScript];
       home.file = {
         ".claude/settings.json" = {
           text = builtins.toJSON settings;
@@ -125,6 +137,10 @@ in {
         };
         ".claude/skills/ask/SKILL.md" = {
           source = ./skills/ask/SKILL.md;
+          force = true;
+        };
+        ".claude/skills/pr-comments/SKILL.md" = {
+          source = ./skills/pr-comments/SKILL.md;
           force = true;
         };
         ".claude/skills/pr-docs/SKILL.md" = {
@@ -157,6 +173,18 @@ in {
         };
         ".claude/skills/writing-style/SKILL.md" = {
           source = ./skills/writing-style/SKILL.md;
+          force = true;
+        };
+        ".claude/skills/eli5/SKILL.md" = {
+          source = ./skills/eli5/SKILL.md;
+          force = true;
+        };
+        ".claude/skills/botbabble/SKILL.md" = {
+          source = ./skills/botbabble/SKILL.md;
+          force = true;
+        };
+        ".claude/skills/whip/SKILL.md" = {
+          source = ./skills/whip/SKILL.md;
           force = true;
         };
         ".claude/skills/grill-me/SKILL.md" = {
