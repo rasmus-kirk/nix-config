@@ -52,7 +52,7 @@ with lib; let
 
       printf '%s\n' "$text" |
         single_space_after_sentences |
-        fmt -w 80 -p "$prefix" |
+        fmt -w "''${1:-80}" -p "$prefix" |
         single_space_after_sentences
     '';
   };
@@ -222,6 +222,7 @@ in {
 
           " " = {
             W = ":pipe ${getExe reflow}";
+            "C-w" = ":pipe ${getExe reflow} 100";
           };
         };
       };

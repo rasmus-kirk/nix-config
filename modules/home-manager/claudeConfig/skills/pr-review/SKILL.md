@@ -5,6 +5,8 @@ description: Review a PR with code-review and pr-docs, then walk through the fin
 
 # Review PR
 
+Assume the CI passes. Never run the checks the CI runs, such as builds, tests, linters and formatters. Do not check the CI status, and do not list the CI checks under "Not run or not verified".
+
 1. Run the `code-review` skill on the PR without `--comment`.
 2. Run the `pr-docs` skill on the same PR.
 3. Check other worktrees and branches for related work.

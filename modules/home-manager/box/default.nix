@@ -8,8 +8,6 @@ with lib; let
   cfg = config.kirk.box;
   boxHome = "/home/${cfg.user}";
   boxTokenDir = "${boxHome}/.secret/tokens-read-only";
-  hostProjects = "${config.home.homeDirectory}/.claude/projects";
-  boxProjects = "${cfg.stateDir}/claude/projects";
 in {
   options.kirk.box = {
     enable = mkEnableOption "bubblewrap sandbox";
@@ -63,7 +61,7 @@ in {
         derivationArgs.preferLocalBuild = true;
         text = ''
           # @describe Bubblewrap sandbox.
-          # @meta version 0.8.0
+          # @meta version 0.9.0
           # @flag --net                 Share the host's network.
           # @flag --rw                  Bind $PWD read-write (default is read-only).
           # @flag --yubi                Expose the YubiKey and its SSH key handle.
@@ -176,39 +174,6 @@ in {
               fi
               exec ${boxHome}/.nix-profile/bin/zsh
             ''} "''${argc_cmd[@]}"
-          }
-
-          # @cmd Copy a Claude session between host and box.
-          # @arg direction![in|out]     in copies host → box, out copies box → host.
-          # @arg id!                    Session ID.
-          copy() {
-            if [ "''${argc_direction:-}" = in ]; then
-              copy_session ${hostProjects} ${boxProjects}
-            else
-              copy_session ${boxProjects} ${hostProjects}
-            fi
-          }
-
-          copy_session() {
-            local from="$1" to="$2" id="''${argc_id:-}"
-
-            if [ "''${BOX:-0}" = 1 ]; then
-              echo "box: run 'box copy' on the host" >&2
-              exit 1
-            fi
-
-            cd "$from"
-            local key
-            for key in ./*/; do
-              [ -f "$key$id.jsonl" ] || continue
-              mkdir -p "$to/$key"
-              cp "$key$id.jsonl" "$to/$key"
-              echo "claude --resume $id"
-              return
-            done
-
-            echo "box: no session $id in $from" >&2
-            exit 1
           }
 
           argc_ro=()

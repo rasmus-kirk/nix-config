@@ -9,6 +9,7 @@
   homeDir = "/home/${username}";
 in {
   kirk = {
+    claudeConfig.enable = true;
     terminalTools.enable = true;
     helix.enable = true;
     podman.enable = true;
